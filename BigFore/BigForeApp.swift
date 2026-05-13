@@ -12,7 +12,15 @@ import SwiftData
 struct BigForeApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            GolfCourse.self,
+            GolfCourseTee.self,
+            GolfCourseHole.self,
+            CourseGeometry.self,
+            HoleGeometry.self,
+            CourseMapFeaturePoint.self,
+            GolfRound.self,
+            RoundPlayer.self,
+            HoleScore.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

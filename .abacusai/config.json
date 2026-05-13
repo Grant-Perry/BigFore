@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -k -L https://api.golfcourseapi.com/docs/api/ 2>&1 | python3 - <<'PY' 2>&1 || true\nimport sys,re\nhtml=sys.stdin.rea…)",
+      "Bash(curl -k -L -D - https://api.golfcourseapi.com/docs/api/ -o /tmp/golfcourseapi_docs.html 2>&1 || true\nwc -c /tmp/golfcour…)",
+      "Bash(curl -k -L https://api.golfcourseapi.com/docs/api/openapi.yml 2>&1 | python3 - <<'PY' 2>&1 || true\nimport sys, re\ntext=s…)",
+      "Bash(curl -k -L -D - https://api.golfcourseapi.com/docs/api/openapi.yml -o /tmp/golfcourseapi_openapi.yml 2>&1 || true\nwc -c …)",
+      "Bash(xcodebuild -list -project BigFore.xcodeproj 2>&1 || true)",
+      "Bash(xcodebuild test -project BigFore.xcodeproj -scheme BigFore -destination 'platform=iOS Simulator,name=iPhone 17' 2>&1 || …)",
+      "Bash(git --no-pager diff -- BigFore/BigForeApp.swift BigFore/ContentView.swift BigFore/Models/GolfCourseModels.swift BigFore/…)",
+      "Bash(python3 - <<'PY' 2>&1 || true\nimport json, urllib.request\nkey='DPP3A3BWZYVZELH6DIBLHQRNUE'\nreq=urllib.request.Request('h…)",
+      "Bash(python3 - <<'PY' 2>&1 || true\nimport json, subprocess, urllib.parse\nkey='DPP3A3BWZYVZELH6DIBLHQRNUE'\nquery='pinehurst'\nu…)",
+      "Bash(xcodebuild test -project BigFore.xcodeproj -scheme BigFore -destination 'platform=iOS Simulator,name=iPhone 17' 2>&1 || …)",
+      "Bash(xcodebuild -list -project BigFore.xcodeproj 2>&1 || true)",
+      "Bash(xcodebuild -showdestinations -project BigFore.xcodeproj -scheme BigFore 2>&1 || true)",
+      "Bash(xcodebuild test -project BigFore.xcodeproj -scheme BigFore -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26…)",
+      "Bash(git --no-pager diff -- BigFore/Services/GolfCourseAPIClient.swift 2>&1 || true)",
+      "Bash(git --no-pager status --short 2>&1 || true)",
+      "Bash(mkdir -p BigFore/Features/Rounds 2>&1 || true)",
+      "Bash(xcodebuild test -project BigFore.xcodeproj -scheme BigFore -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26…)",
+      "Bash(xcodebuild test -project BigFore.xcodeproj -scheme BigFore -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26…)",
+      "Bash(mkdir -p BigFore/Features/Maps 2>&1 || true)"
+    ]
+  }
+}

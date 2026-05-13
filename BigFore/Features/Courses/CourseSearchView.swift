@@ -1,0 +1,242 @@
+import SwiftData
+import SwiftUI
+
+struct CourseSearchView: View {
+    @Environment(\.modelContext) private var modelContext
+    @AppStorage("golfCourseAPIKey") private var apiKey = GolfCourseAPIConfiguration.defaultAPIKey
+    @State private var viewModel = CourseSearchViewModel(apiKey: GolfCourseAPIConfiguration.defaultAPIKey)
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Search") {
+                    TextField("Search courses", text: $viewModel.query)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.search)
+                        .onSubmit {
+                            Task { await viewModel.search() }
+                        }
+
+                    Button(viewModel.isSearching ? "Searching..." : "Search") {
+                        Task { await viewModel.search() }
+                    }
+                    .disabled(viewModel.isSearching || viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+
+                if let errorMessage = viewModel.errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                if let statusMessage = viewModel.statusMessage {
+                    Section {
+                        Text(statusMessage)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if !viewModel.recents.isEmpty {
+                    Section("Recents") {
+                        ForEach(viewModel.recents) { recent in
+                            Button {
+                                Task { await viewModel.loadCourse(id: recent.id) }
+                            } label: {
+                                CourseSummaryRow(title: recent.displayName, subtitle: recent.locationText)
+                            }
+                        }
+                    }
+                }
+
+                Section("Results") {
+                    if viewModel.results.isEmpty && !viewModel.isSearching {
+                        Text("Search for a course to inspect tee options.")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ForEach(viewModel.results) { course in
+                        Button {
+                            Task { await viewModel.loadCourse(id: course.id) }
+                        } label: {
+                            CourseSummaryRow(title: course.displayName, subtitle: course.location.displayText ?? "No address")
+                        }
+                    }
+                }
+
+                if viewModel.isLoadingCourse {
+                    Section {
+                        ProgressView("Loading course")
+                    }
+                }
+
+                if let selectedCourse = viewModel.selectedCourse {
+                    CourseDetailSection(
+                        course: selectedCourse,
+                        selectedTeeID: viewModel.selectedTeeID,
+                        geometryNotice: viewModel.courseGeometryNotice,
+                        selectTee: viewModel.selectTee(id:)
+                    ) {
+                        viewModel.save(course: selectedCourse, modelContext: modelContext)
+                    }
+                }
+            }
+            .navigationTitle("Courses")
+            .onAppear {
+                viewModel.apiKey = apiKey
+            }
+        }
+    }
+}
+
+private struct CourseSummaryRow: View {
+    let title: String
+    let subtitle: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .foregroundStyle(.primary)
+
+            if let subtitle {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+struct CourseDetailSection: View {
+    let course: GolfCourseAPICourse
+    let selectedTeeID: String?
+    let geometryNotice: String
+    let selectTee: (String) -> Void
+    let save: () -> Void
+
+    private var selectedTee: GolfCourseAPITeeBox? {
+        course.allTees.first { $0.id == selectedTeeID }
+    }
+
+    var body: some View {
+        Section("Selected Course") {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(course.displayName)
+                    .font(.headline)
+                if let address = course.location.address {
+                    Text(address)
+                }
+                if let latitude = course.location.latitude, let longitude = course.location.longitude {
+                    Text("Course location: \(latitude), \(longitude)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("No course-level coordinates returned.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Text(geometryNotice)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button("Save Course") {
+                save()
+            }
+
+            if let mapPoint = CourseMapPoint(apiCourse: course) {
+                NavigationLink("Open Course Map") {
+                    CourseMapView(course: mapPoint)
+                }
+            }
+
+            if let selectedTee {
+                NavigationLink {
+                    StartRoundView(course: course, tee: selectedTee)
+                } label: {
+                    Label("Start Round", systemImage: "figure.golf")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+            } else {
+                Button("Start Round", systemImage: "figure.golf") {}
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
+                    .disabled(true)
+
+                Text("Select a tee before starting a round.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        Section("Tees") {
+            if course.allTees.isEmpty {
+                Text("No tees were returned for this course.")
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(course.allTees) { tee in
+                APITeeSelectionRow(
+                    tee: tee,
+                    isSelected: tee.id == selectedTeeID,
+                    select: { selectTee(tee.id) }
+                )
+            }
+        }
+    }
+}
+
+private struct APITeeSelectionRow: View {
+    let tee: GolfCourseAPITeeBox
+    let isSelected: Bool
+    let select: () -> Void
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 8) {
+                if let rating = tee.courseRating, let slope = tee.slopeRating {
+                    LabeledContent("Rating / Slope", value: "\(rating.formatted()) / \(slope)")
+                }
+
+                ForEach(tee.holesWithNumbers) { hole in
+                    HStack {
+                        Text("Hole \(hole.number)")
+                        Spacer()
+                        Text("Par \(hole.par ?? 0)")
+                        Text("\(hole.yardage ?? 0) yds")
+                        Text("HCP \(hole.handicap ?? 0)")
+                    }
+                    .font(.caption)
+                }
+            }
+            .padding(.top, 4)
+        } label: {
+            HStack(spacing: 12) {
+                Button(action: select) {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .imageScale(.large)
+                        .foregroundStyle(isSelected ? .green : .secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isSelected ? "Selected tee" : "Select tee")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(tee.teeName) · \(tee.gender.capitalized)")
+                        .font(.headline)
+                    Text("\(tee.totalYards ?? 0) yds · Par \(tee.parTotal ?? 0)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    CourseSearchView()
+        .modelContainer(for: [GolfCourse.self, GolfCourseTee.self, GolfCourseHole.self, CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, GolfRound.self, RoundPlayer.self, HoleScore.self], inMemory: true)
+}

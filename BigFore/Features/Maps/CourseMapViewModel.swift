@@ -1,0 +1,1070 @@
+import CoreLocation
+import Foundation
+import MapKit
+import Observation
+import SwiftData
+import SwiftUI
+
+struct CourseMapShotMarker: Identifiable {
+    let id: UUID
+    let shotNumber: Int
+    var startCoordinate: CLLocationCoordinate2D
+    var ballCoordinate: CLLocationCoordinate2D
+
+    init(id: UUID = UUID(), shotNumber: Int, startCoordinate: CLLocationCoordinate2D, ballCoordinate: CLLocationCoordinate2D) {
+        self.id = id
+        self.shotNumber = shotNumber
+        self.startCoordinate = startCoordinate
+        self.ballCoordinate = ballCoordinate
+    }
+}
+
+struct CourseMapShotSummary: Identifiable, Equatable {
+    let id: UUID
+    let shotNumber: Int
+    let distanceFromPreviousText: String
+    let distanceToPinText: String?
+    let isSelected: Bool
+}
+
+private struct CourseMapHoleSession {
+    var measuredCoordinate: CLLocationCoordinate2D?
+    var teeBoxCoordinate: CLLocationCoordinate2D?
+    var holePinCoordinate: CLLocationCoordinate2D?
+    var shotStartCoordinate: CLLocationCoordinate2D?
+    var shotEndCoordinate: CLLocationCoordinate2D?
+    var shotMarkers: [CourseMapShotMarker]
+    var selectedShotMarkerID: UUID?
+    var currentShotMarkerID: UUID?
+
+    var isEmpty: Bool {
+        measuredCoordinate == nil
+            && teeBoxCoordinate == nil
+            && holePinCoordinate == nil
+            && shotStartCoordinate == nil
+            && shotEndCoordinate == nil
+            && shotMarkers.isEmpty
+            && selectedShotMarkerID == nil
+            && currentShotMarkerID == nil
+    }
+}
+
+@MainActor
+@Observable
+final class CourseMapViewModel {
+    let course: CourseMapPoint
+    private var standaloneHoleNumber: Int
+    var round: GolfRound?
+    var locationService: LocationService
+    var position: MapCameraPosition
+    var selectionMode = CourseMapSelectionMode.measurementPin
+    var measuredCoordinate: CLLocationCoordinate2D?
+    var teeBoxCoordinate: CLLocationCoordinate2D?
+    var holePinCoordinate: CLLocationCoordinate2D?
+    var shotStartCoordinate: CLLocationCoordinate2D?
+    var shotEndCoordinate: CLLocationCoordinate2D?
+    var shotMarkers: [CourseMapShotMarker] = []
+    var selectedShotMarkerID: UUID?
+    var selectedScoringPlayerID: UUID?
+    var selectedFeatureKind = CourseMapFeatureKind.target
+    var featureLabel = ""
+    var statusMessage: String?
+    var errorMessage: String?
+    private(set) var cameraCenter: CLLocationCoordinate2D
+    private(set) var cameraDistance: CLLocationDistance
+    private(set) var cameraHeading: CLLocationDirection
+    private(set) var cameraPitch: CGFloat
+    private let distanceCalculator: DistanceCalculator
+    private let geometryEditor: CourseGeometryEditor
+    private var currentShotMarkerID: UUID?
+    private var holeSessions: [Int: CourseMapHoleSession] = [:]
+    private static let defaultCameraDistance: CLLocationDistance = 1_200
+    private static let minimumCameraDistance: CLLocationDistance = 75
+    private static let maximumCameraDistance: CLLocationDistance = 25_000
+    private static let rotationStep: CLLocationDirection = 15
+
+    init(
+        course: CourseMapPoint,
+        currentHoleNumber: Int? = nil,
+        round: GolfRound? = nil,
+        locationService: LocationService? = nil,
+        distanceCalculator: DistanceCalculator? = nil,
+        geometryEditor: CourseGeometryEditor = CourseGeometryEditor()
+    ) {
+        self.course = course
+        self.standaloneHoleNumber = round?.currentHole ?? currentHoleNumber ?? 1
+        self.round = round
+        self.locationService = locationService ?? LocationService()
+        self.distanceCalculator = distanceCalculator ?? DistanceCalculator()
+        self.geometryEditor = geometryEditor
+        selectedScoringPlayerID = Self.sortedPlayers(for: round).first?.id
+        cameraCenter = course.coordinate
+        cameraDistance = Self.defaultCameraDistance
+        cameraHeading = 0
+        cameraPitch = 0
+        position = .camera(Self.camera(center: course.coordinate, distance: Self.defaultCameraDistance))
+    }
+
+    var mapSubtitle: String {
+        "\(course.clubName) · Hole \(targetHoleNumber)"
+    }
+
+    var measuredPointDistanceFromCourseText: String? {
+        guard let measuredCoordinate else {
+            return nil
+        }
+
+        return distanceCalculator.formattedYards(from: course.coordinate, to: measuredCoordinate)
+    }
+
+    var measuredPointDistanceFromUserText: String? {
+        guard let measuredCoordinate, let currentLocation = locationService.currentLocation else {
+            return nil
+        }
+
+        return distanceCalculator.formattedYards(from: currentLocation.coordinate, to: measuredCoordinate)
+    }
+
+    var teeToHolePinDistanceText: String? {
+        guard let teeBoxCoordinate, let holePinCoordinate else {
+            return nil
+        }
+
+        return distanceCalculator.formattedYards(from: teeBoxCoordinate, to: holePinCoordinate)
+    }
+
+    var shotLocationToHolePinDistanceText: String? {
+        guard let holePinCoordinate, let shotLocationCoordinate else {
+            return nil
+        }
+
+        return distanceCalculator.formattedYards(from: shotLocationCoordinate, to: holePinCoordinate)
+    }
+
+    var shotLocationToHolePinLabel: String {
+        if shotEndCoordinate != nil {
+            return "Ball to pin"
+        }
+
+        if locationService.currentLocation != nil {
+            return "Me to pin"
+        }
+
+        if shotStartCoordinate != nil {
+            return "Shot start to pin"
+        }
+
+        return "Tee to pin"
+    }
+
+    var selectedShotMarker: CourseMapShotMarker? {
+        guard let selectedShotMarkerID else {
+            return nil
+        }
+
+        return shotMarkers.first { $0.id == selectedShotMarkerID }
+    }
+
+    var selectedShotMarkerDistanceToPinText: String? {
+        guard let selectedShotMarker, let holePinCoordinate else {
+            return nil
+        }
+
+        return distanceCalculator.formattedYards(from: selectedShotMarker.ballCoordinate, to: holePinCoordinate)
+    }
+
+    var selectedShotMarkerTitle: String? {
+        guard let selectedShotMarker else {
+            return nil
+        }
+
+        return "Shot \(selectedShotMarker.shotNumber) ball"
+    }
+
+    var shotSummaries: [CourseMapShotSummary] {
+        shotMarkers.map { marker in
+            CourseMapShotSummary(
+                id: marker.id,
+                shotNumber: marker.shotNumber,
+                distanceFromPreviousText: distanceCalculator.formattedYards(
+                    from: previousShotCoordinate(for: marker),
+                    to: marker.ballCoordinate
+                ),
+                distanceToPinText: holePinCoordinate.map {
+                    distanceCalculator.formattedYards(from: marker.ballCoordinate, to: $0)
+                },
+                isSelected: marker.id == selectedShotMarkerID
+            )
+        }
+    }
+
+    var canStartNextShotFromBall: Bool {
+        shotEndCoordinate != nil
+    }
+
+    var manualShotHelpText: String {
+        "Set Tee and Pin once. Then Start, Ball, Next Shot, repeat."
+    }
+
+    var courseToMeasuredCoordinates: [CLLocationCoordinate2D]? {
+        guard let measuredCoordinate else {
+            return nil
+        }
+
+        return [course.coordinate, measuredCoordinate]
+    }
+
+    var userToMeasuredCoordinates: [CLLocationCoordinate2D]? {
+        guard let measuredCoordinate, let currentLocation = locationService.currentLocation else {
+            return nil
+        }
+
+        return [currentLocation.coordinate, measuredCoordinate]
+    }
+
+    var shotDistanceText: String? {
+        guard let shotStartCoordinate, let shotEndCoordinate = shotMeasurementEndCoordinate else {
+            return nil
+        }
+
+        return distanceCalculator.formattedYards(from: shotStartCoordinate, to: shotEndCoordinate)
+    }
+
+    var shotMeasurementEndCoordinate: CLLocationCoordinate2D? {
+        shotEndCoordinate ?? locationService.currentLocation?.coordinate
+    }
+
+    var isTrackingShot: Bool {
+        shotStartCoordinate != nil && shotEndCoordinate == nil
+    }
+
+    var shotMeasurementCoordinates: [CLLocationCoordinate2D]? {
+        guard let shotStartCoordinate, let shotEndCoordinate = shotMeasurementEndCoordinate else {
+            return nil
+        }
+
+        return [shotStartCoordinate, shotEndCoordinate]
+    }
+
+    var teeToHolePinCoordinates: [CLLocationCoordinate2D]? {
+        guard let teeBoxCoordinate, let holePinCoordinate else {
+            return nil
+        }
+
+        return [teeBoxCoordinate, holePinCoordinate]
+    }
+
+    var shotLocationToHolePinCoordinates: [CLLocationCoordinate2D]? {
+        guard let shotLocationCoordinate, let holePinCoordinate else {
+            return nil
+        }
+
+        return [shotLocationCoordinate, holePinCoordinate]
+    }
+
+    var targetHoleNumber: Int {
+        round?.currentHole ?? standaloneHoleNumber
+    }
+
+    var availableHoles: [Int] {
+        guard let selectedScoringPlayer else {
+            return Array(1...18)
+        }
+
+        let holes = selectedScoringPlayer.scores.map(\.holeNumber).sorted()
+        return holes.isEmpty ? Array(1...18) : holes
+    }
+
+    var previousHoleNumber: Int? {
+        adjacentHole(from: targetHoleNumber, offset: -1)
+    }
+
+    var nextHoleNumber: Int? {
+        adjacentHole(from: targetHoleNumber, offset: 1)
+    }
+
+    var canMoveToPreviousHole: Bool {
+        previousHoleNumber != nil
+    }
+
+    var canMoveToNextHole: Bool {
+        nextHoleNumber != nil
+    }
+
+    var defaultFeatureLabel: String {
+        "\(selectedFeatureKind.title) \(targetHoleNumber)"
+    }
+
+    var scoringPlayers: [RoundPlayer] {
+        Self.sortedPlayers(for: round)
+    }
+
+    var selectedScoringPlayer: RoundPlayer? {
+        if selectedScoringPlayerID == nil {
+            selectedScoringPlayerID = scoringPlayers.first?.id
+        }
+
+        guard let selectedScoringPlayerID else {
+            return scoringPlayers.first
+        }
+
+        return scoringPlayers.first { $0.id == selectedScoringPlayerID } ?? scoringPlayers.first
+    }
+
+    var selectedHoleScore: HoleScore? {
+        selectedScoringPlayer?.scores.first { $0.holeNumber == targetHoleNumber }
+    }
+
+    var manualShotScoreText: String? {
+        guard let selectedScoringPlayer else {
+            return nil
+        }
+
+        let scoreText = selectedHoleScore.map { $0.strokes > 0 ? "\($0.strokes)" : "-" } ?? "-"
+        return "Scoring \(selectedScoringPlayer.name): \(scoreText) strokes for Hole \(targetHoleNumber)."
+    }
+
+    var canSaveHole: Bool {
+        round != nil && (!shotMarkers.isEmpty || currentHoleHasScore)
+    }
+
+    var saveHoleButtonTitle: String {
+        "Save Hole"
+    }
+
+    var saveHoleActionAccessibilityLabel: String {
+        guard round != nil else {
+            return "Save hole"
+        }
+
+        if nextHoleNumber == nil {
+            return "Save final hole and finish round"
+        }
+
+        return "Save hole and go to next hole"
+    }
+
+    var saveHoleHelpText: String? {
+        guard round != nil else {
+            return nil
+        }
+
+        if !canSaveHole {
+            return "Track a shot or enter a score to enable Save Hole."
+        }
+
+        if let nextHoleNumber {
+            return "Saves Hole \(targetHoleNumber) and moves to Hole \(nextHoleNumber)."
+        }
+
+        return "Saves Hole \(targetHoleNumber) and finishes the round."
+    }
+
+    func applyStoredHoleSetup(from geometries: [CourseGeometry]) {
+        let setup = Self.preferredHoleSetup(from: geometries, holeNumber: targetHoleNumber)
+        let session = holeSessions[targetHoleNumber]
+        teeBoxCoordinate = setup.teeBoxCoordinate ?? session?.teeBoxCoordinate
+        holePinCoordinate = setup.holePinCoordinate ?? session?.holePinCoordinate
+    }
+
+    func requestLocationAccess() {
+        locationService.requestLocationAccess()
+    }
+
+    func updateCameraState(_ camera: MapCamera) {
+        cameraCenter = camera.centerCoordinate
+        cameraDistance = Self.clampedDistance(camera.distance)
+        cameraHeading = Self.normalizedHeading(camera.heading)
+        cameraPitch = camera.pitch
+    }
+
+    func showCourse() {
+        focusCamera(on: course.coordinate)
+    }
+
+    func showUser() {
+        guard let currentLocation = locationService.currentLocation else {
+            focusCamera(on: course.coordinate)
+            return
+        }
+
+        focusCamera(on: currentLocation.coordinate)
+    }
+
+    func showMeasuredPin() {
+        guard let measuredCoordinate else {
+            return
+        }
+
+        focusCamera(on: measuredCoordinate)
+    }
+
+    func showTeeBox() {
+        guard let teeBoxCoordinate else {
+            return
+        }
+
+        focusCamera(on: teeBoxCoordinate)
+    }
+
+    func showHolePin() {
+        guard let holePinCoordinate else {
+            return
+        }
+
+        focusCamera(on: holePinCoordinate)
+    }
+
+    func showShotMeasurement() {
+        guard let shotMeasurementCoordinates else {
+            return
+        }
+
+        focusCamera(containing: shotMeasurementCoordinates)
+    }
+
+    func focusSelectedHole(from geometries: [CourseGeometry]) {
+        let anchors = Self.userMappedHoleAnchors(from: geometries, holeNumber: targetHoleNumber)
+
+        if let teeBoxCoordinate = anchors.teeBoxCoordinate, let holePinCoordinate = anchors.holePinCoordinate {
+            focusCamera(containing: [teeBoxCoordinate, holePinCoordinate])
+            return
+        }
+
+        if let holePinCoordinate = anchors.holePinCoordinate {
+            focusCamera(on: holePinCoordinate)
+            return
+        }
+
+        if let teeBoxCoordinate = anchors.teeBoxCoordinate {
+            focusCamera(on: teeBoxCoordinate)
+            return
+        }
+
+        if let shotMeasurementCoordinates {
+            focusCamera(containing: shotMeasurementCoordinates)
+            return
+        }
+
+        if let previousHoleAnchor = Self.previousHoleFallbackAnchor(from: geometries, before: targetHoleNumber) {
+            focusCamera(on: previousHoleAnchor)
+            return
+        }
+
+        focusCamera(on: course.coordinate)
+    }
+
+    func zoomIn() {
+        setCamera(distance: cameraDistance * 0.5)
+    }
+
+    func zoomOut() {
+        setCamera(distance: cameraDistance * 2)
+    }
+
+    func rotateLeft() {
+        setCamera(heading: cameraHeading - Self.rotationStep)
+    }
+
+    func rotateRight() {
+        setCamera(heading: cameraHeading + Self.rotationStep)
+    }
+
+    func resetNorth() {
+        setCamera(heading: 0)
+    }
+
+    func handleMapTap(at coordinate: CLLocationCoordinate2D, modelContext: ModelContext? = nil) {
+        selectMapLocation(at: coordinate, modelContext: modelContext)
+    }
+
+    func selectMapLocation(at coordinate: CLLocationCoordinate2D, modelContext: ModelContext? = nil) {
+        statusMessage = nil
+        errorMessage = nil
+
+        switch selectionMode {
+        case .measurementPin:
+            measurePoint(at: coordinate)
+            statusMessage = "Measurement pin set."
+        case .teeBox:
+            teeBoxCoordinate = coordinate
+            saveStickyHoleAnchor(kind: .teeBox, coordinate: coordinate, modelContext: modelContext)
+        case .holePin:
+            holePinCoordinate = coordinate
+            saveStickyHoleAnchor(kind: .greenPin, coordinate: coordinate, modelContext: modelContext)
+        case .shotStart:
+            startShot(at: coordinate)
+            statusMessage = "Shot start set."
+        case .shotBall:
+            markShotEnd(at: coordinate, modelContext: modelContext)
+            statusMessage = shotStartCoordinate == nil ? "Ball set. Add a shot start to measure distance." : "Ball set. Use Next Shot to continue from here."
+            if shotStartCoordinate != nil {
+                showShotMeasurement()
+            }
+        case .moveShotBall:
+            updateSelectedShotMarkerBall(to: coordinate)
+        }
+    }
+
+    func setShotStartTapMode() {
+        selectionMode = .shotStart
+        statusMessage = "Tap the map to set shot start for Hole \(targetHoleNumber)."
+        errorMessage = nil
+    }
+
+    func setShotBallTapMode() {
+        selectionMode = .shotBall
+        statusMessage = "Tap the map to set ball location for Hole \(targetHoleNumber)."
+        errorMessage = nil
+    }
+
+    func setTeeBoxTapMode() {
+        selectionMode = .teeBox
+        statusMessage = "Tap the map to save Tee \(targetHoleNumber)."
+        errorMessage = nil
+    }
+
+    func setHolePinTapMode() {
+        selectionMode = .holePin
+        statusMessage = "Tap the map to save Pin \(targetHoleNumber)."
+        errorMessage = nil
+    }
+
+    func measurePoint(at coordinate: CLLocationCoordinate2D) {
+        measuredCoordinate = coordinate
+        statusMessage = nil
+        errorMessage = nil
+    }
+
+    func clearMeasuredPoint() {
+        measuredCoordinate = nil
+    }
+
+    func clearHoleSetup(modelContext: ModelContext? = nil) {
+        teeBoxCoordinate = nil
+        holePinCoordinate = nil
+
+        guard let modelContext else {
+            statusMessage = "Tee and pin cleared for this session."
+            return
+        }
+
+        do {
+            try geometryEditor.clearStickyHoleAnchors(
+                courseExternalID: course.id,
+                holeNumber: targetHoleNumber,
+                modelContext: modelContext
+            )
+            statusMessage = "Saved tee and pin cleared for Hole \(targetHoleNumber)."
+        } catch {
+            errorMessage = "Could not clear tee/pin: \(error.localizedDescription)"
+        }
+    }
+
+    func startShotFromCurrentLocation() {
+        guard let currentLocation = locationService.currentLocation else {
+            return
+        }
+
+        startShot(at: currentLocation.coordinate)
+    }
+
+    func startShotFromMeasuredPoint() {
+        guard let measuredCoordinate else {
+            return
+        }
+
+        startShot(at: measuredCoordinate)
+    }
+
+    func markShotEndAtCurrentLocation(modelContext: ModelContext? = nil) {
+        guard shotStartCoordinate != nil, let currentLocation = locationService.currentLocation else {
+            return
+        }
+
+        markShotEnd(at: currentLocation.coordinate, modelContext: modelContext)
+        showShotMeasurement()
+    }
+
+    func markShotEndAtMeasuredPoint(modelContext: ModelContext? = nil) {
+        guard shotStartCoordinate != nil, let measuredCoordinate else {
+            return
+        }
+
+        markShotEnd(at: measuredCoordinate, modelContext: modelContext)
+        showShotMeasurement()
+    }
+
+    func clearShotMeasurement() {
+        shotStartCoordinate = nil
+        shotEndCoordinate = nil
+        currentShotMarkerID = nil
+    }
+
+    func startNextShotFromBall() {
+        guard let shotEndCoordinate else {
+            return
+        }
+
+        startShot(at: shotEndCoordinate)
+        selectionMode = .shotBall
+        statusMessage = "Next shot starts from the last ball."
+    }
+
+    func selectShotMarker(id: UUID) {
+        guard let marker = shotMarkers.first(where: { $0.id == id }) else {
+            return
+        }
+
+        selectedShotMarkerID = id
+        currentShotMarkerID = id
+        shotStartCoordinate = marker.startCoordinate
+        shotEndCoordinate = marker.ballCoordinate
+        statusMessage = "Shot \(marker.shotNumber) selected. Use Move Ball, then tap the corrected spot."
+        showShotMeasurement()
+    }
+
+    func updateSelectedShotMarkerBall(to coordinate: CLLocationCoordinate2D) {
+        guard let selectedShotMarkerID,
+              let index = shotMarkers.firstIndex(where: { $0.id == selectedShotMarkerID }) else {
+            errorMessage = "Select a ball marker before moving it."
+            return
+        }
+
+        shotMarkers[index].ballCoordinate = coordinate
+        shotStartCoordinate = shotMarkers[index].startCoordinate
+        shotEndCoordinate = coordinate
+        currentShotMarkerID = selectedShotMarkerID
+        statusMessage = "Shot \(shotMarkers[index].shotNumber) ball moved."
+        errorMessage = nil
+        showShotMeasurement()
+    }
+
+    func saveMeasuredPointAsFeature(modelContext: ModelContext) {
+        errorMessage = nil
+        statusMessage = nil
+
+        guard let measuredCoordinate else {
+            errorMessage = "Drop a map pin before saving a target."
+            return
+        }
+
+        let label = featureLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let labelToSave = label.isEmpty ? defaultFeatureLabel : label
+
+        do {
+            let featurePoint = try geometryEditor.addFeaturePoint(
+                courseExternalID: course.id,
+                holeNumber: targetHoleNumber,
+                kind: selectedFeatureKind,
+                label: labelToSave,
+                coordinate: measuredCoordinate,
+                modelContext: modelContext
+            )
+            featureLabel = ""
+            statusMessage = "Saved \(featurePoint.kind.title.lowercased()) to Hole \(targetHoleNumber)."
+        } catch {
+            errorMessage = "Could not save target: \(error.localizedDescription)"
+        }
+    }
+
+    func syncManualShotCountToScore(modelContext: ModelContext? = nil) {
+        guard shotMarkers.isEmpty == false else {
+            return
+        }
+
+        guard let selectedHoleScore else {
+            statusMessage = "Manual shots are tracked here. Open from a scorecard to sync strokes."
+            return
+        }
+
+        selectedHoleScore.strokes = shotMarkers.count
+        saveScoreContext(modelContext)
+        statusMessage = "Synced \(shotMarkers.count) shots to Hole \(targetHoleNumber)."
+    }
+
+    func moveToPreviousHole(modelContext: ModelContext? = nil) {
+        guard let previousHoleNumber else {
+            return
+        }
+
+        moveToHole(previousHoleNumber, modelContext: modelContext)
+    }
+
+    func selectPreviousHole(geometries: [CourseGeometry], modelContext: ModelContext? = nil) {
+        guard let previousHoleNumber else {
+            return
+        }
+
+        selectHole(previousHoleNumber, geometries: geometries, modelContext: modelContext)
+    }
+
+    func moveToNextHole(modelContext: ModelContext? = nil) {
+        guard let nextHoleNumber else {
+            return
+        }
+
+        moveToHole(nextHoleNumber, modelContext: modelContext)
+    }
+
+    func selectNextHole(geometries: [CourseGeometry], modelContext: ModelContext? = nil) {
+        guard let nextHoleNumber else {
+            return
+        }
+
+        selectHole(nextHoleNumber, geometries: geometries, modelContext: modelContext)
+    }
+
+    func moveToHole(_ holeNumber: Int, modelContext: ModelContext? = nil) {
+        guard availableHoles.contains(holeNumber), holeNumber != targetHoleNumber else {
+            return
+        }
+
+        syncManualShotCountToScore(modelContext: nil)
+        saveCurrentHoleSession()
+
+        if let round {
+            round.currentHole = holeNumber
+            round.completedAt = nil
+        } else {
+            standaloneHoleNumber = holeNumber
+        }
+
+        restoreSession(for: holeNumber)
+        saveScoreContext(modelContext)
+        statusMessage = "Moved to Hole \(holeNumber)."
+    }
+
+    func selectHole(_ holeNumber: Int, geometries: [CourseGeometry], modelContext: ModelContext? = nil) {
+        guard availableHoles.contains(holeNumber) else {
+            return
+        }
+
+        if holeNumber != targetHoleNumber {
+            moveToHole(holeNumber, modelContext: modelContext)
+        }
+
+        applyStoredHoleSetup(from: geometries)
+        focusSelectedHole(from: geometries)
+    }
+
+    func saveCurrentHole(modelContext: ModelContext? = nil) {
+        guard let round else {
+            statusMessage = "Open from a scorecard round to save this hole."
+            return
+        }
+
+        guard canSaveHole else {
+            statusMessage = "Track a shot or enter a score before saving this hole."
+            return
+        }
+
+        syncManualShotCountToScore(modelContext: nil)
+        saveCurrentHoleSession()
+
+        let finishedHole = round.currentHole
+        let holes = availableHoles
+        if let index = holes.firstIndex(of: finishedHole), index < holes.index(before: holes.endIndex) {
+            round.currentHole = holes[holes.index(after: index)]
+            restoreSession(for: round.currentHole)
+            statusMessage = "Hole \(finishedHole) saved. Moved to Hole \(round.currentHole)."
+        } else {
+            round.completedAt = .now
+            statusMessage = "Round finished."
+        }
+
+        saveScoreContext(modelContext)
+    }
+
+    private func saveStickyHoleAnchor(kind: CourseMapFeatureKind, coordinate: CLLocationCoordinate2D, modelContext: ModelContext?) {
+        guard let modelContext else {
+            statusMessage = kind == .teeBox ? "Tee set for this session." : "Pin set for this session."
+            return
+        }
+
+        do {
+            _ = try geometryEditor.setStickyHoleAnchor(
+                courseExternalID: course.id,
+                holeNumber: targetHoleNumber,
+                kind: kind,
+                coordinate: coordinate,
+                modelContext: modelContext
+            )
+            statusMessage = kind == .teeBox ? "Tee saved for Hole \(targetHoleNumber)." : "Pin saved for Hole \(targetHoleNumber)."
+        } catch {
+            errorMessage = "Could not save \(kind.title.lowercased()): \(error.localizedDescription)"
+        }
+    }
+
+    private func startShot(at coordinate: CLLocationCoordinate2D) {
+        shotStartCoordinate = coordinate
+        shotEndCoordinate = nil
+        currentShotMarkerID = nil
+        selectedShotMarkerID = nil
+        statusMessage = nil
+        errorMessage = nil
+    }
+
+    private func markShotEnd(at coordinate: CLLocationCoordinate2D, modelContext: ModelContext?) {
+        shotEndCoordinate = coordinate
+
+        guard let shotStartCoordinate else {
+            return
+        }
+
+        if let currentShotMarkerID,
+           let index = shotMarkers.firstIndex(where: { $0.id == currentShotMarkerID }) {
+            shotMarkers[index].startCoordinate = shotStartCoordinate
+            shotMarkers[index].ballCoordinate = coordinate
+            selectedShotMarkerID = currentShotMarkerID
+            syncManualShotCountToScore(modelContext: modelContext)
+            return
+        }
+
+        let marker = CourseMapShotMarker(
+            shotNumber: shotMarkers.count + 1,
+            startCoordinate: shotStartCoordinate,
+            ballCoordinate: coordinate
+        )
+        shotMarkers.append(marker)
+        currentShotMarkerID = marker.id
+        selectedShotMarkerID = marker.id
+        syncManualShotCountToScore(modelContext: modelContext)
+    }
+
+    private var shotLocationCoordinate: CLLocationCoordinate2D? {
+        shotEndCoordinate ?? locationService.currentLocation?.coordinate ?? shotStartCoordinate ?? teeBoxCoordinate
+    }
+
+    private var currentHoleHasScore: Bool {
+        scoringPlayers.contains { player in
+            player.scores.contains { $0.holeNumber == targetHoleNumber && $0.strokes > 0 }
+        }
+    }
+
+    private func adjacentHole(from holeNumber: Int, offset: Int) -> Int? {
+        guard let index = availableHoles.firstIndex(of: holeNumber) else {
+            return nil
+        }
+
+        let adjacentIndex = availableHoles.index(index, offsetBy: offset, limitedBy: offset < 0 ? availableHoles.startIndex : availableHoles.index(before: availableHoles.endIndex))
+        guard let adjacentIndex, adjacentIndex != index else {
+            return nil
+        }
+
+        return availableHoles[adjacentIndex]
+    }
+
+    private func previousShotCoordinate(for marker: CourseMapShotMarker) -> CLLocationCoordinate2D {
+        if marker.shotNumber == 1 {
+            return teeBoxCoordinate ?? marker.startCoordinate
+        }
+
+        let previousShotNumber = marker.shotNumber - 1
+        return shotMarkers.first { $0.shotNumber == previousShotNumber }?.ballCoordinate ?? marker.startCoordinate
+    }
+
+    private func saveCurrentHoleSession() {
+        let session = CourseMapHoleSession(
+            measuredCoordinate: measuredCoordinate,
+            teeBoxCoordinate: teeBoxCoordinate,
+            holePinCoordinate: holePinCoordinate,
+            shotStartCoordinate: shotStartCoordinate,
+            shotEndCoordinate: shotEndCoordinate,
+            shotMarkers: shotMarkers,
+            selectedShotMarkerID: selectedShotMarkerID,
+            currentShotMarkerID: currentShotMarkerID
+        )
+
+        if session.isEmpty {
+            holeSessions[targetHoleNumber] = nil
+        } else {
+            holeSessions[targetHoleNumber] = session
+        }
+    }
+
+    private func restoreSession(for holeNumber: Int) {
+        guard let session = holeSessions[holeNumber] else {
+            measuredCoordinate = nil
+            teeBoxCoordinate = nil
+            holePinCoordinate = nil
+            shotStartCoordinate = nil
+            shotEndCoordinate = nil
+            shotMarkers = []
+            selectedShotMarkerID = nil
+            currentShotMarkerID = nil
+            return
+        }
+
+        measuredCoordinate = session.measuredCoordinate
+        teeBoxCoordinate = session.teeBoxCoordinate
+        holePinCoordinate = session.holePinCoordinate
+        shotStartCoordinate = session.shotStartCoordinate
+        shotEndCoordinate = session.shotEndCoordinate
+        shotMarkers = session.shotMarkers
+        selectedShotMarkerID = session.selectedShotMarkerID
+        currentShotMarkerID = session.currentShotMarkerID
+    }
+
+    private func saveScoreContext(_ modelContext: ModelContext?) {
+        guard let modelContext else {
+            return
+        }
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            errorMessage = "Could not save score: \(error.localizedDescription)"
+        }
+    }
+
+    private static func sortedPlayers(for round: GolfRound?) -> [RoundPlayer] {
+        round?.players.sorted { $0.displayOrder < $1.displayOrder } ?? []
+    }
+
+    private static func preferredHoleSetup(
+        from geometries: [CourseGeometry],
+        holeNumber: Int
+    ) -> (teeBoxCoordinate: CLLocationCoordinate2D?, holePinCoordinate: CLLocationCoordinate2D?) {
+        let holes = geometries
+            .flatMap(\.holes)
+            .filter { $0.number == holeNumber }
+        let featurePoints = holes.flatMap(\.featurePoints)
+        let userTee = featurePoints.first { $0.kind == .teeBox && $0.source == .userMapped }
+        let userPin = featurePoints.first { $0.kind == .greenPin && $0.source == .userMapped }
+        let providerPin = holes.compactMap(greenCenterCoordinate(for:)).first
+
+        return (
+            teeBoxCoordinate: userTee.map(coordinate(for:)),
+            holePinCoordinate: userPin.map(coordinate(for:)) ?? providerPin
+        )
+    }
+
+    private static func userMappedHoleAnchors(
+        from geometries: [CourseGeometry],
+        holeNumber: Int
+    ) -> (teeBoxCoordinate: CLLocationCoordinate2D?, holePinCoordinate: CLLocationCoordinate2D?) {
+        let featurePoints = geometries
+            .flatMap(\.holes)
+            .filter { $0.number == holeNumber }
+            .flatMap(\.featurePoints)
+        let userTee = featurePoints.first { $0.kind == .teeBox && $0.source == .userMapped }
+        let userPin = featurePoints.first { $0.kind == .greenPin && $0.source == .userMapped }
+
+        return (
+            teeBoxCoordinate: userTee.map(coordinate(for:)),
+            holePinCoordinate: userPin.map(coordinate(for:))
+        )
+    }
+
+    private static func previousHoleFallbackAnchor(
+        from geometries: [CourseGeometry],
+        before holeNumber: Int
+    ) -> CLLocationCoordinate2D? {
+        guard holeNumber > 1 else {
+            return nil
+        }
+
+        let previousHoleNumbers = (1..<holeNumber).reversed()
+        for previousHoleNumber in previousHoleNumbers {
+            let anchors = userMappedHoleAnchors(from: geometries, holeNumber: previousHoleNumber)
+            if let holePinCoordinate = anchors.holePinCoordinate {
+                return holePinCoordinate
+            }
+        }
+
+        for previousHoleNumber in previousHoleNumbers {
+            let anchors = userMappedHoleAnchors(from: geometries, holeNumber: previousHoleNumber)
+            if let teeBoxCoordinate = anchors.teeBoxCoordinate {
+                return teeBoxCoordinate
+            }
+        }
+
+        return nil
+    }
+
+    private static func coordinate(for featurePoint: CourseMapFeaturePoint) -> CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: featurePoint.latitude, longitude: featurePoint.longitude)
+    }
+
+    private static func greenCenterCoordinate(for hole: HoleGeometry) -> CLLocationCoordinate2D? {
+        guard let latitude = hole.greenCenterLatitude, let longitude = hole.greenCenterLongitude else {
+            return nil
+        }
+
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    private static func region(containing coordinates: [CLLocationCoordinate2D]) -> MKCoordinateRegion {
+        guard let firstCoordinate = coordinates.first else {
+            return MKCoordinateRegion()
+        }
+
+        let latitudes = coordinates.map(\.latitude)
+        let longitudes = coordinates.map(\.longitude)
+        let minimumLatitude = latitudes.min() ?? firstCoordinate.latitude
+        let maximumLatitude = latitudes.max() ?? firstCoordinate.latitude
+        let minimumLongitude = longitudes.min() ?? firstCoordinate.longitude
+        let maximumLongitude = longitudes.max() ?? firstCoordinate.longitude
+        let center = CLLocationCoordinate2D(
+            latitude: (minimumLatitude + maximumLatitude) / 2,
+            longitude: (minimumLongitude + maximumLongitude) / 2
+        )
+        let span = MKCoordinateSpan(
+            latitudeDelta: max((maximumLatitude - minimumLatitude) * 1.4, 0.003),
+            longitudeDelta: max((maximumLongitude - minimumLongitude) * 1.4, 0.003)
+        )
+
+        return MKCoordinateRegion(center: center, span: span)
+    }
+
+    private func focusCamera(on coordinate: CLLocationCoordinate2D) {
+        setCamera(center: coordinate, distance: Self.defaultCameraDistance)
+    }
+
+    private func focusCamera(containing coordinates: [CLLocationCoordinate2D]) {
+        let region = Self.region(containing: coordinates)
+        setCamera(center: region.center, distance: Self.distance(for: region))
+    }
+
+    private func setCamera(
+        center: CLLocationCoordinate2D? = nil,
+        distance: CLLocationDistance? = nil,
+        heading: CLLocationDirection? = nil
+    ) {
+        cameraCenter = center ?? cameraCenter
+        cameraDistance = Self.clampedDistance(distance ?? cameraDistance)
+        cameraHeading = Self.normalizedHeading(heading ?? cameraHeading)
+        position = .camera(Self.camera(
+            center: cameraCenter,
+            distance: cameraDistance,
+            heading: cameraHeading,
+            pitch: cameraPitch
+        ))
+    }
+
+    private static func camera(
+        center: CLLocationCoordinate2D,
+        distance: CLLocationDistance,
+        heading: CLLocationDirection = 0,
+        pitch: CGFloat = 0
+    ) -> MapCamera {
+        MapCamera(centerCoordinate: center, distance: distance, heading: heading, pitch: pitch)
+    }
+
+    private static func clampedDistance(_ distance: CLLocationDistance) -> CLLocationDistance {
+        min(max(distance, minimumCameraDistance), maximumCameraDistance)
+    }
+
+    private static func normalizedHeading(_ heading: CLLocationDirection) -> CLLocationDirection {
+        let normalized = heading.truncatingRemainder(dividingBy: 360)
+        return normalized < 0 ? normalized + 360 : normalized
+    }
+
+    private static func distance(for region: MKCoordinateRegion) -> CLLocationDistance {
+        let latitudeMeters = region.span.latitudeDelta * 111_000
+        let longitudeMeters = region.span.longitudeDelta * 111_000 * cos(region.center.latitude * .pi / 180)
+        return clampedDistance(max(latitudeMeters, longitudeMeters, defaultCameraDistance))
+    }
+}
