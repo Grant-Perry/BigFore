@@ -1,4 +1,5 @@
 enum CourseMapSelectionMode: String, CaseIterable, Identifiable {
+    case inactive
     case measurementPin
     case teeBox
     case holePin
@@ -6,10 +7,16 @@ enum CourseMapSelectionMode: String, CaseIterable, Identifiable {
     case shotBall
     case moveShotBall
 
+    static var allCases: [CourseMapSelectionMode] {
+        [.measurementPin, .teeBox, .holePin, .shotStart, .shotBall, .moveShotBall]
+    }
+
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .inactive:
+            "None"
         case .measurementPin:
             "Measure"
         case .teeBox:
@@ -27,6 +34,8 @@ enum CourseMapSelectionMode: String, CaseIterable, Identifiable {
 
     var tapInstruction: String {
         switch self {
+        case .inactive:
+            "Choose a map action before tapping."
         case .measurementPin:
             "The next map tap drops the measurement pin."
         case .teeBox:

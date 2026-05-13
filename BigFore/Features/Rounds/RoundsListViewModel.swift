@@ -1,10 +1,17 @@
 import Foundation
 import Observation
+import SwiftData
 
 @MainActor
 @Observable
 final class RoundsListViewModel {
     private let scoring = RoundScoring()
+    private let roundDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.dateFormat = "EEEE MMMM d, yyyy"
+        return formatter
+    }()
 
     func activeRounds(from rounds: [GolfRound]) -> [GolfRound] {
         rounds.filter { !$0.isComplete }
@@ -40,5 +47,19 @@ final class RoundsListViewModel {
         }
 
         return "No course pin"
+    }
+
+    func dateText(for round: GolfRound) -> String {
+        roundDateFormatter.string(from: round.startedAt)
+    }
+
+    func delete(_ round: GolfRound, modelContext: ModelContext) {
+        modelContext.delete(round)
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+        }
     }
 }

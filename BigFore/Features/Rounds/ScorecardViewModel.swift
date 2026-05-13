@@ -23,6 +23,26 @@ final class ScorecardViewModel {
         players.first.map { scoring.sortedScores(for: $0).map(\.holeNumber) } ?? Array(1...18)
     }
 
+    var frontNineHoles: [Int] {
+        availableHoles.filter { (1...9).contains($0) }
+    }
+
+    var backNineHoles: [Int] {
+        availableHoles.filter { (10...18).contains($0) }
+    }
+
+    var frontNineSummaryText: String {
+        summaryText(for: frontNineHoles)
+    }
+
+    var backNineSummaryText: String {
+        summaryText(for: backNineHoles)
+    }
+
+    var roundSummaryText: String {
+        summaryText(for: availableHoles)
+    }
+
     var canMoveToPreviousHole: Bool {
         previousHoleNumber != nil
     }
@@ -65,6 +85,15 @@ final class ScorecardViewModel {
 
     func sortedScores(for player: RoundPlayer) -> [HoleScore] {
         scoring.sortedScores(for: player)
+    }
+
+    func selectHole(_ holeNumber: Int, modelContext: ModelContext) {
+        guard availableHoles.contains(holeNumber) else {
+            return
+        }
+
+        round.currentHole = holeNumber
+        save(modelContext: modelContext)
     }
 
     func stablefordPoints(for player: RoundPlayer) -> Int {
@@ -148,5 +177,18 @@ final class ScorecardViewModel {
         }
 
         return availableHoles[adjacentIndex]
+    }
+
+    private func summaryText(for holeNumbers: [Int]) -> String {
+        let scores = players.first.map(scoring.sortedScores(for:)) ?? []
+        let selectedScores = scores.filter { holeNumbers.contains($0.holeNumber) }
+        let parTotal = selectedScores.map(\.par).reduce(0, +)
+        let yardsTotal = selectedScores.compactMap(\.yardage).reduce(0, +)
+
+        if yardsTotal > 0 {
+            return "Par \(parTotal) · \(yardsTotal) yds"
+        }
+
+        return "Par \(parTotal)"
     }
 }

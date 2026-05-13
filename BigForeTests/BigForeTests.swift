@@ -181,6 +181,27 @@ struct BigForeTests {
         #expect(viewModel.shotStartCoordinate?.latitude == shotStart.latitude)
         #expect(viewModel.shotEndCoordinate?.latitude == ball.latitude)
         #expect(viewModel.isTrackingShot == false)
+        #expect(viewModel.selectionMode == .inactive)
+    }
+
+    @Test func courseMapViewModelTapModesDeactivateAfterPlacement() {
+        let course = CourseMapPoint(
+            id: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let viewModel = CourseMapViewModel(course: course)
+        let firstTee = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
+        let secondTee = CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0)
+
+        viewModel.selectionMode = .teeBox
+        viewModel.selectMapLocation(at: firstTee)
+        viewModel.selectMapLocation(at: secondTee)
+
+        #expect(viewModel.selectionMode == .inactive)
+        #expect(viewModel.teeBoxCoordinate?.latitude == firstTee.latitude)
     }
 
     @Test func courseMapViewModelActionStripButtonsSetTapModes() {
@@ -194,6 +215,11 @@ struct BigForeTests {
         let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 4)
 
         viewModel.errorMessage = "Previous error"
+        viewModel.setMeasurementPinTapMode()
+        #expect(viewModel.selectionMode == .measurementPin)
+        #expect(viewModel.statusMessage == "Tap the map to drop a measurement pin.")
+        #expect(viewModel.errorMessage == nil)
+
         viewModel.setShotStartTapMode()
         #expect(viewModel.selectionMode == .shotStart)
         #expect(viewModel.statusMessage == "Tap the map to set shot start for Hole 4.")
@@ -210,6 +236,100 @@ struct BigForeTests {
         viewModel.setHolePinTapMode()
         #expect(viewModel.selectionMode == .holePin)
         #expect(viewModel.statusMessage == "Tap the map to save Pin 4.")
+    }
+
+    @Test func courseMapViewModelTeePinModesFrameHoleLineWithPinAtTop() {
+        let course = CourseMapPoint(
+            id: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 15)
+        let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
+        let pin = CLLocationCoordinate2D(latitude: 33.0, longitude: -83.99)
+        let geometry = CourseGeometry(
+            courseExternalID: 42,
+            source: .openStreetMap,
+            sourceName: "OpenStreetMap",
+            holes: [
+                HoleGeometry(
+                    number: 15,
+                    greenCenterLatitude: pin.latitude,
+                    greenCenterLongitude: pin.longitude,
+                    featurePoints: [
+                        CourseMapFeaturePoint(
+                            kind: .teeBox,
+                            label: "OSM Tee 15",
+                            latitude: tee.latitude,
+                            longitude: tee.longitude,
+                            source: .openStreetMap
+                        )
+                    ]
+                )
+            ]
+        )
+
+        viewModel.setTeeBoxTapMode(geometries: [geometry])
+
+        #expect(viewModel.selectionMode == .teeBox)
+        #expect(viewModel.teeBoxCoordinate?.latitude == tee.latitude)
+        #expect(viewModel.holePinCoordinate?.longitude == pin.longitude)
+        #expect(abs(viewModel.cameraCenter.longitude - ((tee.longitude + pin.longitude) / 2)) < 0.000001)
+        #expect((85...95).contains(viewModel.cameraHeading))
+        #expect(viewModel.cameraPitch == 55)
+
+        viewModel.setHolePinTapMode(geometries: [geometry])
+
+        #expect(viewModel.selectionMode == .holePin)
+        #expect((85...95).contains(viewModel.cameraHeading))
+        #expect(viewModel.cameraPitch == 55)
+
+        viewModel.selectHole(15, geometries: [geometry])
+
+        #expect((85...95).contains(viewModel.cameraHeading))
+        #expect(viewModel.cameraPitch == 55)
+    }
+
+    @Test func courseMapViewModelBuildsFaintNextHoleTransitionLineTarget() throws {
+        let course = CourseMapPoint(
+            id: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 9)
+        let holeNinePin = CLLocationCoordinate2D(latitude: 33.009, longitude: -84.0)
+        let holeTenTee = CLLocationCoordinate2D(latitude: 33.010, longitude: -84.001)
+        let geometry = CourseGeometry(
+            courseExternalID: 42,
+            source: .openStreetMap,
+            sourceName: "OpenStreetMap",
+            holes: [
+                HoleGeometry(number: 9, greenCenterLatitude: holeNinePin.latitude, greenCenterLongitude: holeNinePin.longitude),
+                HoleGeometry(
+                    number: 10,
+                    featurePoints: [
+                        CourseMapFeaturePoint(
+                            kind: .teeBox,
+                            label: "OSM Tee 10",
+                            latitude: holeTenTee.latitude,
+                            longitude: holeTenTee.longitude,
+                            source: .openStreetMap
+                        )
+                    ]
+                )
+            ]
+        )
+
+        viewModel.applyStoredHoleSetup(from: [geometry])
+        let transitionCoordinates = try #require(viewModel.nextHoleTransitionCoordinates(from: [geometry]))
+
+        #expect(transitionCoordinates.count == 2)
+        #expect(transitionCoordinates.first?.latitude == holeNinePin.latitude)
+        #expect(transitionCoordinates.last?.latitude == holeTenTee.latitude)
     }
 
     @Test func courseMapViewModelSelectingHoleFocusesStickyTeePinRegion() {
@@ -558,6 +678,86 @@ struct BigForeTests {
         #expect(viewModel.selectionMode == .shotBall)
     }
 
+    @Test func courseMapViewModelDeletesSelectedShotAndUpdatesScore() throws {
+        let score = HoleScore(holeNumber: 1, par: 4)
+        let player = RoundPlayer(name: "Grant", displayOrder: 0, scores: [score])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male",
+            players: [player]
+        )
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, round: round)
+
+        modelContext.insert(round)
+        try modelContext.save()
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0), modelContext: modelContext)
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0), modelContext: modelContext)
+
+        let marker = try #require(viewModel.shotMarkers.first)
+        viewModel.selectShotMarker(id: marker.id)
+        viewModel.deleteSelectedShotMarker(modelContext: modelContext)
+
+        #expect(viewModel.shotMarkers.isEmpty)
+        #expect(viewModel.selectedShotMarkerID == nil)
+        #expect(score.strokes == 0)
+        #expect(viewModel.statusMessage == "Deleted shot.")
+    }
+
+    @Test func courseGeometryEditorDeletesUserMappedAnchorsButKeepsImportedFallback() throws {
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let editor = CourseGeometryEditor()
+        let userTee = CLLocationCoordinate2D(latitude: 33.0001, longitude: -84.0001)
+        let osmTee = CLLocationCoordinate2D(latitude: 33.0003, longitude: -84.0003)
+
+        _ = try editor.setStickyHoleAnchor(
+            courseExternalID: 42,
+            holeNumber: 1,
+            kind: .teeBox,
+            coordinate: userTee,
+            modelContext: modelContext
+        )
+        _ = try editor.importGeometry(
+            CourseGeometryImport(
+                courseExternalID: 42,
+                source: .openStreetMap,
+                sourceName: "OpenStreetMap",
+                attribution: nil,
+                holes: [
+                    HoleGeometryImport(
+                        number: 1,
+                        featurePoints: [
+                            CourseGeometryFeatureImport(kind: .teeBox, label: "OSM Tee 1", coordinate: osmTee, sortOrder: 0)
+                        ]
+                    )
+                ]
+            ),
+            modelContext: modelContext
+        )
+
+        try editor.clearStickyHoleAnchor(courseExternalID: 42, holeNumber: 1, kind: .teeBox, modelContext: modelContext)
+
+        let geometry = try #require(try modelContext.fetch(FetchDescriptor<CourseGeometry>()).first)
+        let hole = try #require(geometry.holes.first { $0.number == 1 })
+
+        #expect(hole.featurePoints.contains { $0.kind == .teeBox && $0.source == .userMapped } == false)
+        #expect(hole.featurePoints.contains { $0.kind == .teeBox && $0.source == .openStreetMap })
+    }
+
     @Test func courseMapViewModelNextShotButtonRequiresMarkedBall() throws {
         let course = CourseMapPoint(
             id: 42,
@@ -745,6 +945,92 @@ struct BigForeTests {
         viewModel.handleMapTap(at: tappedCoordinate)
 
         #expect(viewModel.measuredCoordinate?.latitude == tappedCoordinate.latitude)
+    }
+
+    @Test func courseMapViewModelDeletingMeasuredPointDisablesMapTapAction() {
+        let course = CourseMapPoint(
+            id: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let viewModel = CourseMapViewModel(course: course)
+
+        viewModel.handleMapTap(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        viewModel.deleteMeasuredPoint()
+        viewModel.handleMapTap(at: CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0))
+
+        #expect(viewModel.measuredCoordinate == nil)
+        #expect(viewModel.selectionMode == .inactive)
+        #expect(viewModel.statusMessage == "Choose a map action before tapping.")
+
+        viewModel.selectionMode = .measurementPin
+        viewModel.handleMapTap(at: CLLocationCoordinate2D(latitude: 33.003, longitude: -84.0))
+
+        #expect(viewModel.measuredCoordinate?.latitude == 33.003)
+    }
+
+    @Test func courseMapViewModelSelectedMapInfoUsesCurrentPlayReference() throws {
+        let course = CourseMapPoint(
+            id: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let viewModel = CourseMapViewModel(course: course)
+        let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
+        let pin = CLLocationCoordinate2D(latitude: 33.003, longitude: -84.0)
+        let hazard = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
+        let ball = CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0)
+
+        viewModel.selectionMode = .teeBox
+        viewModel.selectMapLocation(at: tee)
+        viewModel.selectionMode = .holePin
+        viewModel.selectMapLocation(at: pin)
+        viewModel.selectMapInfo(title: "Bunker 1", coordinate: hazard)
+
+        var summary = try #require(viewModel.selectedMapInfoSummary)
+        #expect(summary.referenceDistanceLabel == "Tee to this")
+        #expect(summary.referenceDistanceText?.hasSuffix(" yds") == true)
+        #expect(summary.pinDistanceText?.hasSuffix(" yds") == true)
+
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: tee)
+        viewModel.locationService.currentLocation = CLLocation(latitude: 33.0015, longitude: -84.0)
+        viewModel.selectMapInfo(title: "Bunker 1", coordinate: hazard)
+
+        summary = try #require(viewModel.selectedMapInfoSummary)
+        #expect(summary.referenceDistanceLabel == "GPS to this")
+
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: ball)
+        viewModel.selectMapInfo(title: "Bunker 1", coordinate: hazard)
+
+        summary = try #require(viewModel.selectedMapInfoSummary)
+        #expect(summary.referenceDistanceLabel == "Ball to this")
+    }
+
+    @Test func courseMapViewModelAddsParToTeeAndGreenPopupTitles() throws {
+        let score = HoleScore(holeNumber: 13, par: 3)
+        let player = RoundPlayer(name: "Grant", displayOrder: 0, scores: [score])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male",
+            players: [player]
+        )
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 13, round: round)
+
+        #expect(viewModel.teeBoxTitle(for: 13) == "Tee Box 13 - Par 3")
+        #expect(viewModel.greenTitle(for: 13) == "Green 13 - Par 3")
+        #expect(viewModel.teeBoxTitle(for: 14) == "Tee Box 14")
     }
 
     @Test func courseMapViewModelSaveHoleRequiresShotsOrScoreBeforeAdvancing() throws {
@@ -973,6 +1259,166 @@ struct BigForeTests {
         #expect(featurePoint.longitude == -84.3904)
     }
 
+    @Test func courseGeometryEditorDeletesOnlyUserMappedFeaturePoints() throws {
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let editor = CourseGeometryEditor()
+        let userTarget = CourseMapFeaturePoint(kind: .hazard, label: "User bunker", latitude: 33.7504, longitude: -84.3904)
+        let osmTarget = CourseMapFeaturePoint(
+            kind: .hazard,
+            label: "OSM bunker",
+            latitude: 33.7505,
+            longitude: -84.3905,
+            source: .openStreetMap
+        )
+        let geometry = CourseGeometry(
+            courseExternalID: 314,
+            source: .openStreetMap,
+            sourceName: "OpenStreetMap",
+            holes: [
+                HoleGeometry(number: 7, featurePoints: [userTarget, osmTarget])
+            ]
+        )
+
+        modelContext.insert(geometry)
+        try modelContext.save()
+        try editor.deleteUserMappedFeaturePoint(userTarget, modelContext: modelContext)
+
+        let restoredGeometry = try #require(try modelContext.fetch(FetchDescriptor<CourseGeometry>()).first)
+        let restoredHole = try #require(restoredGeometry.holes.first { $0.number == 7 })
+
+        #expect(restoredHole.featurePoints.contains { $0.label == "User bunker" } == false)
+        #expect(restoredHole.featurePoints.contains { $0.label == "OSM bunker" })
+    }
+
+    @Test func openStreetMapNormalizerMapsGolfTagsToGeometryImport() throws {
+        let json = """
+        {
+          "elements": [
+            {
+              "type": "way",
+              "id": 100,
+              "tags": { "golf": "hole", "ref": "1" },
+              "geometry": [
+                { "lat": 33.0000, "lon": -84.0000 },
+                { "lat": 33.0200, "lon": -84.0000 }
+              ]
+            },
+            {
+              "type": "way",
+              "id": 101,
+              "tags": { "golf": "green", "ref": "1" },
+              "geometry": [
+                { "lat": 33.0190, "lon": -84.0010 },
+                { "lat": 33.0210, "lon": -84.0010 },
+                { "lat": 33.0210, "lon": -83.9990 },
+                { "lat": 33.0190, "lon": -83.9990 }
+              ]
+            },
+            {
+              "type": "way",
+              "id": 102,
+              "tags": { "golf": "tee", "ref": "1", "name": "Blue Tee" },
+              "geometry": [
+                { "lat": 33.0000, "lon": -84.0002 },
+                { "lat": 33.0002, "lon": -84.0002 }
+              ]
+            },
+            {
+              "type": "node",
+              "id": 103,
+              "lat": 33.0100,
+              "lon": -84.0003,
+              "tags": { "golf": "bunker", "name": "Right bunker" }
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+        let response = try JSONDecoder().decode(OpenStreetMapOverpassResponse.self, from: json)
+        let geometryImport = OpenStreetMapGolfGeometryNormalizer().normalizedImport(courseExternalID: 42, elements: response.elements)
+        let hole = try #require(geometryImport.holes.first)
+        let teePoint = try #require(hole.featurePoints.first { $0.kind == .teeBox && $0.label == "Blue Tee" })
+        let hazardPoint = try #require(hole.featurePoints.first { $0.kind == .hazard })
+
+        #expect(geometryImport.source == .openStreetMap)
+        #expect(geometryImport.attribution == "© OpenStreetMap contributors, ODbL")
+        #expect(geometryImport.holes.count == 1)
+        #expect(hole.number == 1)
+        #expect(abs((hole.greenCenterCoordinate?.latitude ?? 0) - 33.0200) < 0.000001)
+        #expect(abs((hole.greenCenterCoordinate?.longitude ?? 0) + 84.0000) < 0.000001)
+        #expect(hole.greenFrontCoordinate != nil)
+        #expect(hole.greenBackCoordinate != nil)
+        #expect(abs(teePoint.coordinate.latitude - 33.0001) < 0.000001)
+        #expect(hazardPoint.label == "Right bunker")
+    }
+
+    @Test func courseGeometryEditorImportsOpenStreetMapWithoutOverwritingUserAnchors() throws {
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let editor = CourseGeometryEditor()
+        let userTee = CLLocationCoordinate2D(latitude: 33.0001, longitude: -84.0001)
+        let userPin = CLLocationCoordinate2D(latitude: 33.0011, longitude: -84.0001)
+        let osmTee = CLLocationCoordinate2D(latitude: 33.0003, longitude: -84.0003)
+        let osmGreen = CLLocationCoordinate2D(latitude: 33.0013, longitude: -84.0003)
+
+        _ = try editor.setStickyHoleAnchor(
+            courseExternalID: 42,
+            holeNumber: 1,
+            kind: .teeBox,
+            coordinate: userTee,
+            modelContext: modelContext
+        )
+        _ = try editor.setStickyHoleAnchor(
+            courseExternalID: 42,
+            holeNumber: 1,
+            kind: .greenPin,
+            coordinate: userPin,
+            modelContext: modelContext
+        )
+
+        _ = try editor.importGeometry(
+            CourseGeometryImport(
+                courseExternalID: 42,
+                source: .openStreetMap,
+                sourceName: "OpenStreetMap",
+                attribution: "© OpenStreetMap contributors, ODbL",
+                holes: [
+                    HoleGeometryImport(
+                        number: 1,
+                        greenCenterCoordinate: osmGreen,
+                        featurePoints: [
+                            CourseGeometryFeatureImport(kind: .teeBox, label: "OSM Tee 1", coordinate: osmTee, sortOrder: 0)
+                        ]
+                    )
+                ]
+            ),
+            modelContext: modelContext
+        )
+
+        let geometries = try modelContext.fetch(FetchDescriptor<CourseGeometry>())
+        let geometry = try #require(geometries.first)
+        let hole = try #require(geometry.holes.first { $0.number == 1 })
+        let viewModel = CourseMapViewModel(
+            course: CourseMapPoint(id: 42, courseName: "Example Course", clubName: "Example Club", latitude: 33.0, longitude: -84.0),
+            currentHoleNumber: 1
+        )
+
+        viewModel.applyStoredHoleSetup(from: geometries)
+
+        #expect(geometry.sourceRawValue == CourseGeometrySource.openStreetMap.rawValue)
+        #expect(geometry.attribution == "© OpenStreetMap contributors, ODbL")
+        #expect(hole.featurePoints.contains { $0.kind == .teeBox && $0.source == .userMapped })
+        #expect(hole.featurePoints.contains { $0.kind == .teeBox && $0.source == .openStreetMap })
+        #expect(hole.featurePoints.contains { $0.kind == .greenPin && $0.source == .userMapped })
+        #expect(hole.greenCenterLatitude == osmGreen.latitude)
+        #expect(viewModel.teeBoxCoordinate?.latitude == userTee.latitude)
+        #expect(viewModel.holePinCoordinate?.latitude == userPin.latitude)
+    }
+
     @Test func courseGeometryStrategyReportsMissingAndAvailableGeometry() {
         let strategy = CourseGeometryStrategy()
         let missingReport = strategy.report(for: nil)
@@ -1000,7 +1446,7 @@ struct BigForeTests {
         )
         let report = strategy.report(for: geometry)
 
-        #expect(strategy.selectedSource == .licensedProvider)
+        #expect(strategy.selectedSource == .openStreetMap)
         #expect(missingReport.greenYardages == .missingGeometry)
         #expect(missingReport.hasOnCourseGeometry == false)
         #expect(report.sourceName == "Licensed Geometry Feed")
@@ -1168,6 +1614,39 @@ struct BigForeTests {
         #expect(store.savedRecents.count == 20)
     }
 
+    @Test func courseSearchViewModelReportsSearchQueryPresence() {
+        let viewModel = CourseSearchViewModel(apiKey: "test-key")
+
+        #expect(viewModel.hasSearchQuery == false)
+
+        viewModel.query = "  Golden Horseshoe  "
+
+        #expect(viewModel.hasSearchQuery)
+    }
+
+    @Test func courseSearchViewModelDeletesAndClearsRecents() {
+        let store = InMemoryCourseRecentsStore(initialRecents: [
+            CourseRecent(id: 1, displayName: "First Club"),
+            CourseRecent(id: 2, displayName: "Second Club"),
+            CourseRecent(id: 3, displayName: "Third Club")
+        ])
+        let viewModel = CourseSearchViewModel(
+            apiKey: "test-key",
+            apiClientProvider: { _ in StubGolfCourseAPIClient() },
+            recentsStore: store
+        )
+
+        viewModel.deleteRecent(id: 2)
+
+        #expect(viewModel.recents.map(\.id) == [1, 3])
+        #expect(store.savedRecents == viewModel.recents)
+
+        viewModel.clearRecents()
+
+        #expect(viewModel.recents.isEmpty)
+        #expect(store.savedRecents.isEmpty)
+    }
+
     @Test func courseSearchViewModelRecordsRecentAfterLoadingCourse() async throws {
         let course = try makeAPICourse(
             id: 42,
@@ -1189,6 +1668,72 @@ struct BigForeTests {
         #expect(viewModel.selectedCourse?.id == 42)
         #expect(viewModel.recents == [CourseRecent(course: course)])
         #expect(store.savedRecents == viewModel.recents)
+    }
+
+    @Test func courseSearchViewModelLoadsOpenStreetMapGeometryWhenMissing() async throws {
+        let apiCourse = try makeAPICourse(
+            id: 42,
+            clubName: "Example Club",
+            courseName: "Example Course",
+            latitude: 33.75,
+            longitude: -84.39
+        )
+        let apiClient = StubGolfCourseAPIClient(coursesByID: [42: apiCourse])
+        let geometryProvider = StubOpenStreetMapGolfGeometryProvider()
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let viewModel = CourseSearchViewModel(
+            apiKey: "test-key",
+            apiClientProvider: { _ in apiClient },
+            geometryProvider: geometryProvider
+        )
+
+        await viewModel.loadCourse(id: 42)
+        await viewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
+
+        let geometries = try modelContext.fetch(FetchDescriptor<CourseGeometry>())
+        let geometry = try #require(geometries.first)
+
+        #expect(geometryProvider.requestCount == 1)
+        #expect(geometry.courseExternalID == 42)
+        #expect(geometry.sourceRawValue == CourseGeometrySource.openStreetMap.rawValue)
+        #expect(viewModel.statusMessage == "Loaded OpenStreetMap geometry for 1 hole.")
+    }
+
+    @Test func courseSearchViewModelSkipsOpenStreetMapGeometryWhenCached() async throws {
+        let apiCourse = try makeAPICourse(
+            id: 42,
+            clubName: "Example Club",
+            courseName: "Example Course",
+            latitude: 33.75,
+            longitude: -84.39
+        )
+        let apiClient = StubGolfCourseAPIClient(coursesByID: [42: apiCourse])
+        let geometryProvider = StubOpenStreetMapGolfGeometryProvider()
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let cachedGeometry = CourseGeometry(
+            courseExternalID: 42,
+            source: .openStreetMap,
+            sourceName: "OpenStreetMap",
+            holes: [HoleGeometry(number: 1, greenCenterLatitude: 33.75, greenCenterLongitude: -84.39)]
+        )
+        let viewModel = CourseSearchViewModel(
+            apiKey: "test-key",
+            apiClientProvider: { _ in apiClient },
+            geometryProvider: geometryProvider
+        )
+
+        modelContext.insert(cachedGeometry)
+        try modelContext.save()
+        await viewModel.loadCourse(id: 42)
+        await viewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
+
+        #expect(geometryProvider.requestCount == 0)
     }
 
     @Test func saveCoursePersistsTeesAndHoles() throws {
@@ -1389,6 +1934,109 @@ struct BigForeTests {
         #expect(firstScore.yardage == 410)
         #expect(firstScore.handicap == 7)
     }
+
+    @Test func scorecardViewModelBuildsFrontBackAndRoundSummaries() {
+        let scores = (1...18).map { holeNumber in
+            HoleScore(holeNumber: holeNumber, par: holeNumber <= 9 ? 4 : 5, yardage: holeNumber <= 9 ? 400 : 500)
+        }
+        let player = RoundPlayer(name: "Grant", displayOrder: 0, scores: scores)
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male",
+            players: [player]
+        )
+        let viewModel = ScorecardViewModel(round: round)
+
+        #expect(viewModel.frontNineHoles == Array(1...9))
+        #expect(viewModel.backNineHoles == Array(10...18))
+        #expect(viewModel.frontNineSummaryText == "Par 36 · 3600 yds")
+        #expect(viewModel.backNineSummaryText == "Par 45 · 4500 yds")
+        #expect(viewModel.roundSummaryText == "Par 81 · 8100 yds")
+    }
+
+    @Test func roundsListViewModelFormatsDatesAndDeletesRound() throws {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.year = 2025
+        components.month = 7
+        components.day = 7
+        let startedAt = try #require(components.date)
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male",
+            startedAt: startedAt
+        )
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let viewModel = RoundsListViewModel()
+
+        modelContext.insert(round)
+        try modelContext.save()
+
+        #expect(viewModel.dateText(for: round) == "Monday July 7, 2025")
+
+        viewModel.delete(round, modelContext: modelContext)
+
+        let rounds = try modelContext.fetch(FetchDescriptor<GolfRound>())
+        #expect(rounds.isEmpty)
+    }
+
+    @Test func weatherViewModelLoadsWeatherSummaryOnce() async throws {
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male"
+        )
+        let provider = StubWeatherProvider()
+        let viewModel = WeatherViewModel(provider: provider)
+
+        await viewModel.loadWeather(for: round)
+        await viewModel.loadWeather(for: round)
+
+        let summary = try #require(viewModel.summary(for: round))
+        #expect(summary.symbolName == "sun.max.fill")
+        #expect(summary.temperatureText == "72°")
+        #expect(provider.requestCount == 1)
+
+        viewModel.removeWeather(for: round.id)
+
+        #expect(viewModel.summary(for: round) == nil)
+    }
+
+    @Test func weatherViewModelStoresWeatherErrors() async throws {
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male"
+        )
+        let provider = StubWeatherProvider(error: StubWeatherProviderError.unavailable)
+        let viewModel = WeatherViewModel(provider: provider)
+
+        await viewModel.loadWeather(for: round)
+
+        #expect(viewModel.summary(for: round) == nil)
+        #expect(viewModel.errorText(for: round) == "Weather unavailable.")
+    }
 }
 
 @MainActor
@@ -1438,6 +2086,61 @@ private enum StubGolfCourseAPIError: Error {
 }
 
 @MainActor
+private final class StubOpenStreetMapGolfGeometryProvider: OpenStreetMapGolfGeometryProviding {
+    private(set) var requestCount = 0
+
+    func geometry(for request: OpenStreetMapGolfGeometryRequest) async throws -> CourseGeometryImport {
+        requestCount += 1
+        return CourseGeometryImport(
+            courseExternalID: request.courseExternalID,
+            source: .openStreetMap,
+            sourceName: "OpenStreetMap",
+            attribution: "© OpenStreetMap contributors, ODbL",
+            holes: [
+                HoleGeometryImport(
+                    number: 1,
+                    greenCenterCoordinate: CLLocationCoordinate2D(latitude: 33.75, longitude: -84.39),
+                    featurePoints: [
+                        CourseGeometryFeatureImport(
+                            kind: .teeBox,
+                            label: "OSM Tee 1",
+                            coordinate: CLLocationCoordinate2D(latitude: 33.74, longitude: -84.39),
+                            sortOrder: 0
+                        )
+                    ]
+                )
+            ]
+        )
+    }
+}
+
+@MainActor
+private final class StubWeatherProvider: WeatherProviding {
+    private(set) var requestCount = 0
+    private let error: Error?
+
+    init(error: Error? = nil) {
+        self.error = error
+    }
+
+    func weather(for request: WeatherRequest) async throws -> WeatherSummary {
+        requestCount += 1
+        if let error {
+            throw error
+        }
+        return WeatherSummary(symbolName: "sun.max.fill", temperatureText: "72°")
+    }
+}
+
+private enum StubWeatherProviderError: LocalizedError {
+    case unavailable
+
+    var errorDescription: String? {
+        "Weather unavailable."
+    }
+}
+
+@MainActor
 private func makeAPICourse(
     id: Int,
     clubName: String,
@@ -1445,13 +2148,17 @@ private func makeAPICourse(
     address: String? = nil,
     city: String? = nil,
     state: String? = nil,
-    country: String? = nil
+    country: String? = nil,
+    latitude: Double? = nil,
+    longitude: Double? = nil
 ) throws -> GolfCourseAPICourse {
-    var location: [String: String] = [:]
+    var location: [String: Any] = [:]
     location["address"] = address
     location["city"] = city
     location["state"] = state
     location["country"] = country
+    location["latitude"] = latitude
+    location["longitude"] = longitude
 
     let payload: [String: Any] = [
         "courses": [

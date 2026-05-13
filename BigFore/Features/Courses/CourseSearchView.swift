@@ -5,6 +5,7 @@ struct CourseSearchView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage("golfCourseAPIKey") private var apiKey = GolfCourseAPIConfiguration.defaultAPIKey
     @State private var viewModel = CourseSearchViewModel(apiKey: GolfCourseAPIConfiguration.defaultAPIKey)
+    @State private var isClearRecentsConfirmationPresented = false
 
     var body: some View {
         NavigationStack {
@@ -17,10 +18,12 @@ struct CourseSearchView: View {
                             Task { await viewModel.search() }
                         }
 
-                    Button(viewModel.isSearching ? "Searching..." : "Search") {
-                        Task { await viewModel.search() }
+                    if viewModel.hasSearchQuery {
+                        Button(viewModel.isSearching ? "Searching..." : "Go") {
+                            Task { await viewModel.search() }
+                        }
+                        .disabled(viewModel.isSearching)
                     }
-                    .disabled(viewModel.isSearching || viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
 
                 if let errorMessage = viewModel.errorMessage {
@@ -38,13 +41,28 @@ struct CourseSearchView: View {
                 }
 
                 if !viewModel.recents.isEmpty {
-                    Section("Recents") {
+                    Section {
                         ForEach(viewModel.recents) { recent in
                             Button {
-                                Task { await viewModel.loadCourse(id: recent.id) }
+                                Task { await loadCourseAndGeometry(id: recent.id) }
                             } label: {
                                 CourseSummaryRow(title: recent.displayName, subtitle: recent.locationText)
                             }
+                            .swipeActions {
+                                Button("Delete", role: .destructive) {
+                                    viewModel.deleteRecent(id: recent.id)
+                                }
+                            }
+                        }
+                    } header: {
+                        HStack {
+                            Text("Recents")
+                            Spacer()
+                            Button("Clear") {
+                                isClearRecentsConfirmationPresented = true
+                            }
+                            .font(.caption)
+                            .textCase(nil)
                         }
                     }
                 }
@@ -57,7 +75,7 @@ struct CourseSearchView: View {
 
                     ForEach(viewModel.results) { course in
                         Button {
-                            Task { await viewModel.loadCourse(id: course.id) }
+                            Task { await loadCourseAndGeometry(id: course.id) }
                         } label: {
                             CourseSummaryRow(title: course.displayName, subtitle: course.location.displayText ?? "No address")
                         }
@@ -85,7 +103,24 @@ struct CourseSearchView: View {
             .onAppear {
                 viewModel.apiKey = apiKey
             }
+            .confirmationDialog(
+                "Clear all recent courses?",
+                isPresented: $isClearRecentsConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Clear Recents", role: .destructive) {
+                    viewModel.clearRecents()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes every course from Recents.")
+            }
         }
+    }
+
+    private func loadCourseAndGeometry(id: Int) async {
+        await viewModel.loadCourse(id: id)
+        await viewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
     }
 }
 

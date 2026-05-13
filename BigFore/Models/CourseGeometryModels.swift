@@ -4,6 +4,7 @@ import SwiftData
 enum CourseGeometrySource: String, CaseIterable, Codable, Identifiable {
     case licensedProvider
     case manualImport
+    case openStreetMap
     case userMapped
 
     var id: String { rawValue }
@@ -14,6 +15,8 @@ enum CourseGeometrySource: String, CaseIterable, Codable, Identifiable {
             "Licensed Provider"
         case .manualImport:
             "Manual Import"
+        case .openStreetMap:
+            "OpenStreetMap"
         case .userMapped:
             "User Mapped"
         }

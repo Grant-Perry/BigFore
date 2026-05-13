@@ -46,12 +46,9 @@ struct ScorecardView: View {
             }
 
             Section("Hole") {
-                Picker("Hole", selection: $viewModel.round.currentHole) {
-                    ForEach(viewModel.availableHoles, id: \.self) { hole in
-                        Text("\(hole)").tag(hole)
-                    }
+                ScorecardHoleSelector(viewModel: viewModel) { holeNumber in
+                    viewModel.selectHole(holeNumber, modelContext: modelContext)
                 }
-                .pickerStyle(.segmented)
 
                 if let hole = viewModel.currentHoleScore {
                     HStack {
@@ -107,6 +104,55 @@ struct ScorecardView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: viewModel.round.currentHole) { _, _ in
             viewModel.save(modelContext: modelContext)
+        }
+    }
+}
+
+private struct ScorecardHoleSelector: View {
+    let viewModel: ScorecardViewModel
+    let selectHole: (Int) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            holeRow(title: "1-9", holes: viewModel.frontNineHoles, summary: viewModel.frontNineSummaryText)
+            holeRow(title: "10-18", holes: viewModel.backNineHoles, summary: viewModel.backNineSummaryText)
+            LabeledContent("Total", value: viewModel.roundSummaryText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func holeRow(title: String, holes: [Int], summary: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(summary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            HStack(spacing: 5) {
+                ForEach(holes, id: \.self) { holeNumber in
+                    Button {
+                        selectHole(holeNumber)
+                    } label: {
+                        Text("\(holeNumber)")
+                            .font(.caption2.weight(.semibold))
+                            .monospacedDigit()
+                            .frame(width: 28, height: 28)
+                            .foregroundStyle(viewModel.round.currentHole == holeNumber ? .white : .primary)
+                            .background(viewModel.round.currentHole == holeNumber ? Color.accentColor : Color.secondary.opacity(0.16), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Hole \(holeNumber)")
+                }
+            }
         }
     }
 }

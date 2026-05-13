@@ -4,15 +4,15 @@ struct CourseGeometryStrategy {
     nonisolated init() {}
 
     nonisolated var selectedSource: CourseGeometrySource {
-        .licensedProvider
+        .openStreetMap
     }
 
     nonisolated var currentLimitationsNotice: String {
-        "Scorecard data includes tee details, but front/center/back greens, hazards, targets, contours, and flyovers need licensed or imported hole geometry."
+        "Scorecard data includes tee details. OpenStreetMap can add hole geometry where courses are mapped, while contours and flyovers still need a licensed source."
     }
 
     nonisolated var selectedSourceRationale: String {
-        "Use MapKit for display and GPS, GolfCourseAPI for scorecard metadata, and a licensed/imported geometry provider for hole-level coordinates and assets."
+        "Use MapKit for display and GPS, GolfCourseAPI for scorecard metadata, and OpenStreetMap as the proof-of-concept hole geometry source."
     }
 
     @MainActor

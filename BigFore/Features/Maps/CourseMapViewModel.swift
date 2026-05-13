@@ -27,6 +27,19 @@ struct CourseMapShotSummary: Identifiable, Equatable {
     let isSelected: Bool
 }
 
+struct CourseMapInfoSelection: Identifiable {
+    let id = UUID()
+    let title: String
+    let coordinate: CLLocationCoordinate2D
+}
+
+struct CourseMapInfoSummary: Equatable {
+    let title: String
+    let referenceDistanceLabel: String
+    let referenceDistanceText: String?
+    let pinDistanceText: String?
+}
+
 private struct CourseMapHoleSession {
     var measuredCoordinate: CLLocationCoordinate2D?
     var teeBoxCoordinate: CLLocationCoordinate2D?
@@ -65,6 +78,7 @@ final class CourseMapViewModel {
     var shotEndCoordinate: CLLocationCoordinate2D?
     var shotMarkers: [CourseMapShotMarker] = []
     var selectedShotMarkerID: UUID?
+    var selectedMapInfo: CourseMapInfoSelection?
     var selectedScoringPlayerID: UUID?
     var selectedFeatureKind = CourseMapFeatureKind.target
     var featureLabel = ""
@@ -74,13 +88,17 @@ final class CourseMapViewModel {
     private(set) var cameraDistance: CLLocationDistance
     private(set) var cameraHeading: CLLocationDirection
     private(set) var cameraPitch: CGFloat
+    var isRefreshingGeometry = false
     private let distanceCalculator: DistanceCalculator
     private let geometryEditor: CourseGeometryEditor
+    @ObservationIgnored private let geometryProvider: any OpenStreetMapGolfGeometryProviding
     private var currentShotMarkerID: UUID?
     private var holeSessions: [Int: CourseMapHoleSession] = [:]
     private static let defaultCameraDistance: CLLocationDistance = 1_200
     private static let minimumCameraDistance: CLLocationDistance = 75
     private static let maximumCameraDistance: CLLocationDistance = 25_000
+    private static let holeFlyoverDistanceScale: CLLocationDistance = 0.5
+    private static let holeFlyoverPitch: CGFloat = 55
     private static let rotationStep: CLLocationDirection = 15
 
     init(
@@ -89,7 +107,8 @@ final class CourseMapViewModel {
         round: GolfRound? = nil,
         locationService: LocationService? = nil,
         distanceCalculator: DistanceCalculator? = nil,
-        geometryEditor: CourseGeometryEditor = CourseGeometryEditor()
+        geometryEditor: CourseGeometryEditor = CourseGeometryEditor(),
+        geometryProvider: any OpenStreetMapGolfGeometryProviding = OpenStreetMapGolfGeometryClient()
     ) {
         self.course = course
         self.standaloneHoleNumber = round?.currentHole ?? currentHoleNumber ?? 1
@@ -97,6 +116,7 @@ final class CourseMapViewModel {
         self.locationService = locationService ?? LocationService()
         self.distanceCalculator = distanceCalculator ?? DistanceCalculator()
         self.geometryEditor = geometryEditor
+        self.geometryProvider = geometryProvider
         selectedScoringPlayerID = Self.sortedPlayers(for: round).first?.id
         cameraCenter = course.coordinate
         cameraDistance = Self.defaultCameraDistance
@@ -181,6 +201,23 @@ final class CourseMapViewModel {
         return "Shot \(selectedShotMarker.shotNumber) ball"
     }
 
+    var selectedMapInfoSummary: CourseMapInfoSummary? {
+        guard let selectedMapInfo else {
+            return nil
+        }
+
+        return CourseMapInfoSummary(
+            title: selectedMapInfo.title,
+            referenceDistanceLabel: selectedMapReference?.label ?? "Reference to this",
+            referenceDistanceText: selectedMapReference.map {
+                distanceCalculator.formattedYards(from: $0.coordinate, to: selectedMapInfo.coordinate)
+            },
+            pinDistanceText: holePinCoordinate.map {
+                distanceCalculator.formattedYards(from: selectedMapInfo.coordinate, to: $0)
+            }
+        )
+    }
+
     var shotSummaries: [CourseMapShotSummary] {
         shotMarkers.map { marker in
             CourseMapShotSummary(
@@ -255,11 +292,23 @@ final class CourseMapViewModel {
     }
 
     var shotLocationToHolePinCoordinates: [CLLocationCoordinate2D]? {
-        guard let shotLocationCoordinate, let holePinCoordinate else {
+        guard let holePinCoordinate,
+              let shotLocationCoordinate = shotEndCoordinate ?? shotStartCoordinate else {
             return nil
         }
 
         return [shotLocationCoordinate, holePinCoordinate]
+    }
+
+    func nextHoleTransitionCoordinates(from geometries: [CourseGeometry]) -> [CLLocationCoordinate2D]? {
+        let currentHolePin = holePinCoordinate ?? Self.preferredHoleSetup(from: geometries, holeNumber: targetHoleNumber).holePinCoordinate
+        guard let currentHolePin,
+              let nextHoleNumber,
+              let nextHoleCoordinate = Self.preferredNextHoleTransitionCoordinate(from: geometries, holeNumber: nextHoleNumber) else {
+            return nil
+        }
+
+        return [currentHolePin, nextHoleCoordinate]
     }
 
     var targetHoleNumber: Int {
@@ -313,6 +362,27 @@ final class CourseMapViewModel {
 
     var selectedHoleScore: HoleScore? {
         selectedScoringPlayer?.scores.first { $0.holeNumber == targetHoleNumber }
+    }
+
+    func holeParText(for holeNumber: Int) -> String? {
+        let holeScore = selectedScoringPlayer?.scores.first { $0.holeNumber == holeNumber }
+            ?? round?.players
+                .flatMap(\.scores)
+                .first { $0.holeNumber == holeNumber }
+
+        guard let par = holeScore?.par else {
+            return nil
+        }
+
+        return "Par \(par)"
+    }
+
+    func teeBoxTitle(for holeNumber: Int) -> String {
+        title("Tee Box \(holeNumber)", holeNumber: holeNumber)
+    }
+
+    func greenTitle(for holeNumber: Int) -> String {
+        title("Green \(holeNumber)", holeNumber: holeNumber)
     }
 
     var manualShotScoreText: String? {
@@ -371,6 +441,41 @@ final class CourseMapViewModel {
         locationService.requestLocationAccess()
     }
 
+    func selectMapInfo(title: String, coordinate: CLLocationCoordinate2D) {
+        selectedMapInfo = CourseMapInfoSelection(title: title, coordinate: coordinate)
+    }
+
+    func clearSelectedMapInfo() {
+        selectedMapInfo = nil
+    }
+
+    func refreshOpenStreetMapGeometry(modelContext: ModelContext) async {
+        guard !isRefreshingGeometry else {
+            return
+        }
+
+        isRefreshingGeometry = true
+        errorMessage = nil
+        statusMessage = "Finding OpenStreetMap geometry..."
+
+        do {
+            let geometryImport = try await geometryProvider.geometry(for: OpenStreetMapGolfGeometryRequest(
+                courseExternalID: course.id,
+                centerCoordinate: course.coordinate
+            ))
+            let importedGeometry = try geometryEditor.importGeometry(geometryImport, modelContext: modelContext)
+            let holeCount = importedGeometry.holes.count
+            applyStoredHoleSetup(from: [importedGeometry])
+            focusSelectedHole(from: [importedGeometry])
+            statusMessage = "Imported OpenStreetMap geometry for \(holeCount) \(holeCount == 1 ? "hole" : "holes")."
+        } catch {
+            errorMessage = error.localizedDescription
+            statusMessage = nil
+        }
+
+        isRefreshingGeometry = false
+    }
+
     func updateCameraState(_ camera: MapCamera) {
         cameraCenter = camera.centerCoordinate
         cameraDistance = Self.clampedDistance(camera.distance)
@@ -424,10 +529,10 @@ final class CourseMapViewModel {
     }
 
     func focusSelectedHole(from geometries: [CourseGeometry]) {
-        let anchors = Self.userMappedHoleAnchors(from: geometries, holeNumber: targetHoleNumber)
+        let anchors = Self.preferredHoleSetup(from: geometries, holeNumber: targetHoleNumber)
 
         if let teeBoxCoordinate = anchors.teeBoxCoordinate, let holePinCoordinate = anchors.holePinCoordinate {
-            focusCamera(containing: [teeBoxCoordinate, holePinCoordinate])
+            focusHoleLine(from: teeBoxCoordinate, to: holePinCoordinate)
             return
         }
 
@@ -481,28 +586,37 @@ final class CourseMapViewModel {
     func selectMapLocation(at coordinate: CLLocationCoordinate2D, modelContext: ModelContext? = nil) {
         statusMessage = nil
         errorMessage = nil
+        selectedMapInfo = nil
 
         switch selectionMode {
+        case .inactive:
+            statusMessage = "Choose a map action before tapping."
         case .measurementPin:
             measurePoint(at: coordinate)
             statusMessage = "Measurement pin set."
+            selectionMode = .inactive
         case .teeBox:
             teeBoxCoordinate = coordinate
             saveStickyHoleAnchor(kind: .teeBox, coordinate: coordinate, modelContext: modelContext)
+            selectionMode = .inactive
         case .holePin:
             holePinCoordinate = coordinate
             saveStickyHoleAnchor(kind: .greenPin, coordinate: coordinate, modelContext: modelContext)
+            selectionMode = .inactive
         case .shotStart:
             startShot(at: coordinate)
             statusMessage = "Shot start set."
+            selectionMode = .inactive
         case .shotBall:
             markShotEnd(at: coordinate, modelContext: modelContext)
             statusMessage = shotStartCoordinate == nil ? "Ball set. Add a shot start to measure distance." : "Ball set. Use Next Shot to continue from here."
             if shotStartCoordinate != nil {
                 showShotMeasurement()
             }
+            selectionMode = .inactive
         case .moveShotBall:
             updateSelectedShotMarkerBall(to: coordinate)
+            selectionMode = .inactive
         }
     }
 
@@ -518,16 +632,24 @@ final class CourseMapViewModel {
         errorMessage = nil
     }
 
-    func setTeeBoxTapMode() {
-        selectionMode = .teeBox
-        statusMessage = "Tap the map to save Tee \(targetHoleNumber)."
+    func setMeasurementPinTapMode() {
+        selectionMode = .measurementPin
+        statusMessage = "Tap the map to drop a measurement pin."
         errorMessage = nil
     }
 
-    func setHolePinTapMode() {
+    func setTeeBoxTapMode(geometries: [CourseGeometry] = []) {
+        selectionMode = .teeBox
+        statusMessage = "Tap the map to save Tee \(targetHoleNumber)."
+        errorMessage = nil
+        focusCurrentHoleLineIfAvailable(from: geometries)
+    }
+
+    func setHolePinTapMode(geometries: [CourseGeometry] = []) {
         selectionMode = .holePin
         statusMessage = "Tap the map to save Pin \(targetHoleNumber)."
         errorMessage = nil
+        focusCurrentHoleLineIfAvailable(from: geometries)
     }
 
     func measurePoint(at coordinate: CLLocationCoordinate2D) {
@@ -537,7 +659,15 @@ final class CourseMapViewModel {
     }
 
     func clearMeasuredPoint() {
+        deleteMeasuredPoint()
+    }
+
+    func deleteMeasuredPoint() {
         measuredCoordinate = nil
+        selectedMapInfo = nil
+        selectionMode = .inactive
+        statusMessage = "Measured point deleted. Choose a map action before tapping."
+        errorMessage = nil
     }
 
     func clearHoleSetup(modelContext: ModelContext? = nil) {
@@ -558,6 +688,39 @@ final class CourseMapViewModel {
             statusMessage = "Saved tee and pin cleared for Hole \(targetHoleNumber)."
         } catch {
             errorMessage = "Could not clear tee/pin: \(error.localizedDescription)"
+        }
+    }
+
+    func deleteStickyHoleAnchor(kind: CourseMapFeatureKind, modelContext: ModelContext, geometries: [CourseGeometry]) {
+        guard kind.isStickyHoleAnchor else {
+            return
+        }
+
+        do {
+            try geometryEditor.clearStickyHoleAnchor(
+                courseExternalID: course.id,
+                holeNumber: targetHoleNumber,
+                kind: kind,
+                modelContext: modelContext
+            )
+            let setup = Self.preferredHoleSetup(from: geometries, holeNumber: targetHoleNumber)
+            if kind == .teeBox {
+                teeBoxCoordinate = setup.teeBoxCoordinate
+            } else {
+                holePinCoordinate = setup.holePinCoordinate
+            }
+            statusMessage = kind == .teeBox ? "Deleted saved tee for Hole \(targetHoleNumber)." : "Deleted saved pin for Hole \(targetHoleNumber)."
+        } catch {
+            errorMessage = "Could not delete \(kind.title.lowercased()): \(error.localizedDescription)"
+        }
+    }
+
+    func deleteUserMappedFeaturePoint(_ featurePoint: CourseMapFeaturePoint, modelContext: ModelContext) {
+        do {
+            try geometryEditor.deleteUserMappedFeaturePoint(featurePoint, modelContext: modelContext)
+            statusMessage = "Deleted \(featurePoint.kind.title.lowercased()) from Hole \(targetHoleNumber)."
+        } catch {
+            errorMessage = "Could not delete target: \(error.localizedDescription)"
         }
     }
 
@@ -598,7 +761,39 @@ final class CourseMapViewModel {
     func clearShotMeasurement() {
         shotStartCoordinate = nil
         shotEndCoordinate = nil
+        selectedMapInfo = nil
         currentShotMarkerID = nil
+    }
+
+    func deleteSelectedShotMarker(modelContext: ModelContext? = nil) {
+        guard let selectedShotMarkerID,
+              let index = shotMarkers.firstIndex(where: { $0.id == selectedShotMarkerID }) else {
+            errorMessage = "Select a shot before deleting it."
+            return
+        }
+
+        shotMarkers.remove(at: index)
+        shotMarkers = shotMarkers.enumerated().map { index, marker in
+            CourseMapShotMarker(
+                id: marker.id,
+                shotNumber: index + 1,
+                startCoordinate: marker.startCoordinate,
+                ballCoordinate: marker.ballCoordinate
+            )
+        }
+        self.selectedShotMarkerID = nil
+        selectedMapInfo = nil
+        currentShotMarkerID = nil
+        shotStartCoordinate = nil
+        shotEndCoordinate = nil
+        if let selectedHoleScore {
+            selectedHoleScore.strokes = shotMarkers.count
+            saveScoreContext(modelContext)
+        } else {
+            syncManualShotCountToScore(modelContext: modelContext)
+        }
+        statusMessage = "Deleted shot."
+        errorMessage = nil
     }
 
     func startNextShotFromBall() {
@@ -620,6 +815,7 @@ final class CourseMapViewModel {
         currentShotMarkerID = id
         shotStartCoordinate = marker.startCoordinate
         shotEndCoordinate = marker.ballCoordinate
+        selectMapInfo(title: "Shot \(marker.shotNumber) ball", coordinate: marker.ballCoordinate)
         statusMessage = "Shot \(marker.shotNumber) selected. Use Move Ball, then tap the corrected spot."
         showShotMeasurement()
     }
@@ -748,6 +944,22 @@ final class CourseMapViewModel {
         focusSelectedHole(from: geometries)
     }
 
+    func selectTeeBoxMarker(holeNumber: Int, geometries: [CourseGeometry], modelContext: ModelContext? = nil) {
+        selectHole(holeNumber, geometries: geometries, modelContext: modelContext)
+        setTeeBoxTapMode(geometries: geometries)
+        if let teeBoxCoordinate {
+            selectMapInfo(title: teeBoxTitle(for: holeNumber), coordinate: teeBoxCoordinate)
+        }
+    }
+
+    func selectPinMarker(holeNumber: Int, geometries: [CourseGeometry], modelContext: ModelContext? = nil) {
+        selectHole(holeNumber, geometries: geometries, modelContext: modelContext)
+        setHolePinTapMode(geometries: geometries)
+        if let holePinCoordinate {
+            selectMapInfo(title: greenTitle(for: holeNumber), coordinate: holePinCoordinate)
+        }
+    }
+
     func saveCurrentHole(modelContext: ModelContext? = nil) {
         guard let round else {
             statusMessage = "Open from a scorecard round to save this hole."
@@ -836,6 +1048,34 @@ final class CourseMapViewModel {
         shotEndCoordinate ?? locationService.currentLocation?.coordinate ?? shotStartCoordinate ?? teeBoxCoordinate
     }
 
+    private var selectedMapReference: (label: String, coordinate: CLLocationCoordinate2D)? {
+        if let shotEndCoordinate {
+            return ("Ball to this", shotEndCoordinate)
+        }
+
+        if let currentLocation = locationService.currentLocation {
+            return ("GPS to this", currentLocation.coordinate)
+        }
+
+        if let shotStartCoordinate {
+            return ("Start to this", shotStartCoordinate)
+        }
+
+        if let teeBoxCoordinate {
+            return ("Tee to this", teeBoxCoordinate)
+        }
+
+        return nil
+    }
+
+    private func title(_ baseTitle: String, holeNumber: Int) -> String {
+        guard let parText = holeParText(for: holeNumber) else {
+            return baseTitle
+        }
+
+        return "\(baseTitle) - \(parText)"
+    }
+
     private var currentHoleHasScore: Bool {
         scoringPlayers.contains { player in
             player.scores.contains { $0.holeNumber == targetHoleNumber && $0.strokes > 0 }
@@ -862,6 +1102,22 @@ final class CourseMapViewModel {
 
         let previousShotNumber = marker.shotNumber - 1
         return shotMarkers.first { $0.shotNumber == previousShotNumber }?.ballCoordinate ?? marker.startCoordinate
+    }
+
+    private func focusCurrentHoleLineIfAvailable(from geometries: [CourseGeometry]) {
+        if !geometries.isEmpty {
+            applyStoredHoleSetup(from: geometries)
+        }
+
+        guard let teeBoxCoordinate, let holePinCoordinate else {
+            return
+        }
+
+        focusCamera(
+            containing: [teeBoxCoordinate, holePinCoordinate],
+            heading: Self.bearing(from: teeBoxCoordinate, to: holePinCoordinate),
+            pitch: Self.holeFlyoverPitch
+        )
     }
 
     private func saveCurrentHoleSession() {
@@ -933,10 +1189,11 @@ final class CourseMapViewModel {
         let featurePoints = holes.flatMap(\.featurePoints)
         let userTee = featurePoints.first { $0.kind == .teeBox && $0.source == .userMapped }
         let userPin = featurePoints.first { $0.kind == .greenPin && $0.source == .userMapped }
+        let importedTee = Self.preferredImportedFeaturePoint(kind: .teeBox, in: featurePoints)
         let providerPin = holes.compactMap(greenCenterCoordinate(for:)).first
 
         return (
-            teeBoxCoordinate: userTee.map(coordinate(for:)),
+            teeBoxCoordinate: userTee.map(coordinate(for:)) ?? importedTee.map(coordinate(for:)),
             holePinCoordinate: userPin.map(coordinate(for:)) ?? providerPin
         )
     }
@@ -968,14 +1225,14 @@ final class CourseMapViewModel {
 
         let previousHoleNumbers = (1..<holeNumber).reversed()
         for previousHoleNumber in previousHoleNumbers {
-            let anchors = userMappedHoleAnchors(from: geometries, holeNumber: previousHoleNumber)
+            let anchors = preferredHoleSetup(from: geometries, holeNumber: previousHoleNumber)
             if let holePinCoordinate = anchors.holePinCoordinate {
                 return holePinCoordinate
             }
         }
 
         for previousHoleNumber in previousHoleNumbers {
-            let anchors = userMappedHoleAnchors(from: geometries, holeNumber: previousHoleNumber)
+            let anchors = preferredHoleSetup(from: geometries, holeNumber: previousHoleNumber)
             if let teeBoxCoordinate = anchors.teeBoxCoordinate {
                 return teeBoxCoordinate
             }
@@ -984,8 +1241,31 @@ final class CourseMapViewModel {
         return nil
     }
 
+    private static func preferredNextHoleTransitionCoordinate(
+        from geometries: [CourseGeometry],
+        holeNumber: Int
+    ) -> CLLocationCoordinate2D? {
+        let anchors = preferredHoleSetup(from: geometries, holeNumber: holeNumber)
+        return anchors.teeBoxCoordinate ?? anchors.holePinCoordinate
+    }
+
     private static func coordinate(for featurePoint: CourseMapFeaturePoint) -> CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: featurePoint.latitude, longitude: featurePoint.longitude)
+    }
+
+    private static func preferredImportedFeaturePoint(
+        kind: CourseMapFeatureKind,
+        in featurePoints: [CourseMapFeaturePoint]
+    ) -> CourseMapFeaturePoint? {
+        let sourcePriority: [CourseGeometrySource] = [.licensedProvider, .openStreetMap, .manualImport]
+
+        for source in sourcePriority {
+            if let featurePoint = featurePoints.first(where: { $0.kind == kind && $0.source == source }) {
+                return featurePoint
+            }
+        }
+
+        return nil
     }
 
     private static func greenCenterCoordinate(for hole: HoleGeometry) -> CLLocationCoordinate2D? {
@@ -1023,19 +1303,35 @@ final class CourseMapViewModel {
         setCamera(center: coordinate, distance: Self.defaultCameraDistance)
     }
 
-    private func focusCamera(containing coordinates: [CLLocationCoordinate2D]) {
+    private func focusCamera(
+        containing coordinates: [CLLocationCoordinate2D],
+        heading: CLLocationDirection? = nil,
+        pitch: CGFloat? = nil,
+        distanceScale: CLLocationDistance = 1
+    ) {
         let region = Self.region(containing: coordinates)
-        setCamera(center: region.center, distance: Self.distance(for: region))
+        setCamera(center: region.center, distance: Self.distance(for: region) * distanceScale, heading: heading, pitch: pitch)
+    }
+
+    private func focusHoleLine(from teeCoordinate: CLLocationCoordinate2D, to pinCoordinate: CLLocationCoordinate2D) {
+        focusCamera(
+            containing: [teeCoordinate, pinCoordinate],
+            heading: Self.bearing(from: teeCoordinate, to: pinCoordinate),
+            pitch: Self.holeFlyoverPitch,
+            distanceScale: Self.holeFlyoverDistanceScale
+        )
     }
 
     private func setCamera(
         center: CLLocationCoordinate2D? = nil,
         distance: CLLocationDistance? = nil,
-        heading: CLLocationDirection? = nil
+        heading: CLLocationDirection? = nil,
+        pitch: CGFloat? = nil
     ) {
         cameraCenter = center ?? cameraCenter
         cameraDistance = Self.clampedDistance(distance ?? cameraDistance)
         cameraHeading = Self.normalizedHeading(heading ?? cameraHeading)
+        cameraPitch = pitch ?? cameraPitch
         position = .camera(Self.camera(
             center: cameraCenter,
             distance: cameraDistance,
@@ -1060,6 +1356,16 @@ final class CourseMapViewModel {
     private static func normalizedHeading(_ heading: CLLocationDirection) -> CLLocationDirection {
         let normalized = heading.truncatingRemainder(dividingBy: 360)
         return normalized < 0 ? normalized + 360 : normalized
+    }
+
+    private static func bearing(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D) -> CLLocationDirection {
+        let startLatitude = start.latitude * .pi / 180
+        let endLatitude = end.latitude * .pi / 180
+        let deltaLongitude = (end.longitude - start.longitude) * .pi / 180
+        let y = sin(deltaLongitude) * cos(endLatitude)
+        let x = cos(startLatitude) * sin(endLatitude) - sin(startLatitude) * cos(endLatitude) * cos(deltaLongitude)
+        let bearing = atan2(y, x) * 180 / .pi
+        return normalizedHeading(bearing)
     }
 
     private static func distance(for region: MKCoordinateRegion) -> CLLocationDistance {

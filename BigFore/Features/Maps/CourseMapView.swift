@@ -19,10 +19,24 @@ struct CourseMapPoint: Identifiable, Hashable {
     }
 }
 
+private struct CourseMapHoleMarker: Identifiable {
+    enum Kind: Equatable {
+        case tee
+        case pin
+    }
+
+    let id: String
+    let holeNumber: Int
+    let coordinate: CLLocationCoordinate2D
+    let kind: Kind
+}
+
 struct CourseMapView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var courseGeometries: [CourseGeometry]
     @State private var viewModel: CourseMapViewModel
+    @State private var isMeasuredPointDeleteVisible = false
+    @State private var hasFocusedInitialRoundHole = false
     @AppStorage("courseMap.isControlPanelExpanded") private var isControlPanelExpanded = true
     @AppStorage("courseMap.isDistancesExpanded") private var isDistancesExpanded = true
     @AppStorage("courseMap.isSaveTargetExpanded") private var isSaveTargetExpanded = false
@@ -42,6 +56,7 @@ struct CourseMapView: View {
     private var mappedFeaturePoints: [CourseMapFeaturePoint] {
         courseGeometries
             .flatMap(\.holes)
+            .filter { $0.number == viewModel.targetHoleNumber }
             .flatMap(\.featurePoints)
             .filter { !$0.kind.isStickyHoleAnchor }
             .sorted {
@@ -55,6 +70,87 @@ struct CourseMapView: View {
             }
     }
 
+    private var mappedTeeMarkers: [CourseMapHoleMarker] {
+        courseGeometries
+            .flatMap(\.holes)
+            .filter { $0.number != viewModel.targetHoleNumber }
+            .compactMap { hole in
+                let teePoint = preferredFeaturePoint(kind: .teeBox, in: hole.featurePoints)
+                guard let teePoint else {
+                    return nil
+                }
+
+                return CourseMapHoleMarker(
+                    id: "tee-\(hole.number)",
+                    holeNumber: hole.number,
+                    coordinate: teePoint.coordinate,
+                    kind: .tee
+                )
+            }
+            .sorted { $0.holeNumber < $1.holeNumber }
+    }
+
+    private var mappedPinMarkers: [CourseMapHoleMarker] {
+        courseGeometries
+            .flatMap(\.holes)
+            .filter { $0.number != viewModel.targetHoleNumber }
+            .compactMap { hole in
+                let userPin = preferredFeaturePoint(kind: .greenPin, in: hole.featurePoints)
+                let coordinate = userPin?.coordinate ?? hole.greenCenterCoordinate
+                guard let coordinate else {
+                    return nil
+                }
+
+                return CourseMapHoleMarker(
+                    id: "pin-\(hole.number)",
+                    holeNumber: hole.number,
+                    coordinate: coordinate,
+                    kind: .pin
+                )
+            }
+            .sorted { $0.holeNumber < $1.holeNumber }
+    }
+
+    private var activeGeometry: CourseGeometry? {
+        courseGeometries.first
+    }
+
+    private var geometrySummaryText: String? {
+        guard let activeGeometry else {
+            return nil
+        }
+
+        let mappedHoleCount = mappedHoleCount(for: activeGeometry)
+        guard mappedHoleCount > 0 else {
+            return nil
+        }
+
+        let source = CourseGeometrySource(rawValue: activeGeometry.sourceRawValue)?.title ?? activeGeometry.sourceName
+        return "\(source): \(mappedHoleCount) mapped \(mappedHoleCount == 1 ? "hole" : "holes")"
+    }
+
+    private var compactGeometryTitle: String {
+        if viewModel.isRefreshingGeometry {
+            return "OSM..."
+        }
+
+        guard let activeGeometry else {
+            return "OSM"
+        }
+
+        let mappedHoleCount = mappedHoleCount(for: activeGeometry)
+        return mappedHoleCount > 0 ? "OSM \(mappedHoleCount)" : "OSM"
+    }
+
+    private var currentHoleUserMappedFeaturePoints: [CourseMapFeaturePoint] {
+        courseGeometries
+            .flatMap(\.holes)
+            .filter { $0.number == viewModel.targetHoleNumber }
+            .flatMap(\.featurePoints)
+            .filter { !$0.kind.isStickyHoleAnchor && $0.source == .userMapped }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
     var body: some View {
         @Bindable var viewModel = viewModel
 
@@ -65,23 +161,74 @@ struct CourseMapView: View {
                     UserAnnotation()
 
                     if let measuredCoordinate = viewModel.measuredCoordinate {
-                        Marker("Measured Point", systemImage: "mappin.and.ellipse", coordinate: measuredCoordinate)
-                            .tint(.orange)
+                        Annotation("Measured Point", coordinate: measuredCoordinate, anchor: .center) {
+                            measuredPointAnnotation(viewModel: viewModel)
+                        }
                     }
 
                     if let teeBoxCoordinate = viewModel.teeBoxCoordinate {
-                        Marker("Tee Box", systemImage: "figure.golf", coordinate: teeBoxCoordinate)
-                            .tint(.blue)
+                        Annotation("", coordinate: teeBoxCoordinate, anchor: .bottom) {
+                            Button {
+                                viewModel.selectMapInfo(title: viewModel.teeBoxTitle(for: viewModel.targetHoleNumber), coordinate: teeBoxCoordinate)
+                            } label: {
+                                courseHoleMarkerView(CourseMapHoleMarker(
+                                    id: "active-tee-\(viewModel.targetHoleNumber)",
+                                    holeNumber: viewModel.targetHoleNumber,
+                                    coordinate: teeBoxCoordinate,
+                                    kind: .tee
+                                ))
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
 
                     if let holePinCoordinate = viewModel.holePinCoordinate {
-                        Marker("Hole Pin", systemImage: "flag.fill", coordinate: holePinCoordinate)
-                            .tint(.red)
+                        Annotation("", coordinate: holePinCoordinate, anchor: .bottom) {
+                            Button {
+                                viewModel.selectMapInfo(title: viewModel.greenTitle(for: viewModel.targetHoleNumber), coordinate: holePinCoordinate)
+                            } label: {
+                                courseHoleMarkerView(CourseMapHoleMarker(
+                                    id: "active-pin-\(viewModel.targetHoleNumber)",
+                                    holeNumber: viewModel.targetHoleNumber,
+                                    coordinate: holePinCoordinate,
+                                    kind: .pin
+                                ))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    ForEach(mappedTeeMarkers) { marker in
+                        Annotation("", coordinate: marker.coordinate, anchor: .bottom) {
+                            Button {
+                                viewModel.selectTeeBoxMarker(holeNumber: marker.holeNumber, geometries: courseGeometries, modelContext: modelContext)
+                            } label: {
+                                courseHoleMarkerView(marker)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    ForEach(mappedPinMarkers) { marker in
+                        Annotation("", coordinate: marker.coordinate, anchor: .bottom) {
+                            Button {
+                                viewModel.selectPinMarker(holeNumber: marker.holeNumber, geometries: courseGeometries, modelContext: modelContext)
+                            } label: {
+                                courseHoleMarkerView(marker)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
 
                     ForEach(mappedFeaturePoints) { featurePoint in
-                        Marker(featurePoint.markerTitle, systemImage: featurePoint.kind.mapSystemImage, coordinate: featurePoint.coordinate)
-                            .tint(featurePoint.kind.mapTint)
+                        Annotation("", coordinate: featurePoint.coordinate, anchor: .center) {
+                            Button {
+                                viewModel.selectMapInfo(title: featurePoint.markerTitle, coordinate: featurePoint.coordinate)
+                            } label: {
+                                featurePointMarkerView(featurePoint)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
 
                     if let courseToMeasuredCoordinates = viewModel.courseToMeasuredCoordinates {
@@ -89,9 +236,9 @@ struct CourseMapView: View {
                             .stroke(.orange, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                     }
 
-                    if let userToMeasuredCoordinates = viewModel.userToMeasuredCoordinates {
-                        MapPolyline(coordinates: userToMeasuredCoordinates)
-                            .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
+                    if let nextHoleTransitionCoordinates = viewModel.nextHoleTransitionCoordinates(from: courseGeometries) {
+                        MapPolyline(coordinates: nextHoleTransitionCoordinates)
+                            .stroke(.green.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
                     }
 
                     if let teeToHolePinCoordinates = viewModel.teeToHolePinCoordinates {
@@ -101,17 +248,29 @@ struct CourseMapView: View {
 
                     if let shotLocationToHolePinCoordinates = viewModel.shotLocationToHolePinCoordinates {
                         MapPolyline(coordinates: shotLocationToHolePinCoordinates)
-                            .stroke(.mint, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
+                            .stroke(.mint.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
                     }
 
                     if let shotStartCoordinate = viewModel.shotStartCoordinate {
-                        Marker("Shot Start", systemImage: "figure.golf", coordinate: shotStartCoordinate)
-                            .tint(.blue)
+                        Annotation("Shot Start", coordinate: shotStartCoordinate, anchor: .center) {
+                            Button {
+                                viewModel.selectMapInfo(title: "Shot start", coordinate: shotStartCoordinate)
+                            } label: {
+                                mapSymbolMarker(systemImage: "figure.golf", color: .blue)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
 
                     if let shotEndCoordinate = viewModel.shotEndCoordinate {
-                        Marker("Ball", systemImage: "smallcircle.filled.circle", coordinate: shotEndCoordinate)
-                            .tint(.green)
+                        Annotation("Ball", coordinate: shotEndCoordinate, anchor: .center) {
+                            Button {
+                                viewModel.selectMapInfo(title: "Ball", coordinate: shotEndCoordinate)
+                            } label: {
+                                mapSymbolMarker(systemImage: "smallcircle.filled.circle", color: .green)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
 
                     ForEach(viewModel.shotMarkers) { shotMarker in
@@ -138,6 +297,13 @@ struct CourseMapView: View {
                         MapPolyline(coordinates: shotMeasurementCoordinates)
                             .stroke(.blue, lineWidth: 3)
                     }
+
+                    if let selectedMapInfo = viewModel.selectedMapInfo {
+                        Annotation("", coordinate: selectedMapInfo.coordinate, anchor: .bottom) {
+                            selectedMapInfoCard(viewModel: viewModel)
+                                .offset(y: -34)
+                        }
+                    }
                 }
                 .mapStyle(.hybrid(elevation: .realistic))
                 .mapControls {
@@ -151,6 +317,7 @@ struct CourseMapView: View {
                 .onTapGesture(coordinateSpace: .local) { point in
                     if let coordinate = proxy.convert(point, from: .local) {
                         collapseControlPanel()
+                        isMeasuredPointDeleteVisible = false
                         viewModel.handleMapTap(at: coordinate, modelContext: modelContext)
                     }
                 }
@@ -173,6 +340,8 @@ struct CourseMapView: View {
                             Text(viewModel.locationService.locationStatusText)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+
+                            geometryImportControls(viewModel: viewModel, modelContext: modelContext)
 
                             holeNavigationControls(viewModel: viewModel, modelContext: modelContext)
 
@@ -198,6 +367,7 @@ struct CourseMapView: View {
                                     .font(.caption2)
                                     .lineLimit(1)
                                 }
+                                deleteStickyAnchorButtons(viewModel: viewModel, modelContext: modelContext)
                             }
 
                             distanceDisclosure(viewModel: viewModel, isExpanded: $isDistancesExpanded)
@@ -305,13 +475,49 @@ struct CourseMapView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             viewModel.applyStoredHoleSetup(from: courseGeometries)
+            focusInitialRoundHoleIfNeeded()
             viewModel.requestLocationAccess()
         }
         .onChange(of: courseGeometries.map(\.updatedAt)) {
             viewModel.applyStoredHoleSetup(from: courseGeometries)
+            focusInitialRoundHoleIfNeeded()
         }
         .onChange(of: viewModel.targetHoleNumber) {
             viewModel.applyStoredHoleSetup(from: courseGeometries)
+        }
+    }
+
+    @ViewBuilder
+    private func geometryImportControls(viewModel: CourseMapViewModel, modelContext: ModelContext) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                Task {
+                    await viewModel.refreshOpenStreetMapGeometry(modelContext: modelContext)
+                }
+            } label: {
+                if viewModel.isRefreshingGeometry {
+                    Label("Finding OSM Geometry", systemImage: "arrow.triangle.2.circlepath")
+                } else {
+                    Label(activeGeometry == nil ? "Find OSM Geometry" : "Refresh OSM Geometry", systemImage: "map")
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .disabled(viewModel.isRefreshingGeometry)
+
+            if let geometrySummaryText {
+                Text(geometrySummaryText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let attribution = activeGeometry?.attribution {
+                Text(attribution)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
         }
     }
 
@@ -325,6 +531,17 @@ struct CourseMapView: View {
         withAnimation(.snappy) {
             isControlPanelExpanded = false
         }
+    }
+
+    private func focusInitialRoundHoleIfNeeded() {
+        guard !hasFocusedInitialRoundHole,
+              viewModel.round != nil,
+              !courseGeometries.isEmpty else {
+            return
+        }
+
+        viewModel.focusSelectedHole(from: courseGeometries)
+        hasFocusedInitialRoundHole = true
     }
 
     private func handleControlPanelDrag(_ value: DragGesture.Value) {
@@ -383,13 +600,46 @@ struct CourseMapView: View {
     }
 
     @ViewBuilder
+    private func selectedMapInfoCard(viewModel: CourseMapViewModel) -> some View {
+        if let summary = viewModel.selectedMapInfoSummary {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(summary.title)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 8)
+
+                    Button {
+                        viewModel.clearSelectedMapInfo()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close distance popup")
+                }
+
+                LabeledContent(summary.referenceDistanceLabel, value: summary.referenceDistanceText ?? "Reference unavailable")
+                LabeledContent("Selected to pin", value: summary.pinDistanceText ?? "Pin unavailable")
+            }
+            .font(.caption)
+            .padding(10)
+            .frame(maxWidth: 260)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(radius: 4)
+            .transition(.scale.combined(with: .opacity))
+        }
+    }
+
+    @ViewBuilder
     private func selectionModeButtons(viewModel: CourseMapViewModel) -> some View {
         ScrollView(.horizontal) {
             HStack(spacing: 6) {
                 ForEach(CourseMapSelectionMode.allCases) { mode in
                     if viewModel.selectionMode == mode {
                         Button(mode.title) {
-                            viewModel.selectionMode = mode
+                            selectTapMode(mode, viewModel: viewModel)
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.mini)
@@ -398,7 +648,7 @@ struct CourseMapView: View {
                         .minimumScaleFactor(0.75)
                     } else {
                         Button(mode.title) {
-                            viewModel.selectionMode = mode
+                            selectTapMode(mode, viewModel: viewModel)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
@@ -410,6 +660,49 @@ struct CourseMapView: View {
             }
         }
         .scrollIndicators(.hidden)
+    }
+
+    private func selectTapMode(_ mode: CourseMapSelectionMode, viewModel: CourseMapViewModel) {
+        switch mode {
+        case .measurementPin:
+            viewModel.setMeasurementPinTapMode()
+        case .teeBox:
+            viewModel.setTeeBoxTapMode(geometries: courseGeometries)
+        case .holePin:
+            viewModel.setHolePinTapMode(geometries: courseGeometries)
+        case .shotStart:
+            viewModel.setShotStartTapMode()
+        case .shotBall:
+            viewModel.setShotBallTapMode()
+        default:
+            viewModel.selectionMode = mode
+        }
+    }
+
+    @ViewBuilder
+    private func deleteStickyAnchorButtons(viewModel: CourseMapViewModel, modelContext: ModelContext) -> some View {
+        let hasUserTee = userMappedStickyAnchor(kind: .teeBox) != nil
+        let hasUserPin = userMappedStickyAnchor(kind: .greenPin) != nil
+
+        if hasUserTee || hasUserPin {
+            HStack(spacing: 6) {
+                if hasUserTee {
+                    Button("Delete Tee", role: .destructive) {
+                        viewModel.deleteStickyHoleAnchor(kind: .teeBox, modelContext: modelContext, geometries: courseGeometries)
+                    }
+                }
+
+                if hasUserPin {
+                    Button("Delete Pin", role: .destructive) {
+                        viewModel.deleteStickyHoleAnchor(kind: .greenPin, modelContext: modelContext, geometries: courseGeometries)
+                    }
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .font(.caption2)
+            .lineLimit(1)
+        }
     }
 
     @ViewBuilder
@@ -578,12 +871,50 @@ struct CourseMapView: View {
                 .font(.caption2)
                 .lineLimit(1)
                 .disabled(viewModel.measuredCoordinate == nil)
+                userMappedFeaturePointList(viewModel: viewModel, modelContext: modelContext)
             }
             .padding(.top, 6)
         } label: {
             Text("Save Target")
                 .font(.subheadline)
                 .fontWeight(.semibold)
+        }
+    }
+
+    @ViewBuilder
+    private func userMappedFeaturePointList(viewModel: CourseMapViewModel, modelContext: ModelContext) -> some View {
+        let featurePoints = currentHoleUserMappedFeaturePoints
+
+        if !featurePoints.isEmpty {
+            Divider()
+            Text("Saved on Hole \(viewModel.targetHoleNumber)")
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+
+            ForEach(featurePoints) { featurePoint in
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(featurePoint.label)
+                            .font(.caption)
+                            .lineLimit(1)
+                        Text(featurePoint.kind.title)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Button(role: .destructive) {
+                        viewModel.deleteUserMappedFeaturePoint(featurePoint, modelContext: modelContext)
+                    } label: {
+                        Label("Delete \(featurePoint.label)", systemImage: "trash")
+                            .labelStyle(.iconOnly)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                }
+            }
         }
     }
 
@@ -618,6 +949,9 @@ struct CourseMapView: View {
             if viewModel.selectedShotMarker != nil {
                 Button("Move") {
                     viewModel.selectionMode = .moveShotBall
+                }
+                Button("Delete", role: .destructive) {
+                    viewModel.deleteSelectedShotMarker(modelContext: modelContext)
                 }
             }
             if viewModel.shotStartCoordinate != nil {
@@ -706,12 +1040,67 @@ struct CourseMapView: View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
                 compactZoomControls(viewModel: viewModel)
+                compactGeometryImportButton(viewModel: viewModel, modelContext: modelContext)
                 compactHoleActionControls(viewModel: viewModel, modelContext: modelContext)
             }
             .fixedSize(horizontal: true, vertical: false)
             .padding(.trailing)
         }
         .scrollIndicators(.hidden)
+    }
+
+    private func compactGeometryImportButton(viewModel: CourseMapViewModel, modelContext: ModelContext) -> some View {
+        Button {
+            Task {
+                await viewModel.refreshOpenStreetMapGeometry(modelContext: modelContext)
+            }
+        } label: {
+            compactControlLabel(compactGeometryTitle, systemImage: "map")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.mini)
+        .font(.caption2.weight(.semibold))
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
+        .buttonBorderShape(.capsule)
+        .disabled(viewModel.isRefreshingGeometry)
+        .accessibilityLabel(activeGeometry == nil ? "Find OpenStreetMap geometry" : "Refresh OpenStreetMap geometry")
+        .accessibilityValue(geometrySummaryText ?? "No OpenStreetMap geometry imported")
+    }
+
+    private func measuredPointAnnotation(viewModel: CourseMapViewModel) -> some View {
+        HStack(spacing: 4) {
+            Button {
+                isMeasuredPointDeleteVisible.toggle()
+                if let measuredCoordinate = viewModel.measuredCoordinate {
+                    viewModel.selectMapInfo(title: "Measured Point", coordinate: measuredCoordinate)
+                }
+            } label: {
+                Image(systemName: "mappin.circle.fill")
+                    .font(.system(size: 34, weight: .semibold))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, .orange)
+                    .shadow(radius: 2)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Measured point")
+            .accessibilityHint("Shows the delete measured point button.")
+
+            if isMeasuredPointDeleteVisible {
+                Button(role: .destructive) {
+                    viewModel.deleteMeasuredPoint()
+                    isMeasuredPointDeleteVisible = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, .red)
+                        .shadow(radius: 2)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Delete measured point")
+            }
+        }
     }
 
     private func collapsedActionButtons(viewModel: CourseMapViewModel, modelContext: ModelContext) -> some View {
@@ -822,21 +1211,13 @@ struct CourseMapView: View {
             .accessibilityHint("Starts the next shot from the last marked ball.")
 
             compactTapModeButton(
-                "T\(viewModel.targetHoleNumber)",
-                accessibilityLabel: "Set tee box for Hole \(viewModel.targetHoleNumber)",
-                mode: .teeBox,
+                "Measure",
+                systemImage: "ruler",
+                accessibilityLabel: "Drop measurement pin",
+                mode: .measurementPin,
                 viewModel: viewModel
             ) {
-                viewModel.setTeeBoxTapMode()
-            }
-
-            compactTapModeButton(
-                "P\(viewModel.targetHoleNumber)",
-                accessibilityLabel: "Set hole pin for Hole \(viewModel.targetHoleNumber)",
-                mode: .holePin,
-                viewModel: viewModel
-            ) {
-                viewModel.setHolePinTapMode()
+                viewModel.setMeasurementPinTapMode()
             }
         }
         .controlSize(.mini)
@@ -908,6 +1289,79 @@ struct CourseMapView: View {
             .labelStyle(.iconOnly)
             .frame(width: 24, height: 22)
     }
+
+    private func mappedHoleCount(for geometry: CourseGeometry) -> Int {
+        geometry.holes.filter { hole in
+            hole.greenCenterLatitude != nil || !hole.featurePoints.isEmpty
+        }.count
+    }
+
+    private func courseHoleMarkerView(_ marker: CourseMapHoleMarker) -> some View {
+        ZStack {
+            Image(marker.kind.assetName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 44, height: 58)
+                .shadow(radius: 2)
+
+            Text("\(marker.holeNumber)")
+                .font(.system(size: 18, weight: .black))
+                .monospacedDigit()
+				.tracking(-1.0)
+                .foregroundStyle(.black)
+                .minimumScaleFactor(0.65)
+                .offset(y: -9)
+        }
+		.scaleEffect(0.75)
+        .accessibilityLabel(marker.kind == .tee ? "Tee box \(marker.holeNumber)" : "Pin \(marker.holeNumber)")
+    }
+
+    @ViewBuilder
+    private func featurePointMarkerView(_ featurePoint: CourseMapFeaturePoint) -> some View {
+        if featurePoint.kind == .hazard {
+            mapSymbolMarker(systemImage: featurePoint.kind.mapSystemImage, color: featurePoint.kind.mapTint, size: 24)
+        } else {
+            VStack(spacing: 2) {
+                mapSymbolMarker(systemImage: featurePoint.kind.mapSystemImage, color: featurePoint.kind.mapTint)
+
+                Text(featurePoint.markerTitle)
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+                    .shadow(color: .white.opacity(0.8), radius: 1)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private func mapSymbolMarker(systemImage: String, color: Color, size: CGFloat = 30) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: size, weight: .semibold))
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(.white, color)
+            .shadow(radius: 2)
+            .accessibilityHidden(true)
+    }
+
+    private func userMappedStickyAnchor(kind: CourseMapFeatureKind) -> CourseMapFeaturePoint? {
+        courseGeometries
+            .flatMap(\.holes)
+            .filter { $0.number == viewModel.targetHoleNumber }
+            .flatMap(\.featurePoints)
+            .first { $0.kind == kind && $0.source == .userMapped }
+    }
+
+    private func preferredFeaturePoint(kind: CourseMapFeatureKind, in featurePoints: [CourseMapFeaturePoint]) -> CourseMapFeaturePoint? {
+        let sourcePriority: [CourseGeometrySource] = [.userMapped, .licensedProvider, .openStreetMap, .manualImport]
+
+        for source in sourcePriority {
+            if let featurePoint = featurePoints.first(where: { $0.kind == kind && $0.source == source }) {
+                return featurePoint
+            }
+        }
+
+        return nil
+    }
 }
 
 extension CourseMapPoint {
@@ -946,11 +1400,54 @@ private extension CourseMapFeaturePoint {
     }
 
     var markerTitle: String {
+        if label.hasPrefix("OSM ") {
+            return String(label.dropFirst(4))
+        }
+
         if let holeNumber = holeGeometry?.number {
             return "Hole \(holeNumber) \(label)"
         }
 
         return label
+    }
+}
+
+private extension HoleGeometry {
+    var greenCenterCoordinate: CLLocationCoordinate2D? {
+        guard let greenCenterLatitude, let greenCenterLongitude else {
+            return nil
+        }
+
+        return CLLocationCoordinate2D(latitude: greenCenterLatitude, longitude: greenCenterLongitude)
+    }
+}
+
+private extension CourseMapHoleMarker.Kind {
+    var markerColor: Color {
+        switch self {
+        case .tee:
+            .blue
+        case .pin:
+            .green
+        }
+    }
+
+    var assetName: String {
+        switch self {
+        case .tee:
+            "bluePin"
+        case .pin:
+            "greenPin"
+        }
+    }
+
+    func title(for holeNumber: Int) -> String {
+        switch self {
+        case .tee:
+            "Tee Box \(holeNumber)"
+        case .pin:
+            "Green \(holeNumber)"
+        }
     }
 }
 
@@ -964,7 +1461,7 @@ private extension CourseMapFeatureKind {
         case .dogleg:
             "arrow.turn.up.right"
         case .hazard:
-            "exclamationmark.triangle.fill"
+            "exclamationmark.triangle"
         case .layup:
             "flag.checkered"
         case .target:
@@ -981,7 +1478,7 @@ private extension CourseMapFeatureKind {
         case .dogleg:
             .purple
         case .hazard:
-            .red
+            .yellow
         case .layup:
             .yellow
         case .target:
