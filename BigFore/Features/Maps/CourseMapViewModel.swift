@@ -385,6 +385,23 @@ final class CourseMapViewModel {
         title("Green \(holeNumber)", holeNumber: holeNumber)
     }
 
+    func selectTapMode(_ mode: CourseMapSelectionMode, geometries: [CourseGeometry]) {
+        switch mode {
+        case .measurementPin:
+            setMeasurementPinTapMode()
+        case .teeBox:
+            setTeeBoxTapMode(geometries: geometries)
+        case .holePin:
+            setHolePinTapMode(geometries: geometries)
+        case .shotStart:
+            setShotStartTapMode()
+        case .shotBall:
+            setShotBallTapMode()
+        default:
+            selectionMode = mode
+        }
+    }
+
     var manualShotScoreText: String? {
         guard let selectedScoringPlayer else {
             return nil

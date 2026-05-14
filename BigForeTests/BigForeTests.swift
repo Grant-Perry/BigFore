@@ -27,6 +27,17 @@ struct BigForeTests {
         #expect(scoring.relativeText(2) == "+2")
     }
 
+    @Test func scorecardScoreResultCategorizesRelativeScores() {
+        #expect(ScorecardScoreResult(relativeToPar: -4) == .albatross)
+        #expect(ScorecardScoreResult(relativeToPar: -3) == .albatross)
+        #expect(ScorecardScoreResult(relativeToPar: -2) == .eagle)
+        #expect(ScorecardScoreResult(relativeToPar: -1) == .birdie)
+        #expect(ScorecardScoreResult(relativeToPar: 0) == .par)
+        #expect(ScorecardScoreResult(relativeToPar: 1) == .bogey)
+        #expect(ScorecardScoreResult(relativeToPar: 2) == .doubleBogeyOrWorse)
+        #expect(ScorecardScoreResult(relativeToPar: 4) == .doubleBogeyOrWorse)
+    }
+
     @Test func distanceCalculatorConvertsCoordinatesToRoundedYards() {
         let calculator = DistanceCalculator()
         let start = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)

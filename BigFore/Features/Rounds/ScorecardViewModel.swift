@@ -8,15 +8,27 @@ final class ScorecardViewModel {
     var round: GolfRound
     var errorMessage: String?
     private let scoring = RoundScoring()
-    private let geometryStrategy: CourseGeometryStrategy
 
-    init(round: GolfRound, geometryStrategy: CourseGeometryStrategy = CourseGeometryStrategy()) {
+    init(round: GolfRound) {
         self.round = round
-        self.geometryStrategy = geometryStrategy
     }
 
     var players: [RoundPlayer] {
         scoring.sortedPlayers(for: round)
+    }
+
+    var primaryPlayer: RoundPlayer? {
+        players.first
+    }
+
+    var primaryPlayerName: String {
+        primaryPlayer?.name ?? "Player"
+    }
+
+    var scorecardNines: [ScorecardNine] {
+        ScorecardNine.allCases.filter { nine in
+            !Set(availableHoles).isDisjoint(with: nine.holeNumbers)
+        }
     }
 
     var availableHoles: [Int] {
@@ -57,22 +69,6 @@ final class ScorecardViewModel {
 
     var currentHoleScore: HoleScore? {
         players.first?.scores.first { $0.holeNumber == round.currentHole }
-    }
-
-    var currentHoleSummary: String {
-        guard let currentHoleScore else {
-            return "Hole \(round.currentHole)"
-        }
-
-        var details = ["Par \(currentHoleScore.par)"]
-        if let yardage = currentHoleScore.yardage {
-            details.append("\(yardage) yds")
-        }
-        if let handicap = currentHoleScore.handicap {
-            details.append("HCP \(handicap)")
-        }
-
-        return "Hole \(round.currentHole) · \(details.joined(separator: " · "))"
     }
 
     var currentHoleScoreStatusText: String {
@@ -120,12 +116,64 @@ final class ScorecardViewModel {
         scoring.scoreRelativeToPar(for: score)
     }
 
-    func relativeText(_ value: Int) -> String {
-        scoring.relativeText(value)
+    func scoreResult(for score: HoleScore) -> ScorecardScoreResult? {
+        guard let relative = scoring.scoreRelativeToPar(for: score) else {
+            return nil
+        }
+
+        return ScorecardScoreResult(relativeToPar: relative)
     }
 
-    var courseGeometryNotice: String {
-        geometryStrategy.currentLimitationsNotice
+    func scoreResult(forHoleNumber holeNumber: Int) -> ScorecardScoreResult? {
+        guard let score = primaryScore(forHoleNumber: holeNumber) else {
+            return nil
+        }
+
+        return scoreResult(for: score)
+    }
+
+    func primaryScore(forHoleNumber holeNumber: Int) -> HoleScore? {
+        primaryPlayer?.scores.first { $0.holeNumber == holeNumber }
+    }
+
+    func nineSummary(for nine: ScorecardNine) -> ScorecardNineSummary {
+        let scores = primaryPlayer.map(scoring.sortedScores(for:)) ?? []
+        let selectedScores = scores.filter { nine.holeNumbers.contains($0.holeNumber) }
+        let scored = selectedScores.filter { $0.strokes > 0 }
+        let strokes = scored.isEmpty ? nil : scored.reduce(0) { $0 + $1.strokes }
+        let par = selectedScores.reduce(0) { $0 + $1.par }
+        let yards = selectedScores.compactMap(\.yardage).reduce(0, +)
+        let relativeToPar = strokes.map { $0 - scored.reduce(0) { $0 + $1.par } }
+
+        return ScorecardNineSummary(
+            strokes: strokes,
+            par: par,
+            yards: yards > 0 ? yards : nil,
+            relativeToPar: relativeToPar
+        )
+    }
+
+    func relativeScoreText(forHoleNumber holeNumber: Int) -> String? {
+        guard let score = primaryScore(forHoleNumber: holeNumber),
+              let relative = scoring.scoreRelativeToPar(for: score) else {
+            return nil
+        }
+
+        return scoring.relativeText(relative)
+    }
+
+    func scoreStatusAccessibilityText(forHoleNumber holeNumber: Int) -> String {
+        guard let score = primaryScore(forHoleNumber: holeNumber),
+              let result = scoreResult(for: score) else {
+            return "Hole \(holeNumber), not scored"
+        }
+
+        let playerPrefix = players.first.map { "\($0.name), " } ?? ""
+        return "Hole \(holeNumber), \(playerPrefix)\(score.strokes) strokes, \(result.title)"
+    }
+
+    func relativeText(_ value: Int) -> String {
+        scoring.relativeText(value)
     }
 
     func moveToPreviousHole(modelContext: ModelContext) {

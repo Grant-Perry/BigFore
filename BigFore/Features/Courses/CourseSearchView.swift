@@ -46,8 +46,19 @@ struct CourseSearchView: View {
                             Button {
                                 Task { await loadCourseAndGeometry(id: recent.id) }
                             } label: {
-                                CourseSummaryRow(title: recent.displayName, subtitle: recent.locationText)
+                                CourseDiscoveryCard(
+                                    title: recent.displayName,
+                                    subtitle: recent.locationText,
+                                    detail: "Tap to inspect tees and start options.",
+                                    badges: ["Recent"],
+                                    systemImage: "clock.fill",
+                                    accentColor: BigForeDesign.Palette.secondaryAction
+                                )
                             }
+                            .buttonStyle(.plain)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                             .swipeActions {
                                 Button("Delete", role: .destructive) {
                                     viewModel.deleteRecent(id: recent.id)
@@ -77,8 +88,18 @@ struct CourseSearchView: View {
                         Button {
                             Task { await loadCourseAndGeometry(id: course.id) }
                         } label: {
-                            CourseSummaryRow(title: course.displayName, subtitle: course.location.displayText ?? "No address")
+                            CourseDiscoveryCard(
+                                title: course.displayName,
+                                subtitle: course.location.displayText ?? "No address",
+                                detail: "View tee boxes, save the course, or start a round.",
+                                badges: course.allTees.isEmpty ? [] : ["\(course.allTees.count) tees"],
+                                systemImage: "mappin.and.ellipse"
+                            )
                         }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                     }
                 }
 
@@ -99,7 +120,8 @@ struct CourseSearchView: View {
                     }
                 }
             }
-            .navigationTitle("Courses")
+            .navigationTitle("Find Courses")
+            .listStyle(.insetGrouped)
             .onAppear {
                 viewModel.apiKey = apiKey
             }
@@ -121,24 +143,6 @@ struct CourseSearchView: View {
     private func loadCourseAndGeometry(id: Int) async {
         await viewModel.loadCourse(id: id)
         await viewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
-    }
-}
-
-private struct CourseSummaryRow: View {
-    let title: String
-    let subtitle: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .foregroundStyle(.primary)
-
-            if let subtitle {
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
     }
 }
 

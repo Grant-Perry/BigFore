@@ -9,24 +9,45 @@ import SwiftData
 import SwiftUI
 
 struct ContentView: View {
+    @State private var selectedTab = BigForeTab.play
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
+            PlayHomeView(
+                openCourseSearch: { selectedTab = .find },
+                openSavedCourses: { selectedTab = .saved }
+            )
+            .tabItem {
+                Label("Play", systemImage: "figure.golf")
+            }
+            .tag(BigForeTab.play)
+
             CourseSearchView()
                 .tabItem {
-                    Label("Courses", systemImage: "map")
+                    Label("Find", systemImage: "magnifyingglass")
                 }
+                .tag(BigForeTab.find)
 
             RoundsListView()
                 .tabItem {
                     Label("Rounds", systemImage: "scorecard")
                 }
+                .tag(BigForeTab.rounds)
 
             SavedCoursesView()
                 .tabItem {
                     Label("Saved", systemImage: "tray.full")
                 }
+                .tag(BigForeTab.saved)
         }
     }
+}
+
+private enum BigForeTab: Hashable {
+    case play
+    case find
+    case rounds
+    case saved
 }
 
 #Preview {

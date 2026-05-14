@@ -21,9 +21,14 @@ struct SavedCoursesView: View {
                     } label: {
                         SavedCourseRow(course: course)
                     }
+                    .buttonStyle(.plain)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 }
             }
             .navigationTitle("Saved Courses")
+            .listStyle(.insetGrouped)
         }
     }
 }
@@ -32,19 +37,50 @@ private struct SavedCourseRow: View {
     let course: GolfCourse
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(course.courseName)
-            Text(course.clubName)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text("\(course.tees.count) tees")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        CourseDiscoveryCard(
+            title: course.courseName,
+            subtitle: subtitle,
+            detail: "Pick a tee, open GPS, or start a round.",
+            badges: badges,
+            systemImage: "flag.checkered",
+            showsChevron: true
+        )
+    }
+
+    private var subtitle: String {
+        if course.clubName == course.courseName {
+            return locationText ?? "Saved course"
         }
+
+        if let locationText {
+            return "\(course.clubName) · \(locationText)"
+        }
+
+        return course.clubName
+    }
+
+    private var badges: [String] {
+        var badges = ["\(course.tees.count) \(course.tees.count == 1 ? "tee" : "tees")"]
+        if course.latitude != nil && course.longitude != nil {
+            badges.append("GPS")
+        }
+        return badges
+    }
+
+    private var locationText: String? {
+        let parts = [course.city, course.state, course.country]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !parts.isEmpty else {
+            return course.address
+        }
+
+        return parts.joined(separator: ", ")
     }
 }
 
-private struct SavedCourseDetailView: View {
+struct SavedCourseDetailView: View {
     let course: GolfCourse
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel: SavedCourseDetailViewModel
