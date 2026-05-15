@@ -7,10 +7,12 @@ import SwiftData
 final class ScorecardViewModel {
     var round: GolfRound
     var errorMessage: String?
+    var focusedPlayerID: UUID?
     private let scoring = RoundScoring()
 
-    init(round: GolfRound) {
+    init(round: GolfRound, focusedPlayerID: UUID? = nil) {
         self.round = round
+        self.focusedPlayerID = focusedPlayerID
     }
 
     var players: [RoundPlayer] {
@@ -18,11 +20,44 @@ final class ScorecardViewModel {
     }
 
     var primaryPlayer: RoundPlayer? {
-        players.first
+        guard let focusedPlayerID else {
+            return players.first
+        }
+
+        return players.first { $0.id == focusedPlayerID } ?? players.first
     }
 
     var primaryPlayerName: String {
         primaryPlayer?.name ?? "Player"
+    }
+
+    var primaryPlayerScoreSummaryText: String? {
+        guard let primaryPlayer else {
+            return nil
+        }
+
+        return "\(scoring.summary(for: primaryPlayer, scoringMode: round.scoringMode)) - \(scoring.completedHoles(for: primaryPlayer))"
+    }
+
+    var primaryPlayerScoreText: String? {
+        guard let primaryPlayer else {
+            return nil
+        }
+
+        return scoring.summary(for: primaryPlayer, scoringMode: round.scoringMode)
+    }
+
+    var scoreEntryPlayers: [RoundPlayer] {
+        guard let focusedPlayerID,
+              let focusedPlayer = players.first(where: { $0.id == focusedPlayerID }) else {
+            return players
+        }
+
+        return [focusedPlayer] + players.filter { $0.id != focusedPlayerID }
+    }
+
+    func selectPlayer(_ playerID: UUID) {
+        focusedPlayerID = playerID
     }
 
     var scorecardNines: [ScorecardNine] {

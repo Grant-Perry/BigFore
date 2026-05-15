@@ -1,16 +1,30 @@
+import CoreLocation
 import Foundation
 import Observation
+
+struct PlayPlayerScoreSummary: Identifiable, Equatable {
+    let id: UUID
+    let name: String
+    let score: String
+    let completedHoles: Int
+}
 
 @MainActor
 @Observable
 final class PlayHomeViewModel {
+    var locationService: LocationService
     private let scoring = RoundScoring()
+    private let distanceCalculator = DistanceCalculator()
     private let roundDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = .autoupdatingCurrent
         formatter.dateFormat = "MMM d"
         return formatter
     }()
+
+    init(locationService: LocationService = LocationService()) {
+        self.locationService = locationService
+    }
 
     func activeRound(from rounds: [GolfRound]) -> GolfRound? {
         rounds.first { !$0.isComplete }
@@ -30,6 +44,21 @@ final class PlayHomeViewModel {
 
     func roundSetupText(for round: GolfRound) -> String {
         "\(round.teeName) \(round.teeGender.capitalized) tee · \(round.scoringMode.title)"
+    }
+
+    func requestLocationAccess() {
+        locationService.requestLocationAccess()
+    }
+
+    func distanceText(for round: GolfRound) -> String {
+        guard let courseLocation = CourseMapPoint(round: round)?.location,
+              let currentLocation = locationService.currentLocation else {
+            return "Distance: --"
+        }
+
+        let yards = distanceCalculator.yards(from: currentLocation, to: courseLocation)
+        let miles = Double(yards) / 1_760
+        return "Distance: \(miles.formatted(.number.grouping(.never).precision(.fractionLength(1)))) miles"
     }
 
     func currentHoleTitle(for round: GolfRound) -> String {
@@ -70,16 +99,55 @@ final class PlayHomeViewModel {
         return "\(count) \(count == 1 ? "player" : "players")"
     }
 
+    func playerCount(for round: GolfRound) -> Int {
+        scoring.sortedPlayers(for: round).count
+    }
+
+    func playerScoreSummaries(for round: GolfRound) -> [PlayPlayerScoreSummary] {
+        scoring.sortedPlayers(for: round).map { player in
+            PlayPlayerScoreSummary(
+                id: player.id,
+                name: player.name,
+                score: scoring.summary(for: player, scoringMode: round.scoringMode),
+                completedHoles: scoring.completedHoles(for: player)
+            )
+        }
+    }
+
     func leaderSummary(for round: GolfRound) -> String? {
         guard let leader = scoring.sortedPlayers(for: round).first else {
             return nil
         }
 
-        return "Leader: \(leader.name) \(scoring.summary(for: leader, scoringMode: round.scoringMode))"
+        return "Current Leader: \(leader.name) \(scoring.summary(for: leader, scoringMode: round.scoringMode))"
     }
 
     func gpsStatusText(for round: GolfRound) -> String {
-        CourseMapPoint(round: round) == nil ? "Course pin needed" : "GPS ready"
+        isGPSReady(for: round) ? "GPS ready" : "GPS not ready"
+    }
+
+    func gpsDetailText(for round: GolfRound) -> String {
+        guard CourseMapPoint(round: round) != nil else {
+            return "Set course pin"
+        }
+
+        return locationService.currentAccuracyText ?? "Waiting for accuracy"
+    }
+
+    func gpsTitleText(for round: GolfRound) -> String {
+        guard CourseMapPoint(round: round) != nil else {
+            return "GPS"
+        }
+
+        if let accuracyText = locationService.currentAccuracyText {
+            return "GPS \(accuracyText)"
+        }
+
+        return "GPS"
+    }
+
+    func isGPSReady(for round: GolfRound) -> Bool {
+        CourseMapPoint(round: round) != nil && locationService.currentLocation != nil
     }
 
     func savedCourseSubtitle(for course: GolfCourse) -> String {

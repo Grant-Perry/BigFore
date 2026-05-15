@@ -34,7 +34,7 @@ struct PlayRecentRoundSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
-            PlaySectionHeader(title: "Recent Round")
+            PlaySectionHeader(title: "Recent Rounds")
 
             NavigationLink {
                 ScorecardView(round: round)

@@ -7,6 +7,7 @@ struct PlayHomeView: View {
 
     @Query(sort: \GolfRound.startedAt, order: .reverse) private var rounds: [GolfRound]
     @Query(sort: \GolfCourse.courseName) private var savedCourses: [GolfCourse]
+    @AppStorage("playHome.prefersDarkMode") private var prefersDarkMode = false
     @State private var viewModel = PlayHomeViewModel()
 
     var body: some View {
@@ -38,7 +39,25 @@ struct PlayHomeView: View {
                 .padding(BigForeDesign.Spacing.large)
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Play")
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    prefersDarkMode.toggle()
+                } label: {
+                    Label(prefersDarkMode ? "Use light mode" : "Use dark mode", systemImage: prefersDarkMode ? "sun.max.fill" : "moon.fill")
+                        .labelStyle(.iconOnly)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .background(.regularMaterial, in: Circle())
+                .padding(.top, BigForeDesign.Spacing.small)
+                .padding(.trailing, BigForeDesign.Spacing.large)
+            }
+            .onAppear {
+                viewModel.requestLocationAccess()
+            }
         }
     }
 }

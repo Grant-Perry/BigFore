@@ -10,6 +10,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var selectedTab = BigForeTab.play
+    @AppStorage("playHome.prefersDarkMode") private var prefersDarkMode = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -40,6 +41,7 @@ struct ContentView: View {
                 }
                 .tag(BigForeTab.saved)
         }
+        .preferredColorScheme(prefersDarkMode ? .dark : .light)
     }
 }
 

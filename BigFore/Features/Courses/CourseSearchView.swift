@@ -6,102 +6,13 @@ struct CourseSearchView: View {
     @AppStorage("golfCourseAPIKey") private var apiKey = GolfCourseAPIConfiguration.defaultAPIKey
     @State private var viewModel = CourseSearchViewModel(apiKey: GolfCourseAPIConfiguration.defaultAPIKey)
     @State private var isClearRecentsConfirmationPresented = false
+    @State private var isRecentsExpanded = false
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Search") {
-                    TextField("Search courses", text: $viewModel.query)
-                        .textInputAutocapitalization(.words)
-                        .submitLabel(.search)
-                        .onSubmit {
-                            Task { await viewModel.search() }
-                        }
-
-                    if viewModel.hasSearchQuery {
-                        Button(viewModel.isSearching ? "Searching..." : "Go") {
-                            Task { await viewModel.search() }
-                        }
-                        .disabled(viewModel.isSearching)
-                    }
-                }
-
-                if let errorMessage = viewModel.errorMessage {
-                    Section {
-                        Text(errorMessage)
-                            .foregroundStyle(.red)
-                    }
-                }
-
-                if let statusMessage = viewModel.statusMessage {
-                    Section {
-                        Text(statusMessage)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if !viewModel.recents.isEmpty {
-                    Section {
-                        ForEach(viewModel.recents) { recent in
-                            Button {
-                                Task { await loadCourseAndGeometry(id: recent.id) }
-                            } label: {
-                                CourseDiscoveryCard(
-                                    title: recent.displayName,
-                                    subtitle: recent.locationText,
-                                    detail: "Tap to inspect tees and start options.",
-                                    badges: ["Recent"],
-                                    systemImage: "clock.fill",
-                                    accentColor: BigForeDesign.Palette.secondaryAction
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .swipeActions {
-                                Button("Delete", role: .destructive) {
-                                    viewModel.deleteRecent(id: recent.id)
-                                }
-                            }
-                        }
-                    } header: {
-                        HStack {
-                            Text("Recents")
-                            Spacer()
-                            Button("Clear") {
-                                isClearRecentsConfirmationPresented = true
-                            }
-                            .font(.caption)
-                            .textCase(nil)
-                        }
-                    }
-                }
-
-                Section("Results") {
-                    if viewModel.results.isEmpty && !viewModel.isSearching {
-                        Text("Search for a course to inspect tee options.")
-                            .foregroundStyle(.secondary)
-                    }
-
-                    ForEach(viewModel.results) { course in
-                        Button {
-                            Task { await loadCourseAndGeometry(id: course.id) }
-                        } label: {
-                            CourseDiscoveryCard(
-                                title: course.displayName,
-                                subtitle: course.location.displayText ?? "No address",
-                                detail: "View tee boxes, save the course, or start a round.",
-                                badges: course.allTees.isEmpty ? [] : ["\(course.allTees.count) tees"],
-                                systemImage: "mappin.and.ellipse"
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                    }
-                }
+                searchSection
+                resultsSection
 
                 if viewModel.isLoadingCourse {
                     Section {
@@ -119,9 +30,12 @@ struct CourseSearchView: View {
                         viewModel.save(course: selectedCourse, modelContext: modelContext)
                     }
                 }
+
+                recentsSection
             }
             .navigationTitle("Find Courses")
             .listStyle(.insetGrouped)
+            .scrollDismissesKeyboard(.interactively)
             .onAppear {
                 viewModel.apiKey = apiKey
             }
@@ -140,9 +54,185 @@ struct CourseSearchView: View {
         }
     }
 
+    private var searchSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
+                Text("Search by course name, club, or city.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: BigForeDesign.Spacing.medium) {
+                    TextField("Course or city", text: $viewModel.query)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.search)
+                        .onSubmit(performSearch)
+
+                    Button {
+                        performSearch()
+                    } label: {
+                        if viewModel.isSearching {
+                            ProgressView()
+                        } else {
+                            Text("Go")
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!viewModel.hasSearchQuery || viewModel.isSearching)
+                }
+
+                if let errorMessage = viewModel.errorMessage {
+                    CourseSearchMessageRow(message: errorMessage, systemImage: "exclamationmark.triangle.fill", tint: BigForeDesign.Palette.destructive)
+                } else if let statusMessage = viewModel.statusMessage {
+                    CourseSearchMessageRow(message: statusMessage, systemImage: "checkmark.circle.fill", tint: BigForeDesign.Palette.primaryAction)
+                }
+            }
+            .padding(.vertical, BigForeDesign.Spacing.xSmall)
+        }
+    }
+
+    @ViewBuilder
+    private var resultsSection: some View {
+        if viewModel.isSearching || viewModel.hasSearchQuery || !viewModel.results.isEmpty {
+            Section {
+                if viewModel.isSearching {
+                    ProgressView("Searching courses")
+                } else if viewModel.results.isEmpty {
+                    ContentUnavailableView(
+                        "No Courses Found",
+                        systemImage: "magnifyingglass",
+                        description: Text("Try a nearby city, club name, or shorter course name.")
+                    )
+                } else {
+                    ForEach(viewModel.results) { course in
+                        Button {
+                            Task { await loadCourseAndGeometry(id: course.id) }
+                        } label: {
+                            CourseDiscoveryCard(
+                                title: course.displayName,
+                                subtitle: course.location.displayText ?? "No address",
+                                detail: "View tees, save the course, or start a round.",
+                                badges: course.allTees.isEmpty ? [] : ["\(course.allTees.count) tees"],
+                                systemImage: "mappin.and.ellipse",
+                                showsChevron: true
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    }
+                }
+            } header: {
+                CourseSearchSectionHeader(title: "Results", detail: viewModel.results.isEmpty ? nil : "\(viewModel.results.count)")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var recentsSection: some View {
+        if !viewModel.recents.isEmpty {
+            Section {
+                if isRecentsExpanded {
+                    ForEach(viewModel.recents) { recent in
+                        Button {
+                            Task { await loadCourseAndGeometry(id: recent.id) }
+                        } label: {
+                            CourseDiscoveryCard(
+                                title: recent.displayName,
+                                subtitle: recent.locationText,
+                                detail: "Tap to inspect tees and start options.",
+                                badges: ["Recent"],
+                                systemImage: "clock.fill",
+                                accentColor: BigForeDesign.Palette.secondaryAction,
+                                showsChevron: true
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .swipeActions {
+                            Button("Delete", role: .destructive) {
+                                viewModel.deleteRecent(id: recent.id)
+                            }
+                        }
+                    }
+                } else {
+                    Button {
+                        withAnimation(.snappy) {
+                            isRecentsExpanded = true
+                        }
+                    } label: {
+                        Label("\(viewModel.recents.count) recent \(viewModel.recents.count == 1 ? "course" : "courses") hidden", systemImage: "chevron.down")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                HStack(spacing: BigForeDesign.Spacing.medium) {
+                    CourseSearchSectionHeader(title: "Recents", detail: "\(viewModel.recents.count)")
+                    Spacer()
+                    Button(isRecentsExpanded ? "Hide" : "Show") {
+                        withAnimation(.snappy) {
+                            isRecentsExpanded.toggle()
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .textCase(nil)
+
+                    if isRecentsExpanded {
+                        Button("Clear") {
+                            isClearRecentsConfirmationPresented = true
+                        }
+                        .font(.caption)
+                        .textCase(nil)
+                    }
+                }
+            }
+        }
+    }
+
+    private func performSearch() {
+        isRecentsExpanded = false
+        Task { await viewModel.search() }
+    }
+
     private func loadCourseAndGeometry(id: Int) async {
         await viewModel.loadCourse(id: id)
         await viewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
+    }
+}
+
+private struct CourseSearchMessageRow: View {
+    let message: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Label(message, systemImage: systemImage)
+            .font(.footnote)
+            .foregroundStyle(tint)
+            .lineLimit(2)
+            .labelStyle(.titleAndIcon)
+    }
+}
+
+private struct CourseSearchSectionHeader: View {
+    let title: String
+    let detail: String?
+
+    var body: some View {
+        HStack(spacing: BigForeDesign.Spacing.small) {
+            Text(title)
+            if let detail {
+                Text(detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, BigForeDesign.Spacing.small)
+                    .padding(.vertical, 2)
+                    .background(.secondary.opacity(0.12), in: Capsule())
+            }
+        }
     }
 }
 

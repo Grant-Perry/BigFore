@@ -75,6 +75,59 @@ struct BigForeTests {
         #expect(locationService.locationStatusText == "Low GPS accuracy: +/- 87 yds.")
     }
 
+    @Test func playHomeViewModelFormatsDistancePlayerScoresAndGPSAccuracy() {
+        let locationService = LocationService()
+        let viewModel = PlayHomeViewModel(locationService: locationService)
+        let gp = RoundPlayer(
+            name: "Gp.",
+            displayOrder: 0,
+            scores: [
+                HoleScore(holeNumber: 1, par: 4, strokes: 5),
+                HoleScore(holeNumber: 2, par: 4, strokes: 4),
+                HoleScore(holeNumber: 3, par: 3, strokes: 3)
+            ]
+        )
+        let toehead = RoundPlayer(
+            name: "Toehead",
+            displayOrder: 1,
+            scores: [
+                HoleScore(holeNumber: 1, par: 4, strokes: 5),
+                HoleScore(holeNumber: 2, par: 4, strokes: 5),
+                HoleScore(holeNumber: 3, par: 3, strokes: 4)
+            ]
+        )
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Riverfront Golf Club",
+            clubName: "Riverfront Golf Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "White",
+            teeGender: "male",
+            currentHole: 4,
+            players: [toehead, gp]
+        )
+
+        locationService.currentLocation = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 33.1, longitude: -84.0),
+            altitude: 0,
+            horizontalAccuracy: 5,
+            verticalAccuracy: 5,
+            timestamp: .now
+        )
+
+        let scoreSummaries = viewModel.playerScoreSummaries(for: round)
+        #expect(scoreSummaries.map(\.name) == ["Gp.", "Toehead"])
+        #expect(scoreSummaries.map(\.score) == ["+1", "+3"])
+        #expect(scoreSummaries.map(\.completedHoles) == [3, 3])
+        #expect(viewModel.leaderSummary(for: round) == "Current Leader: Gp. +1")
+        #expect(viewModel.distanceText(for: round).hasPrefix("Distance: "))
+        #expect(viewModel.distanceText(for: round).hasSuffix(" miles"))
+        #expect(viewModel.gpsTitleText(for: round) == "GPS +/- 5 yds")
+        #expect(viewModel.gpsDetailText(for: round) == "+/- 5 yds")
+        #expect(viewModel.isGPSReady(for: round))
+    }
+
     @Test func courseMapPointBuildsFromSavedCourseAndRoundCoordinates() throws {
         let savedCourse = GolfCourse(
             externalID: 314,

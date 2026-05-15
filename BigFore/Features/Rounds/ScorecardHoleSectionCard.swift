@@ -8,15 +8,19 @@ struct ScorecardHoleSectionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Scorecard")
+                Text("Scorecard - \(viewModel.primaryPlayerName)")
                     .font(.headline)
-
-                Spacer()
-
-                Text("Showing \(viewModel.primaryPlayerName)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Spacer(minLength: BigForeDesign.Spacing.medium)
+
+                if let scoreText = viewModel.primaryPlayerScoreText {
+                    Text(scoreText)
+                        .font(.headline.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(BigForeDesign.Palette.primaryAction)
+                }
             }
 
             ScorecardNinePageControl(

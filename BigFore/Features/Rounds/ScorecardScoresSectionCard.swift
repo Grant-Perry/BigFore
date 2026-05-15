@@ -19,17 +19,21 @@ struct ScorecardScoresSectionCard: View {
             }
 
             VStack(spacing: BigForeDesign.Spacing.medium) {
-                ForEach(viewModel.players) { player in
+                ForEach(viewModel.scoreEntryPlayers) { player in
                     if let score = viewModel.sortedScores(for: player).first(where: { $0.holeNumber == viewModel.round.currentHole }) {
                         ScorecardPlayerHoleScoreRow(
-                            playerName: player.name,
+                            player: player,
                             score: score,
                             scoringMode: viewModel.round.scoringMode,
                             result: viewModel.scoreResult(for: score),
+                            isSelected: player.id == viewModel.primaryPlayer?.id,
+                            selectPlayer: {
+                                viewModel.selectPlayer(player.id)
+                            },
                             saveScore: saveScore
                         )
 
-                        if player.id != viewModel.players.last?.id {
+                        if player.id != viewModel.scoreEntryPlayers.last?.id {
                             Divider()
                         }
                     }

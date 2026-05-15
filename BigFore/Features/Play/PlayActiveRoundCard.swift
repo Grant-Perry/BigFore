@@ -30,32 +30,33 @@ struct PlayActiveRoundCard: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
+        VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
+            HStack(alignment: .center) {
                 Label("Active Round", systemImage: "figure.golf")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(BigForeDesign.Palette.primaryAction)
                     .textCase(.uppercase)
 
-                Text(round.courseName)
-                    .font(.largeTitle.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.78)
+                Spacer()
 
-                Text(round.clubName)
-                    .font(.headline)
+                Text(viewModel.roundDateText(for: round))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .padding(.horizontal, BigForeDesign.Spacing.medium)
+                    .padding(.vertical, BigForeDesign.Spacing.small)
+                    .background(.secondary.opacity(0.12), in: Capsule())
             }
 
-            Spacer()
+            Text(round.courseName)
+                .font(.largeTitle.weight(.bold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.56)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(viewModel.roundDateText(for: round))
-                .font(.caption.weight(.semibold))
+            Text(viewModel.distanceText(for: round))
+                .font(.headline)
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, BigForeDesign.Spacing.medium)
-                .padding(.vertical, BigForeDesign.Spacing.small)
-                .background(.secondary.opacity(0.12), in: Capsule())
         }
     }
 

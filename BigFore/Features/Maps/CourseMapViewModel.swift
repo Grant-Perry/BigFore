@@ -31,6 +31,12 @@ struct CourseMapInfoSelection: Identifiable {
     let id = UUID()
     let title: String
     let coordinate: CLLocationCoordinate2D
+    let cardPlacement: CourseMapInfoCardPlacement
+}
+
+enum CourseMapInfoCardPlacement {
+    case above
+    case trailing
 }
 
 struct CourseMapInfoSummary: Equatable {
@@ -498,8 +504,16 @@ final class CourseMapViewModel {
         locationService.requestLocationAccess()
     }
 
-    func selectMapInfo(title: String, coordinate: CLLocationCoordinate2D) {
-        selectedMapInfo = CourseMapInfoSelection(title: title, coordinate: coordinate)
+    func selectMapInfo(
+        title: String,
+        coordinate: CLLocationCoordinate2D,
+        cardPlacement: CourseMapInfoCardPlacement = .above
+    ) {
+        selectedMapInfo = CourseMapInfoSelection(
+            title: title,
+            coordinate: coordinate,
+            cardPlacement: cardPlacement
+        )
     }
 
     func clearSelectedMapInfo() {
@@ -1045,7 +1059,11 @@ final class CourseMapViewModel {
         selectHole(holeNumber, geometries: geometries, modelContext: modelContext)
         setTeeBoxTapMode(geometries: geometries)
         if let teeBoxCoordinate {
-            selectMapInfo(title: teeBoxTitle(for: holeNumber), coordinate: teeBoxCoordinate)
+            selectMapInfo(
+                title: teeBoxTitle(for: holeNumber),
+                coordinate: teeBoxCoordinate,
+                cardPlacement: .trailing
+            )
         }
     }
 

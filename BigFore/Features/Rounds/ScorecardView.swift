@@ -5,13 +5,13 @@ struct ScorecardView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel: ScorecardViewModel
 
-    init(round: GolfRound) {
-        _viewModel = State(initialValue: ScorecardViewModel(round: round))
+    init(round: GolfRound, focusedPlayerID: UUID? = nil) {
+        _viewModel = State(initialValue: ScorecardViewModel(round: round, focusedPlayerID: focusedPlayerID))
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
                 ScorecardRoundHeaderCard(round: viewModel.round)
 
                 if let mapPoint = CourseMapPoint(round: viewModel.round) {
@@ -24,7 +24,13 @@ struct ScorecardView: View {
                 ScorecardHoleSectionCard(viewModel: viewModel) { holeNumber in
                     viewModel.selectHole(holeNumber, modelContext: modelContext)
                 }
+            }
+            .padding(.horizontal, BigForeDesign.Spacing.large)
+            .padding(.top, BigForeDesign.Spacing.large)
+            .padding(.bottom, BigForeDesign.Spacing.medium)
 
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
                 ScorecardScoresSectionCard(viewModel: viewModel) {
                     viewModel.save(modelContext: modelContext)
                 }
@@ -47,8 +53,10 @@ struct ScorecardView: View {
                         viewModel.advanceOrFinish(modelContext: modelContext)
                     }
                 )
+                }
+                .padding(.horizontal, BigForeDesign.Spacing.large)
+                .padding(.bottom, BigForeDesign.Spacing.large)
             }
-            .padding(BigForeDesign.Spacing.large)
         }
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Scorecard")

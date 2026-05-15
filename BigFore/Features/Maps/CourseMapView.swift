@@ -147,7 +147,11 @@ struct CourseMapView: View {
                     if let teeBoxCoordinate = viewModel.teeBoxCoordinate {
                         Annotation("", coordinate: teeBoxCoordinate, anchor: .bottom) {
                             Button {
-                                viewModel.selectMapInfo(title: viewModel.teeBoxTitle(for: viewModel.targetHoleNumber), coordinate: teeBoxCoordinate)
+                                viewModel.selectMapInfo(
+                                    title: viewModel.teeBoxTitle(for: viewModel.targetHoleNumber),
+                                    coordinate: teeBoxCoordinate,
+                                    cardPlacement: .trailing
+                                )
                             } label: {
                                 CourseMapHoleMarkerView(marker: CourseMapHoleMarker(
                                     id: "active-tee-\(viewModel.targetHoleNumber)",
@@ -272,9 +276,9 @@ struct CourseMapView: View {
                     }
 
                     if let selectedMapInfo = viewModel.selectedMapInfo {
-                        Annotation("", coordinate: selectedMapInfo.coordinate, anchor: .bottom) {
+                        Annotation("", coordinate: selectedMapInfo.coordinate, anchor: selectedMapInfo.cardPlacement.annotationAnchor) {
                             CourseMapSelectedInfoCard(viewModel: viewModel)
-                                .offset(y: -34)
+                                .offset(selectedMapInfo.cardPlacement.cardOffset)
                         }
                     }
                 }
@@ -296,6 +300,17 @@ struct CourseMapView: View {
                 }
             }
             .ignoresSafeArea(edges: .bottom)
+
+            CourseMapVenueChip(viewModel: viewModel)
+                .padding(.top, -30)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .allowsHitTesting(false)
+
+            CourseMapDistanceMetricStack(viewModel: viewModel)
+                .padding(.top, 188)
+                .padding(.trailing, BigForeDesign.Spacing.medium)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .allowsHitTesting(false)
 
             if isControlPanelExpanded {
                 CourseMapControlPanel(
@@ -342,12 +357,6 @@ struct CourseMapView: View {
         .animation(.snappy, value: isSaveTargetExpanded)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                CourseMapDistanceHUD(viewModel: viewModel)
-                    .allowsHitTesting(false)
-            }
-        }
         .onAppear {
             viewModel.applyStoredHoleSetup(from: courseGeometries)
             focusInitialRoundHoleIfNeeded()
@@ -419,6 +428,26 @@ struct CourseMapView: View {
         }
 
         return nil
+    }
+}
+
+private extension CourseMapInfoCardPlacement {
+    var annotationAnchor: UnitPoint {
+        switch self {
+        case .above:
+            .bottom
+        case .trailing:
+            .leading
+        }
+    }
+
+    var cardOffset: CGSize {
+        switch self {
+        case .above:
+            CGSize(width: 0, height: -34)
+        case .trailing:
+            CGSize(width: 26, height: -8)
+        }
     }
 }
 

@@ -38,7 +38,7 @@ struct StartRoundView: View {
 
             Section("Players") {
                 ForEach(viewModel.playerNames.indices, id: \.self) { index in
-                    TextField("Player name", text: $viewModel.playerNames[index])
+                    StartRoundPlayerNameRow(name: $viewModel.playerNames[index])
                 }
                 .onDelete { offsets in
                     viewModel.removePlayers(at: offsets)
@@ -78,6 +78,43 @@ struct StartRoundView: View {
         .navigationDestination(item: $viewModel.createdRound) { round in
             ScorecardView(round: round)
         }
+    }
+}
+
+private struct StartRoundPlayerNameRow: View {
+    @Binding var name: String
+    @State private var isEditing = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        Group {
+            if isEditing {
+                TextField("Player name", text: $name)
+                    .focused($isFocused)
+                    .submitLabel(.done)
+                    .onSubmit(finishEditing)
+                    .onAppear {
+                        isFocused = true
+                    }
+                    .onChange(of: isFocused) { _, isFocused in
+                        if !isFocused {
+                            finishEditing()
+                        }
+                    }
+            } else {
+                Text(name)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        isEditing = true
+                    }
+                    .accessibilityHint("Double tap to edit player name.")
+            }
+        }
+    }
+
+    private func finishEditing() {
+        isEditing = false
     }
 }
 
