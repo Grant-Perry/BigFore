@@ -42,6 +42,14 @@ struct PlayHomeView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .bottom) {
+                Text(currentAppVersion)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, BigForeDesign.Spacing.xSmall)
+                    .background(.clear)
+            }
             .overlay(alignment: .topTrailing) {
                 Button {
                     prefersDarkMode.toggle()
@@ -64,5 +72,5 @@ struct PlayHomeView: View {
 
 #Preview {
     PlayHomeView(openCourseSearch: {}, openSavedCourses: {})
-        .modelContainer(for: [GolfCourse.self, GolfCourseTee.self, GolfCourseHole.self, CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, GolfRound.self, RoundPlayer.self, HoleScore.self], inMemory: true)
+        .modelContainer(for: [GolfCourse.self, GolfCourseTee.self, GolfCourseHole.self, CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self], inMemory: true)
 }

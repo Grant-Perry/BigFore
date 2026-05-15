@@ -10,12 +10,20 @@ struct CourseMapShotMarker: Identifiable {
     let shotNumber: Int
     var startCoordinate: CLLocationCoordinate2D
     var ballCoordinate: CLLocationCoordinate2D
+    var source: ShotRecordSource
 
-    init(id: UUID = UUID(), shotNumber: Int, startCoordinate: CLLocationCoordinate2D, ballCoordinate: CLLocationCoordinate2D) {
+    init(
+        id: UUID = UUID(),
+        shotNumber: Int,
+        startCoordinate: CLLocationCoordinate2D,
+        ballCoordinate: CLLocationCoordinate2D,
+        source: ShotRecordSource = .manualMap
+    ) {
         self.id = id
         self.shotNumber = shotNumber
         self.startCoordinate = startCoordinate
         self.ballCoordinate = ballCoordinate
+        self.source = source
     }
 }
 
@@ -692,9 +700,35 @@ final class CourseMapViewModel {
             selectionMode = .inactive
         case .moveShotBall:
             registerPlacementUndo()
-            updateSelectedShotMarkerBall(to: coordinate)
+            updateSelectedShotMarkerBall(to: coordinate, modelContext: modelContext)
             selectionMode = .inactive
         }
+    }
+
+    func applyPersistedShotRecords() {
+        guard let round, let selectedScoringPlayer, shotMarkers.isEmpty else {
+            return
+        }
+
+        let records = round.shotRecords
+            .filter { $0.player?.id == selectedScoringPlayer.id && $0.holeNumber == targetHoleNumber }
+            .sorted { $0.shotNumber < $1.shotNumber }
+
+        guard records.isEmpty == false else {
+            return
+        }
+
+        shotMarkers = records.enumerated().map { index, record in
+            CourseMapShotMarker(
+                id: record.id,
+                shotNumber: index + 1,
+                startCoordinate: record.startCoordinate,
+                ballCoordinate: record.endCoordinate,
+                source: record.source
+            )
+        }
+        selectedShotMarkerID = nil
+        currentShotMarkerID = nil
     }
 
     func setShotStartTapMode() {
@@ -765,6 +799,7 @@ final class CourseMapViewModel {
 
         if undoAction.syncsShotScore, let selectedHoleScore {
             selectedHoleScore.strokes = shotMarkers.count
+            persistCurrentShotRecords(modelContext: modelContext)
             saveScoreContext(modelContext)
         }
 
@@ -848,7 +883,7 @@ final class CourseMapViewModel {
             return
         }
 
-        markShotEnd(at: currentLocation.coordinate, modelContext: modelContext)
+        markShotEnd(at: currentLocation.coordinate, source: .gps, modelContext: modelContext)
         showShotMeasurement()
     }
 
@@ -857,7 +892,7 @@ final class CourseMapViewModel {
             return
         }
 
-        markShotEnd(at: measuredCoordinate, modelContext: modelContext)
+        markShotEnd(at: measuredCoordinate, source: .manualMap, modelContext: modelContext)
         showShotMeasurement()
     }
 
@@ -881,7 +916,8 @@ final class CourseMapViewModel {
                 id: marker.id,
                 shotNumber: index + 1,
                 startCoordinate: marker.startCoordinate,
-                ballCoordinate: marker.ballCoordinate
+                ballCoordinate: marker.ballCoordinate,
+                source: marker.source
             )
         }
         self.selectedShotMarkerID = nil
@@ -891,6 +927,7 @@ final class CourseMapViewModel {
         shotEndCoordinate = nil
         if let selectedHoleScore {
             selectedHoleScore.strokes = shotMarkers.count
+            persistCurrentShotRecords(modelContext: modelContext)
             saveScoreContext(modelContext)
         } else {
             syncManualShotCountToScore(modelContext: modelContext)
@@ -923,7 +960,7 @@ final class CourseMapViewModel {
         showShotMeasurement()
     }
 
-    func updateSelectedShotMarkerBall(to coordinate: CLLocationCoordinate2D) {
+    func updateSelectedShotMarkerBall(to coordinate: CLLocationCoordinate2D, modelContext: ModelContext? = nil) {
         guard let selectedShotMarkerID,
               let index = shotMarkers.firstIndex(where: { $0.id == selectedShotMarkerID }) else {
             errorMessage = "Select a ball marker before moving it."
@@ -934,6 +971,8 @@ final class CourseMapViewModel {
         shotStartCoordinate = shotMarkers[index].startCoordinate
         shotEndCoordinate = coordinate
         currentShotMarkerID = selectedShotMarkerID
+        persistCurrentShotRecords(modelContext: modelContext)
+        saveScoreContext(modelContext)
         statusMessage = "Shot \(shotMarkers[index].shotNumber) ball moved."
         errorMessage = nil
         showShotMeasurement()
@@ -977,6 +1016,8 @@ final class CourseMapViewModel {
 
     func syncManualShotCountToScore(modelContext: ModelContext? = nil) {
         guard shotMarkers.isEmpty == false else {
+            persistCurrentShotRecords(modelContext: modelContext)
+            saveScoreContext(modelContext)
             return
         }
 
@@ -986,6 +1027,7 @@ final class CourseMapViewModel {
         }
 
         selectedHoleScore.strokes = shotMarkers.count
+        persistCurrentShotRecords(modelContext: modelContext)
         saveScoreContext(modelContext)
         statusMessage = "Synced \(shotMarkers.count) shots to Hole \(targetHoleNumber)."
     }
@@ -1132,7 +1174,7 @@ final class CourseMapViewModel {
         errorMessage = nil
     }
 
-    private func markShotEnd(at coordinate: CLLocationCoordinate2D, modelContext: ModelContext?) {
+    private func markShotEnd(at coordinate: CLLocationCoordinate2D, source: ShotRecordSource = .manualMap, modelContext: ModelContext?) {
         shotEndCoordinate = coordinate
 
         guard let shotStartCoordinate else {
@@ -1143,6 +1185,7 @@ final class CourseMapViewModel {
            let index = shotMarkers.firstIndex(where: { $0.id == currentShotMarkerID }) {
             shotMarkers[index].startCoordinate = shotStartCoordinate
             shotMarkers[index].ballCoordinate = coordinate
+            shotMarkers[index].source = source
             selectedShotMarkerID = currentShotMarkerID
             syncManualShotCountToScore(modelContext: modelContext)
             return
@@ -1151,7 +1194,8 @@ final class CourseMapViewModel {
         let marker = CourseMapShotMarker(
             shotNumber: shotMarkers.count + 1,
             startCoordinate: shotStartCoordinate,
-            ballCoordinate: coordinate
+            ballCoordinate: coordinate,
+            source: source
         )
         shotMarkers.append(marker)
         currentShotMarkerID = marker.id
@@ -1391,6 +1435,59 @@ final class CourseMapViewModel {
             modelContext.rollback()
             errorMessage = "Could not save score: \(error.localizedDescription)"
         }
+    }
+
+    private func persistCurrentShotRecords(modelContext: ModelContext?) {
+        guard let modelContext, let round, let selectedScoringPlayer else {
+            return
+        }
+
+        let markerIDs = Set(shotMarkers.map(\.id))
+        let staleRecords = round.shotRecords.filter { record in
+            record.player?.id == selectedScoringPlayer.id
+                && record.holeNumber == targetHoleNumber
+                && !markerIDs.contains(record.id)
+        }
+
+        for record in staleRecords {
+            modelContext.delete(record)
+        }
+
+        for marker in shotMarkers {
+            let distanceYards = distanceCalculator.yards(from: marker.startCoordinate, to: marker.ballCoordinate)
+            let record = round.shotRecords.first { $0.id == marker.id } ?? ShotRecord(
+                id: marker.id,
+                round: round,
+                player: selectedScoringPlayer,
+                weatherSnapshot: latestWeatherSnapshot(for: round),
+                holeNumber: targetHoleNumber,
+                shotNumber: marker.shotNumber,
+                startCoordinate: marker.startCoordinate,
+                endCoordinate: marker.ballCoordinate,
+                distanceYards: distanceYards,
+                source: marker.source
+            )
+
+            record.round = round
+            record.player = selectedScoringPlayer
+            record.weatherSnapshot = record.weatherSnapshot ?? latestWeatherSnapshot(for: round)
+            record.holeNumber = targetHoleNumber
+            record.shotNumber = marker.shotNumber
+            record.startLatitude = marker.startCoordinate.latitude
+            record.startLongitude = marker.startCoordinate.longitude
+            record.endLatitude = marker.ballCoordinate.latitude
+            record.endLongitude = marker.ballCoordinate.longitude
+            record.distanceYards = distanceYards
+            record.source = marker.source
+
+            if record.modelContext == nil {
+                modelContext.insert(record)
+            }
+        }
+    }
+
+    private func latestWeatherSnapshot(for round: GolfRound) -> RoundWeatherSnapshot? {
+        round.weatherSnapshots.max { $0.observedAt < $1.observedAt }
     }
 
     private static func sortedPlayers(for round: GolfRound?) -> [RoundPlayer] {

@@ -35,6 +35,12 @@ struct ContentView: View {
                 }
                 .tag(BigForeTab.rounds)
 
+            BagView()
+                .tabItem {
+                    Label("Bag", systemImage: "bag")
+                }
+                .tag(BigForeTab.bag)
+
             SavedCoursesView()
                 .tabItem {
                     Label("Saved", systemImage: "tray.full")
@@ -49,10 +55,11 @@ private enum BigForeTab: Hashable {
     case play
     case find
     case rounds
+    case bag
     case saved
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: [GolfCourse.self, GolfCourseTee.self, GolfCourseHole.self, CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, GolfRound.self, RoundPlayer.self, HoleScore.self], inMemory: true)
+        .modelContainer(for: [GolfCourse.self, GolfCourseTee.self, GolfCourseHole.self, CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self], inMemory: true)
 }

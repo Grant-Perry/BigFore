@@ -16,6 +16,8 @@ final class GolfRound {
     var completedAt: Date?
     var currentHole: Int
     @Relationship(deleteRule: .cascade, inverse: \RoundPlayer.round) var players: [RoundPlayer]
+    @Relationship(deleteRule: .cascade, inverse: \ShotRecord.round) var shotRecords: [ShotRecord] = []
+    @Relationship(deleteRule: .cascade, inverse: \RoundWeatherSnapshot.round) var weatherSnapshots: [RoundWeatherSnapshot] = []
 
     init(id: UUID = UUID(), courseExternalID: Int, courseName: String, clubName: String, courseLatitude: Double? = nil, courseLongitude: Double? = nil, teeName: String, teeGender: String, scoringMode: ScoringMode = .strokePlay, startedAt: Date = .now, completedAt: Date? = nil, currentHole: Int = 1, players: [RoundPlayer] = []) {
         self.id = id
@@ -37,13 +39,16 @@ final class GolfRound {
 @Model
 final class RoundPlayer {
     var round: GolfRound?
+    var playerProfile: PlayerProfile?
     var id: UUID
     var name: String
     var displayOrder: Int
     @Relationship(deleteRule: .cascade, inverse: \HoleScore.player) var scores: [HoleScore]
+    @Relationship(deleteRule: .cascade, inverse: \ShotRecord.player) var shotRecords: [ShotRecord] = []
 
-    init(id: UUID = UUID(), name: String, displayOrder: Int, scores: [HoleScore] = []) {
+    init(id: UUID = UUID(), playerProfile: PlayerProfile? = nil, name: String, displayOrder: Int, scores: [HoleScore] = []) {
         self.id = id
+        self.playerProfile = playerProfile
         self.name = name
         self.displayOrder = displayOrder
         self.scores = scores

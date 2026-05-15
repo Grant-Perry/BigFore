@@ -31,7 +31,7 @@ struct ScorecardView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
-                ScorecardScoresSectionCard(viewModel: viewModel) {
+                ScorecardScoresSectionCard(viewModel: viewModel, modelContext: modelContext) {
                     viewModel.save(modelContext: modelContext)
                 }
 
@@ -71,5 +71,5 @@ struct ScorecardView: View {
     NavigationStack {
         Text("Scorecard")
     }
-    .modelContainer(for: [GolfCourse.self, GolfCourseTee.self, GolfCourseHole.self, CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, GolfRound.self, RoundPlayer.self, HoleScore.self], inMemory: true)
+    .modelContainer(for: [GolfCourse.self, GolfCourseTee.self, GolfCourseHole.self, CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self], inMemory: true)
 }

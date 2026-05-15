@@ -805,7 +805,7 @@ struct BigForeTests {
             teeGender: "male",
             players: [player]
         )
-        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self])
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -1009,7 +1009,7 @@ struct BigForeTests {
     }
 
     @Test func courseMapViewModelScoreButtonsUpdateCurrentHoleScore() throws {
-        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self])
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -1051,7 +1051,7 @@ struct BigForeTests {
     }
 
     @Test func courseMapViewModelManualShotsUpdateFirstPlayerHoleScore() throws {
-        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self])
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -1089,6 +1089,89 @@ struct BigForeTests {
         #expect(viewModel.selectedScoringPlayer?.name == "Grant")
         #expect(grantScore.strokes == 2)
         #expect(alexScore.strokes == 0)
+    }
+
+    @Test func courseMapViewModelPersistsAndRestoresShotRecords() throws {
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let score = HoleScore(holeNumber: 1, par: 4)
+        let player = RoundPlayer(name: "Grant", displayOrder: 0, scores: [score])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male",
+            players: [player]
+        )
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, round: round)
+        let shotStart = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
+        let ball = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
+
+        modelContext.insert(round)
+        try modelContext.save()
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: shotStart, modelContext: modelContext)
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: ball, modelContext: modelContext)
+
+        let records = try modelContext.fetch(FetchDescriptor<ShotRecord>())
+        let record = try #require(records.first)
+
+        #expect(records.count == 1)
+        #expect(record.round === round)
+        #expect(record.player === player)
+        #expect(record.holeNumber == 1)
+        #expect(record.shotNumber == 1)
+        #expect(record.source == .manualMap)
+        #expect(score.strokes == 1)
+
+        let restoredViewModel = CourseMapViewModel(course: course, round: round)
+        restoredViewModel.applyPersistedShotRecords()
+
+        #expect(restoredViewModel.shotMarkers.count == 1)
+        #expect(restoredViewModel.shotMarkers.first?.id == record.id)
+        #expect(restoredViewModel.shotMarkers.first?.ballCoordinate.latitude == ball.latitude)
+    }
+
+    @Test func courseMapViewModelDeletingShotRemovesPersistedRecord() throws {
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let score = HoleScore(holeNumber: 1, par: 4)
+        let player = RoundPlayer(name: "Grant", displayOrder: 0, scores: [score])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male",
+            players: [player]
+        )
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, round: round)
+
+        modelContext.insert(round)
+        try modelContext.save()
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0), modelContext: modelContext)
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0), modelContext: modelContext)
+
+        let marker = try #require(viewModel.shotMarkers.first)
+        viewModel.selectShotMarker(id: marker.id)
+        viewModel.deleteSelectedShotMarker(modelContext: modelContext)
+
+        #expect(try modelContext.fetch(FetchDescriptor<ShotRecord>()).isEmpty)
+        #expect(score.strokes == 0)
     }
 
     @Test func courseMapViewModelHandleMapTapSetsMeasurementPin() {
@@ -2060,7 +2143,7 @@ struct BigForeTests {
                 RoundSetupHole(number: 2, par: 5, yardage: 520, handicap: 3)
             ]
         )
-        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self])
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -2119,6 +2202,57 @@ struct BigForeTests {
         #expect(viewModel.roundSummaryText == "Par 81 · 8100 yds")
     }
 
+    @Test func scorecardViewModelAddsDeletesAndReordersPlayers() throws {
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let gp = RoundPlayer(
+            name: "Gp.",
+            displayOrder: 0,
+            scores: [
+                HoleScore(holeNumber: 1, par: 4, yardage: 421, handicap: 3),
+                HoleScore(holeNumber: 2, par: 3, yardage: 180, handicap: 17)
+            ]
+        )
+        let toehead = RoundPlayer(
+            name: "Toehead",
+            displayOrder: 1,
+            scores: [
+                HoleScore(holeNumber: 1, par: 4, yardage: 421, handicap: 3),
+                HoleScore(holeNumber: 2, par: 3, yardage: 180, handicap: 17)
+            ]
+        )
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male",
+            players: [gp, toehead]
+        )
+        let viewModel = ScorecardViewModel(round: round)
+
+        modelContext.insert(round)
+        try modelContext.save()
+
+        viewModel.addPlayer(named: "Bill", modelContext: modelContext)
+        let bill = try #require(viewModel.players.first { $0.name == "Bill" })
+
+        #expect(viewModel.players.map(\.name) == ["Gp.", "Toehead", "Bill"])
+        #expect(bill.scores.sorted { $0.holeNumber < $1.holeNumber }.map(\.yardage) == [421, 180])
+        #expect(viewModel.primaryPlayerName == "Bill")
+
+        viewModel.movePlayer(gp.id, to: 3, modelContext: modelContext)
+        #expect(viewModel.players.map(\.name) == ["Toehead", "Bill", "Gp."])
+
+        viewModel.deletePlayer(bill, modelContext: modelContext)
+        #expect(viewModel.players.map(\.name) == ["Toehead", "Gp."])
+        #expect(viewModel.primaryPlayerName == "Toehead")
+    }
+
     @Test func roundsListViewModelFormatsDatesAndDeletesRound() throws {
         var components = DateComponents()
         components.calendar = Calendar(identifier: .gregorian)
@@ -2136,7 +2270,7 @@ struct BigForeTests {
             teeGender: "male",
             startedAt: startedAt
         )
-        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self])
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -2151,6 +2285,106 @@ struct BigForeTests {
 
         let rounds = try modelContext.fetch(FetchDescriptor<GolfRound>())
         #expect(rounds.isEmpty)
+    }
+
+    @Test func defaultGolfClubTemplatesBuildActiveBagInOrder() {
+        let clubs = GolfClubTemplate.defaultBag.map(GolfClub.init(template:))
+        let activeValues = clubs.map(\.isActive)
+
+        #expect(clubs.count == 14)
+        #expect(clubs.first?.name == "Driver")
+        #expect(clubs.first?.carryYards == 245)
+        #expect(clubs.last?.kind == .putter)
+        #expect(clubs.last?.totalYards == 0)
+        #expect(clubs.map(\.displayOrder) == Array(0..<14))
+        #expect(activeValues == Array(repeating: true, count: clubs.count))
+    }
+
+    @Test func bagViewModelSeedsDefaultBagOnlyOnce() throws {
+        let schema = Schema([GolfClub.self, ShotRecord.self, GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, RoundWeatherSnapshot.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let viewModel = BagViewModel()
+
+        viewModel.seedDefaultBagIfNeeded(existingClubs: [], modelContext: modelContext)
+        var clubs = try modelContext.fetch(FetchDescriptor<GolfClub>(sortBy: [SortDescriptor(\.displayOrder)]))
+
+        #expect(clubs.count == 14)
+        #expect(clubs.first?.name == "Driver")
+        #expect(viewModel.statusMessage == "Loaded Woody's starter bag.")
+
+        viewModel.seedDefaultBagIfNeeded(existingClubs: clubs, modelContext: modelContext)
+        clubs = try modelContext.fetch(FetchDescriptor<GolfClub>())
+
+        #expect(clubs.count == 14)
+    }
+
+    @Test func roundDataBackbonePersistsProfilesShotsClubsAndWeather() throws {
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let profile = PlayerProfile(displayName: "Grant", contactIdentifier: "contact-1", avatarSource: .contacts)
+        let club = GolfClub(template: GolfClubTemplate.defaultBag[0])
+        let score = HoleScore(holeNumber: 1, par: 4)
+        let player = RoundPlayer(playerProfile: profile, name: "Grant", displayOrder: 0, scores: [score])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male",
+            players: [player]
+        )
+        let weatherSnapshot = RoundWeatherSnapshot(
+            round: round,
+            latitude: 33.0,
+            longitude: -84.0,
+            symbolName: "sun.max.fill",
+            temperatureFahrenheit: 72,
+            windSpeedMilesPerHour: 8
+        )
+        let shot = ShotRecord(
+            round: round,
+            player: player,
+            club: club,
+            weatherSnapshot: weatherSnapshot,
+            holeNumber: 1,
+            shotNumber: 1,
+            startCoordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0),
+            endCoordinate: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0),
+            distanceYards: 121,
+            lie: .tee,
+            result: .fairwayHit,
+            source: .gps
+        )
+
+        modelContext.insert(profile)
+        modelContext.insert(club)
+        modelContext.insert(round)
+        modelContext.insert(weatherSnapshot)
+        modelContext.insert(shot)
+        try modelContext.save()
+
+        let fetchedRound = try #require(try modelContext.fetch(FetchDescriptor<GolfRound>()).first)
+        let fetchedShot = try #require(try modelContext.fetch(FetchDescriptor<ShotRecord>()).first)
+        let fetchedWeather = try #require(try modelContext.fetch(FetchDescriptor<RoundWeatherSnapshot>()).first)
+        let fetchedPlayer = try #require(fetchedRound.players.first)
+
+        #expect(fetchedRound.shotRecords.count == 1)
+        #expect(fetchedRound.weatherSnapshots.count == 1)
+        #expect(fetchedPlayer.playerProfile?.displayName == "Grant")
+        #expect(profile.avatarSource == .contacts)
+        #expect(fetchedShot.clubNameSnapshot == "Driver")
+        #expect(fetchedShot.lie == .tee)
+        #expect(fetchedShot.result == .fairwayHit)
+        #expect(fetchedShot.source == .gps)
+        #expect(fetchedShot.club === club)
+        #expect(fetchedWeather.temperatureText == "72°")
+        #expect(fetchedWeather.source == .weatherKit)
     }
 
     @Test func weatherViewModelLoadsWeatherSummaryOnce() async throws {

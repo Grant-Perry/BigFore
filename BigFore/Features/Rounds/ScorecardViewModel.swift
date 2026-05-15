@@ -48,16 +48,73 @@ final class ScorecardViewModel {
     }
 
     var scoreEntryPlayers: [RoundPlayer] {
-        guard let focusedPlayerID,
-              let focusedPlayer = players.first(where: { $0.id == focusedPlayerID }) else {
-            return players
-        }
-
-        return [focusedPlayer] + players.filter { $0.id != focusedPlayerID }
+        players
     }
 
     func selectPlayer(_ playerID: UUID) {
         focusedPlayerID = playerID
+    }
+
+    var canAddPlayer: Bool {
+        players.count < 8
+    }
+
+    func addPlayer(named name: String, modelContext: ModelContext) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, canAddPlayer else {
+            return
+        }
+
+        let scoreTemplates = players.first.map(scoring.sortedScores(for:)) ?? []
+        let newPlayer = RoundPlayer(
+            name: trimmedName,
+            displayOrder: players.count,
+            scores: scoreTemplates.map { score in
+                HoleScore(
+                    holeNumber: score.holeNumber,
+                    par: score.par,
+                    yardage: score.yardage,
+                    handicap: score.handicap
+                )
+            }
+        )
+        newPlayer.round = round
+        round.players.append(newPlayer)
+        focusedPlayerID = newPlayer.id
+        reindexPlayers(round.players.sorted { $0.displayOrder < $1.displayOrder })
+        save(modelContext: modelContext)
+    }
+
+    func deletePlayer(_ player: RoundPlayer, modelContext: ModelContext) {
+        guard players.count > 1 else {
+            errorMessage = "A round needs at least one player."
+            return
+        }
+
+        round.players.removeAll { $0.id == player.id }
+        modelContext.delete(player)
+        let orderedPlayers = round.players.sorted { $0.displayOrder < $1.displayOrder }
+        reindexPlayers(orderedPlayers)
+
+        if focusedPlayerID == player.id {
+            focusedPlayerID = orderedPlayers.first?.id
+        }
+
+        save(modelContext: modelContext)
+    }
+
+    func movePlayer(_ movingPlayerID: UUID, to targetIndex: Int, modelContext: ModelContext) {
+        guard targetIndex >= 0,
+              let movingPlayer = players.first(where: { $0.id == movingPlayerID }) else {
+            return
+        }
+
+        var orderedPlayers = players.filter { $0.id != movingPlayerID }
+        let boundedIndex = min(targetIndex, orderedPlayers.count)
+        orderedPlayers.insert(movingPlayer, at: boundedIndex)
+        round.players = orderedPlayers
+        reindexPlayers(orderedPlayers)
+        save(modelContext: modelContext)
     }
 
     var scorecardNines: [ScorecardNine] {
@@ -260,6 +317,12 @@ final class ScorecardViewModel {
         }
 
         return availableHoles[adjacentIndex]
+    }
+
+    private func reindexPlayers(_ orderedPlayers: [RoundPlayer]) {
+        for (index, player) in orderedPlayers.enumerated() {
+            player.displayOrder = index
+        }
     }
 
     private func summaryText(for holeNumbers: [Int]) -> String {

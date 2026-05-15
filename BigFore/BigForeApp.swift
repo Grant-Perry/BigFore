@@ -21,6 +21,10 @@ struct BigForeApp: App {
             GolfRound.self,
             RoundPlayer.self,
             HoleScore.self,
+            PlayerProfile.self,
+            GolfClub.self,
+            ShotRecord.self,
+            RoundWeatherSnapshot.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

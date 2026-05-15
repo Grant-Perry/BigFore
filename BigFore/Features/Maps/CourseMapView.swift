@@ -359,6 +359,7 @@ struct CourseMapView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             viewModel.applyStoredHoleSetup(from: courseGeometries)
+            viewModel.applyPersistedShotRecords()
             focusInitialRoundHoleIfNeeded()
             viewModel.requestLocationAccess()
         }
@@ -368,6 +369,7 @@ struct CourseMapView: View {
         }
         .onChange(of: viewModel.targetHoleNumber) {
             viewModel.applyStoredHoleSetup(from: courseGeometries)
+            viewModel.applyPersistedShotRecords()
         }
     }
 
