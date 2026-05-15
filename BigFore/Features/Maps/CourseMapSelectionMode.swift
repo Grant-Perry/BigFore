@@ -8,7 +8,7 @@ enum CourseMapSelectionMode: String, CaseIterable, Identifiable {
     case moveShotBall
 
     static var allCases: [CourseMapSelectionMode] {
-        [.measurementPin, .teeBox, .holePin, .shotStart, .shotBall, .moveShotBall]
+        [.teeBox, .holePin, .shotStart, .shotBall, .moveShotBall]
     }
 
     var id: String { rawValue }

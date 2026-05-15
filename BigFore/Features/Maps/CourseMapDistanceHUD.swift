@@ -23,6 +23,7 @@ struct CourseMapVenueChip: View {
 struct CourseMapDistanceMetricStack: View {
     let viewModel: CourseMapViewModel
     let modelContext: ModelContext
+    let activeGolfClubs: [GolfClub]
     @State private var isScoreSheetPresented = false
 
     var body: some View {
@@ -49,6 +50,10 @@ struct CourseMapDistanceMetricStack: View {
                     title: viewModel.isTrackingShot ? "Live shot" : "Shot distance",
                     value: displayDistance(shotDistanceText)
                 )
+            }
+
+            if let recommendation = viewModel.clubRecommendation(from: activeGolfClubs) {
+                woodyCard(recommendation)
             }
         }
         .accessibilityElement(children: .combine)
@@ -140,6 +145,35 @@ struct CourseMapDistanceMetricStack: View {
         .padding(.horizontal, BigForeDesign.Spacing.medium)
         .padding(.vertical, BigForeDesign.Spacing.small)
         .frame(width: width, alignment: .trailing)
+        .bigForePanelBackground(cornerRadius: BigForeDesign.Radius.card, materialOpacity: 0.58)
+    }
+
+    private func woodyCard(_ recommendation: CourseMapClubRecommendation) -> some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text("Woody thinks")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Text(recommendation.title.replacingOccurrences(of: "Woody says ", with: ""))
+                .font(.headline.weight(.black))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
+            Text(recommendation.distanceText)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Text(recommendation.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+                .lineLimit(3)
+        }
+        .padding(.horizontal, BigForeDesign.Spacing.medium)
+        .padding(.vertical, BigForeDesign.Spacing.small)
+        .frame(width: 156, alignment: .trailing)
         .bigForePanelBackground(cornerRadius: BigForeDesign.Radius.card, materialOpacity: 0.58)
     }
 

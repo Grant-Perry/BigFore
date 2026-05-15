@@ -69,6 +69,20 @@ struct CourseMapClubRecommendation: Equatable {
     let weatherText: String?
 }
 
+struct CourseMapClubLandingTarget: Identifiable, Equatable {
+    let id = UUID()
+    let title: String
+    let coordinate: CLLocationCoordinate2D
+    let lineCoordinates: [CLLocationCoordinate2D]
+
+    static func == (lhs: CourseMapClubLandingTarget, rhs: CourseMapClubLandingTarget) -> Bool {
+        lhs.title == rhs.title
+            && lhs.coordinate.latitude == rhs.coordinate.latitude
+            && lhs.coordinate.longitude == rhs.coordinate.longitude
+            && lhs.lineCoordinates.count == rhs.lineCoordinates.count
+    }
+}
+
 private struct CourseMapHoleSession {
     var measuredCoordinate: CLLocationCoordinate2D?
     var teeBoxCoordinate: CLLocationCoordinate2D?
@@ -110,7 +124,7 @@ final class CourseMapViewModel {
     var round: GolfRound?
     var locationService: LocationService
     var position: MapCameraPosition
-    var selectionMode = CourseMapSelectionMode.measurementPin
+    var selectionMode = CourseMapSelectionMode.inactive
     var measuredCoordinate: CLLocationCoordinate2D?
     var teeBoxCoordinate: CLLocationCoordinate2D?
     var holePinCoordinate: CLLocationCoordinate2D?
@@ -300,6 +314,23 @@ final class CourseMapViewModel {
         selectedClub(from: clubs)?.name ?? "No club selected"
     }
 
+    func selectedClubShortName(from clubs: [GolfClub]) -> String {
+        guard let club = selectedClub(from: clubs) else {
+            return "Club"
+        }
+
+        switch club.kind {
+        case .driver:
+            return "Dr"
+        case .fairwayWood, .hybrid, .iron, .wedge:
+            return club.name.replacingOccurrences(of: " ", with: "")
+        case .putter:
+            return "Putt"
+        case .other:
+            return club.name
+        }
+    }
+
     func selectedClubAverageText(from clubs: [GolfClub]) -> String? {
         guard let club = selectedClub(from: clubs) else {
             return "Pick a club so Woody can learn your distances."
@@ -324,7 +355,8 @@ final class CourseMapViewModel {
     }
 
     func clubRecommendation(from clubs: [GolfClub]) -> CourseMapClubRecommendation? {
-        guard let club = selectedClub(from: clubs) else {
+        let activeClubs = clubs.filter(\.isActive).sorted { $0.displayOrder < $1.displayOrder }
+        guard activeClubs.isEmpty == false else {
             return CourseMapClubRecommendation(
                 title: "Woody needs a club",
                 detail: "Pick a club from your bag before Woody can make a call.",
@@ -334,37 +366,64 @@ final class CourseMapViewModel {
             )
         }
 
-        guard let holePinCoordinate, let shotLocationCoordinate else {
+        guard let holePinCoordinate, let shotPlanningCoordinate else {
+            let selectedClub = selectedClub(from: activeClubs) ?? activeClubs.first
             return CourseMapClubRecommendation(
                 title: "Woody needs a pin",
                 detail: "Set the tee, pin, or ball position so Woody can see the shot.",
-                distanceText: "\(club.name): \(club.carryYards) yd default",
+                distanceText: selectedClub.map { "\($0.name): \($0.carryYards) yd default" } ?? "No target distance",
                 confidenceText: "Waiting for target distance",
                 weatherText: latestWeatherText
             )
         }
 
-        let targetYards = distanceCalculator.yards(from: shotLocationCoordinate, to: holePinCoordinate)
-        let history = persistedShots(for: club)
-        let expectedYards = history.isEmpty ? club.carryYards : history.map(\.distanceYards).reduce(0, +) / history.count
+        let targetYards = distanceCalculator.yards(from: shotPlanningCoordinate, to: holePinCoordinate)
+        let bestClub = bestClub(forTargetYards: targetYards, from: activeClubs)
+        let selectedClub = selectedClub(from: activeClubs)
+        let history = persistedShots(for: bestClub)
+        let expectedYards = expectedDistance(for: bestClub)
         let sourceText = history.isEmpty ? "default" : "\(history.count)-shot average"
         let gap = targetYards - expectedYards
         let detail: String
 
         if abs(gap) <= 7 {
-            detail = "\(club.name) fits: \(expectedYards) yds \(sourceText) for a \(targetYards)-yd shot."
+            detail = "\(bestClub.name) fits: \(expectedYards) yds \(sourceText) for a \(targetYards)-yd shot."
         } else if gap > 0 {
-            detail = "\(club.name) may be short: \(expectedYards) yds \(sourceText), \(targetYards) to the pin."
+            detail = "\(bestClub.name) is closest but may be short: \(expectedYards) yds \(sourceText), \(targetYards) to the pin."
         } else {
-            detail = "\(club.name) may be long: \(expectedYards) yds \(sourceText), \(targetYards) to the pin."
+            detail = "\(bestClub.name) is closest but may be long: \(expectedYards) yds \(sourceText), \(targetYards) to the pin."
         }
 
         return CourseMapClubRecommendation(
-            title: "Woody says \(club.name)",
-            detail: detail,
+            title: "Woody says \(bestClub.name)",
+            detail: selectedClub?.id == bestClub.id ? detail : "\(detail) Selected shot club: \(selectedClub?.name ?? "none").",
             distanceText: "\(targetYards) yds to pin",
-            confidenceText: history.isEmpty ? "Using starter bag distance" : "Using your saved shots",
+            confidenceText: history.isEmpty ? "Best fit from starter bag" : "Best fit from your saved shots",
             weatherText: latestWeatherText
+        )
+    }
+
+    func clubLandingTarget(from clubs: [GolfClub]) -> CourseMapClubLandingTarget? {
+        let activeClubs = clubs.filter(\.isActive).sorted { $0.displayOrder < $1.displayOrder }
+        guard activeClubs.isEmpty == false,
+              let origin = shotPlanningCoordinate,
+              let holePinCoordinate else {
+            return nil
+        }
+
+        let targetYards = distanceCalculator.yards(from: origin, to: holePinCoordinate)
+        let club = bestClub(forTargetYards: targetYards, from: activeClubs)
+        let expectedYards = expectedDistance(for: club)
+        guard expectedYards > 0 else {
+            return nil
+        }
+
+        let bearing = Self.bearing(from: origin, to: holePinCoordinate)
+        let targetCoordinate = Self.coordinate(from: origin, bearing: bearing, distanceYards: expectedYards)
+        return CourseMapClubLandingTarget(
+            title: "\(club.name) target \(expectedYards) yds",
+            coordinate: targetCoordinate,
+            lineCoordinates: [origin, targetCoordinate]
         )
     }
 
@@ -1397,6 +1456,10 @@ final class CourseMapViewModel {
         shotEndCoordinate ?? locationService.currentLocation?.coordinate ?? shotStartCoordinate ?? teeBoxCoordinate
     }
 
+    private var shotPlanningCoordinate: CLLocationCoordinate2D? {
+        shotEndCoordinate ?? shotStartCoordinate ?? teeBoxCoordinate ?? locationService.currentLocation?.coordinate
+    }
+
     private var selectedMapReference: (label: String, coordinate: CLLocationCoordinate2D)? {
         if let shotEndCoordinate {
             return ("Ball to this", shotEndCoordinate)
@@ -1726,6 +1789,21 @@ final class CourseMapViewModel {
         return clubs.first { $0.id == selectedClubID }
     }
 
+    private func bestClub(forTargetYards targetYards: Int, from clubs: [GolfClub]) -> GolfClub {
+        clubs.min { lhs, rhs in
+            abs(expectedDistance(for: lhs) - targetYards) < abs(expectedDistance(for: rhs) - targetYards)
+        } ?? clubs[0]
+    }
+
+    private func expectedDistance(for club: GolfClub) -> Int {
+        let history = persistedShots(for: club)
+        guard history.isEmpty == false else {
+            return club.carryYards
+        }
+
+        return history.map(\.distanceYards).reduce(0, +) / history.count
+    }
+
     private func selectedClub(modelContext: ModelContext?) -> GolfClub? {
         guard let selectedClubID else {
             return nil
@@ -1951,6 +2029,32 @@ final class CourseMapViewModel {
         let x = cos(startLatitude) * sin(endLatitude) - sin(startLatitude) * cos(endLatitude) * cos(deltaLongitude)
         let bearing = atan2(y, x) * 180 / .pi
         return normalizedHeading(bearing)
+    }
+
+    private static func coordinate(
+        from start: CLLocationCoordinate2D,
+        bearing: CLLocationDirection,
+        distanceYards: Int
+    ) -> CLLocationCoordinate2D {
+        let earthRadiusMeters = 6_371_000.0
+        let distanceMeters = Double(distanceYards) / 1.09361
+        let angularDistance = distanceMeters / earthRadiusMeters
+        let bearingRadians = bearing * .pi / 180
+        let startLatitude = start.latitude * .pi / 180
+        let startLongitude = start.longitude * .pi / 180
+        let targetLatitude = asin(
+            sin(startLatitude) * cos(angularDistance)
+                + cos(startLatitude) * sin(angularDistance) * cos(bearingRadians)
+        )
+        let targetLongitude = startLongitude + atan2(
+            sin(bearingRadians) * sin(angularDistance) * cos(startLatitude),
+            cos(angularDistance) - sin(startLatitude) * sin(targetLatitude)
+        )
+
+        return CLLocationCoordinate2D(
+            latitude: targetLatitude * 180 / .pi,
+            longitude: targetLongitude * 180 / .pi
+        )
     }
 
     private static func distance(for region: MKCoordinateRegion) -> CLLocationDistance {

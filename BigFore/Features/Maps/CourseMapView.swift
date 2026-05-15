@@ -28,7 +28,6 @@ struct CourseMapView: View {
     @State private var hasFocusedInitialRoundHole = false
     @AppStorage("courseMap.isControlPanelExpanded") private var isControlPanelExpanded = true
     @AppStorage("courseMap.isDistancesExpanded") private var isDistancesExpanded = true
-    @AppStorage("courseMap.isSaveTargetExpanded") private var isSaveTargetExpanded = false
 
     init(course: CourseMapPoint, currentHoleNumber: Int? = nil, round: GolfRound? = nil, focusedPlayerID: UUID? = nil) {
         _viewModel = State(initialValue: CourseMapViewModel(
@@ -123,15 +122,6 @@ struct CourseMapView: View {
         return "\(source): \(mappedHoleCount) mapped \(mappedHoleCount == 1 ? "hole" : "holes")"
     }
 
-    private var currentHoleUserMappedFeaturePoints: [CourseMapFeaturePoint] {
-        courseGeometries
-            .flatMap(\.holes)
-            .filter { $0.number == viewModel.targetHoleNumber }
-            .flatMap(\.featurePoints)
-            .filter { !$0.kind.isStickyHoleAnchor && $0.source == .userMapped }
-            .sorted { $0.sortOrder < $1.sortOrder }
-    }
-
     private var activeGolfClubs: [GolfClub] {
         golfClubs.filter(\.isActive)
     }
@@ -144,15 +134,6 @@ struct CourseMapView: View {
                 Map(position: $viewModel.position, interactionModes: .all) {
                     Marker(viewModel.course.courseName, coordinate: viewModel.course.coordinate)
                     UserAnnotation()
-
-                    if let measuredCoordinate = viewModel.measuredCoordinate {
-                        Annotation("Measured Point", coordinate: measuredCoordinate, anchor: .center) {
-                            CourseMapMeasuredPointAnnotation(
-                                viewModel: viewModel,
-                                isDeleteVisible: $isMeasuredPointDeleteVisible
-                            )
-                        }
-                    }
 
                     if let teeBoxCoordinate = viewModel.teeBoxCoordinate {
                         Annotation("", coordinate: teeBoxCoordinate, anchor: .bottom) {
@@ -223,11 +204,6 @@ struct CourseMapView: View {
                         }
                     }
 
-                    if let courseToMeasuredCoordinates = viewModel.courseToMeasuredCoordinates {
-                        MapPolyline(coordinates: courseToMeasuredCoordinates)
-                            .stroke(BigForeDesign.Palette.distanceLine, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                    }
-
                     if let nextHoleTransitionCoordinates = viewModel.nextHoleTransitionCoordinates(from: courseGeometries) {
                         MapPolyline(coordinates: nextHoleTransitionCoordinates)
                             .stroke(BigForeDesign.Palette.transitionLine.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
@@ -241,6 +217,16 @@ struct CourseMapView: View {
                     if let shotLocationToHolePinCoordinates = viewModel.shotLocationToHolePinCoordinates {
                         MapPolyline(coordinates: shotLocationToHolePinCoordinates)
                             .stroke(BigForeDesign.Palette.shot.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
+                    }
+
+                    if let landingTarget = viewModel.clubLandingTarget(from: activeGolfClubs) {
+                        MapPolyline(coordinates: landingTarget.lineCoordinates)
+                            .stroke(BigForeDesign.Palette.hazard, style: StrokeStyle(lineWidth: 3, dash: [3, 6]))
+
+                        Annotation(landingTarget.title, coordinate: landingTarget.coordinate, anchor: .center) {
+                            CourseMapSymbolMarker(systemImage: "xmark.circle.fill", tint: .red, size: 34)
+                                .accessibilityLabel(landingTarget.title)
+                        }
                     }
 
                     if let shotStartCoordinate = viewModel.shotStartCoordinate {
@@ -316,7 +302,7 @@ struct CourseMapView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .allowsHitTesting(false)
 
-            CourseMapDistanceMetricStack(viewModel: viewModel, modelContext: modelContext)
+            CourseMapDistanceMetricStack(viewModel: viewModel, modelContext: modelContext, activeGolfClubs: activeGolfClubs)
                 .padding(.top, 188)
                 .padding(.trailing, BigForeDesign.Spacing.medium)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
@@ -328,12 +314,10 @@ struct CourseMapView: View {
                     courseGeometries: courseGeometries,
                     activeGeometry: activeGeometry,
                     geometrySummaryText: geometrySummaryText,
-                    currentHoleUserMappedFeaturePoints: currentHoleUserMappedFeaturePoints,
                     activeGolfClubs: activeGolfClubs,
                     hasUserMappedTee: userMappedStickyAnchor(kind: .teeBox) != nil,
                     hasUserMappedPin: userMappedStickyAnchor(kind: .greenPin) != nil,
                     isDistancesExpanded: $isDistancesExpanded,
-                    isSaveTargetExpanded: $isSaveTargetExpanded,
                     onCollapse: collapseControlPanel
                 )
                 .simultaneousGesture(
@@ -356,7 +340,8 @@ struct CourseMapView: View {
             CourseMapBottomLeadingControls(
                 viewModel: viewModel,
                 modelContext: modelContext,
-                courseGeometries: courseGeometries
+                courseGeometries: courseGeometries,
+                activeGolfClubs: activeGolfClubs
             )
                 .padding(.leading)
                 .padding(.bottom, isControlPanelExpanded ? 456 : 24)
@@ -364,7 +349,6 @@ struct CourseMapView: View {
         }
         .animation(.snappy, value: isControlPanelExpanded)
         .animation(.snappy, value: isDistancesExpanded)
-        .animation(.snappy, value: isSaveTargetExpanded)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

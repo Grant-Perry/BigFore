@@ -910,7 +910,7 @@ struct BigForeTests {
         #expect(viewModel.canStartNextShotFromBall == false)
         viewModel.startNextShotFromBall()
         #expect(viewModel.shotStartCoordinate == nil)
-        #expect(viewModel.selectionMode == .measurementPin)
+        #expect(viewModel.selectionMode == .inactive)
 
         viewModel.selectionMode = .shotStart
         viewModel.selectMapLocation(at: shotStart)
@@ -1269,8 +1269,77 @@ struct BigForeTests {
         #expect(recommendation.title == "Woody says 9 Iron")
         #expect(recommendation.detail.contains("default"))
         #expect(recommendation.distanceText.hasSuffix("yds to pin"))
-        #expect(recommendation.confidenceText == "Using starter bag distance")
+        #expect(recommendation.confidenceText == "Best fit from starter bag")
         #expect(recommendation.weatherText == "72° · wind 8 mph")
+    }
+
+    @Test func courseMapViewModelRecommendsBestActiveClubInsteadOfSelectedClub() throws {
+        let driver = GolfClub(template: GolfClubTemplate.defaultBag[0])
+        let pitchingWedge = GolfClub(template: GolfClubTemplate.defaultBag[9])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male"
+        )
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, round: round)
+
+        viewModel.selectedClubID = driver.id
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        viewModel.selectionMode = .holePin
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+
+        let recommendation = try #require(viewModel.clubRecommendation(from: [driver, pitchingWedge]))
+
+        #expect(recommendation.title == "Woody says PW")
+        #expect(recommendation.detail.contains("Selected shot club: Driver"))
+    }
+
+    @Test func courseMapViewModelBuildsWoodyRecommendedClubLandingTarget() throws {
+        let driver = GolfClub(template: GolfClubTemplate.defaultBag[0])
+        let pitchingWedge = GolfClub(template: GolfClubTemplate.defaultBag[9])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male"
+        )
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, round: round)
+        let start = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
+        let pin = CLLocationCoordinate2D(latitude: 33.004, longitude: -84.0)
+
+        viewModel.selectedClubID = driver.id
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: start)
+        viewModel.selectionMode = .holePin
+        viewModel.selectMapLocation(at: pin)
+
+        let landingTarget = try #require(viewModel.clubLandingTarget(from: [driver]))
+        let targetDistance = DistanceCalculator().yards(from: start, to: landingTarget.coordinate)
+
+        #expect(landingTarget.title == "Driver target 245 yds")
+        #expect((240...250).contains(targetDistance))
+        #expect(landingTarget.lineCoordinates.first?.latitude == start.latitude)
+
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: start)
+        viewModel.selectionMode = .holePin
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+
+        let shorterTarget = try #require(viewModel.clubLandingTarget(from: [driver, pitchingWedge]))
+        let shorterTargetDistance = DistanceCalculator().yards(from: start, to: shorterTarget.coordinate)
+
+        #expect(shorterTarget.title == "PW target 120 yds")
+        #expect((115...125).contains(shorterTargetDistance))
     }
 
     @Test func courseMapViewModelBuildsWoodyRecommendationFromSavedClubAverage() throws {
@@ -1321,10 +1390,10 @@ struct BigForeTests {
 
         #expect(recommendation.detail.contains("122 yds"))
         #expect(recommendation.detail.contains("2-shot average"))
-        #expect(recommendation.confidenceText == "Using your saved shots")
+        #expect(recommendation.confidenceText == "Best fit from your saved shots")
     }
 
-    @Test func courseMapViewModelHandleMapTapSetsMeasurementPin() {
+    @Test func courseMapViewModelHandleMapTapRequiresSelectedAction() {
         let course = CourseMapPoint(
             id: 42,
             courseName: "Example Course",
@@ -1337,7 +1406,8 @@ struct BigForeTests {
 
         viewModel.handleMapTap(at: tappedCoordinate)
 
-        #expect(viewModel.measuredCoordinate?.latitude == tappedCoordinate.latitude)
+        #expect(viewModel.measuredCoordinate == nil)
+        #expect(viewModel.statusMessage == "Choose a map action before tapping.")
     }
 
     @Test func courseMapViewModelDeletingMeasuredPointDisablesMapTapAction() {

@@ -5,40 +5,17 @@ struct CourseMapBottomLeadingControls: View {
     let viewModel: CourseMapViewModel
     let modelContext: ModelContext
     let courseGeometries: [CourseGeometry]
+    let activeGolfClubs: [GolfClub]
 
     var body: some View {
         ScrollView(.horizontal) {
             HStack(spacing: BigForeDesign.Spacing.medium) {
-                compactZoomControls
                 compactHoleActionControls
             }
             .fixedSize(horizontal: true, vertical: false)
             .padding(.trailing)
         }
         .scrollIndicators(.hidden)
-    }
-
-    private var compactZoomControls: some View {
-        HStack(spacing: BigForeDesign.Spacing.medium) {
-            Button {
-                viewModel.zoomIn()
-            } label: {
-                Label("Zoom in", systemImage: "plus")
-                    .labelStyle(.iconOnly)
-                    .frame(width: 44, height: 44)
-            }
-
-            Button {
-                viewModel.zoomOut()
-            } label: {
-                Label("Zoom out", systemImage: "minus")
-                    .labelStyle(.iconOnly)
-                    .frame(width: 44, height: 44)
-            }
-        }
-        .font(.callout.weight(.semibold))
-        .buttonStyle(.plain)
-        .bigForePanelBackground(cornerRadius: BigForeDesign.Radius.capsulePanel)
     }
 
     private var compactHoleAnchorControls: some View {
@@ -86,16 +63,7 @@ struct CourseMapBottomLeadingControls: View {
             .accessibilityValue("Hole \(viewModel.targetHoleNumber)")
             .accessibilityHint("Focuses the selected hole on the map.")
 
-            compactHoleAnchorControls
-
-            compactTapModeButton(
-                "Start",
-                systemImage: "flag.checkered",
-                accessibilityLabel: "Set shot start",
-                mode: .shotStart
-            ) {
-                viewModel.setShotStartTapMode()
-            }
+            compactClubPicker
 
             compactTapModeButton(
                 "Ball",
@@ -115,14 +83,7 @@ struct CourseMapBottomLeadingControls: View {
             .disabled(!viewModel.canStartNextShotFromBall)
             .accessibilityHint("Starts the next shot from the last marked ball.")
 
-            compactTapModeButton(
-                "Measure",
-                systemImage: "ruler",
-                accessibilityLabel: "Drop measurement pin",
-                mode: .measurementPin
-            ) {
-                viewModel.setMeasurementPinTapMode()
-            }
+            compactHoleAnchorControls
 
             Button {
                 viewModel.undoLastPin(modelContext: modelContext)
@@ -141,6 +102,30 @@ struct CourseMapBottomLeadingControls: View {
         .padding(.horizontal, BigForeDesign.Spacing.medium)
         .padding(.vertical, BigForeDesign.Spacing.small)
         .bigForePanelBackground(cornerRadius: BigForeDesign.Radius.capsulePanel)
+    }
+
+    @ViewBuilder
+    private var compactClubPicker: some View {
+        if activeGolfClubs.isEmpty == false {
+            Menu {
+                Picker("Shot club", selection: Binding(
+                    get: { viewModel.selectedClubID },
+                    set: { newValue in
+                        viewModel.selectedClubID = newValue
+                        viewModel.applySelectedClubToCurrentShot(from: activeGolfClubs, modelContext: modelContext)
+                    }
+                )) {
+                    ForEach(activeGolfClubs) { club in
+                        Text(club.name).tag(Optional(club.id))
+                    }
+                }
+            } label: {
+                compactControlLabel(viewModel.selectedClubShortName(from: activeGolfClubs), systemImage: "figure.golf")
+            }
+            .accessibilityLabel("Shot club")
+            .accessibilityValue(viewModel.selectedClubName(from: activeGolfClubs))
+            .accessibilityHint("Selects the club saved to the next marked shot.")
+        }
     }
 
     @ViewBuilder

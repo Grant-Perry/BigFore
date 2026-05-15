@@ -7,12 +7,10 @@ struct CourseMapControlPanel: View {
     let courseGeometries: [CourseGeometry]
     let activeGeometry: CourseGeometry?
     let geometrySummaryText: String?
-    let currentHoleUserMappedFeaturePoints: [CourseMapFeaturePoint]
     let activeGolfClubs: [GolfClub]
     let hasUserMappedTee: Bool
     let hasUserMappedPin: Bool
     @Binding var isDistancesExpanded: Bool
-    @Binding var isSaveTargetExpanded: Bool
     let onCollapse: () -> Void
 
     var body: some View {
@@ -30,14 +28,6 @@ struct CourseMapControlPanel: View {
                     manualShotControls
 
                     Divider()
-
-                    CourseMapTargetSavePanel(
-                        viewModel: viewModel,
-                        modelContext: modelContext,
-                        featurePoints: currentHoleUserMappedFeaturePoints,
-                        isExpanded: $isSaveTargetExpanded
-                    )
-
                     statusMessages
                     cameraControls
                 }
@@ -351,14 +341,6 @@ struct CourseMapControlPanel: View {
             if viewModel.locationService.currentLocation != nil {
                 Button("My GPS") {
                     viewModel.showUser()
-                }
-            }
-            if viewModel.measuredCoordinate != nil {
-                Button("Map Pin") {
-                    viewModel.showMeasuredPin()
-                }
-                Button("Clear Map Pin") {
-                    viewModel.clearMeasuredPoint()
                 }
             }
             if viewModel.teeBoxCoordinate != nil {
