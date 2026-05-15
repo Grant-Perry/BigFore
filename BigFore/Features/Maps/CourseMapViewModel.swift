@@ -251,6 +251,33 @@ final class CourseMapViewModel {
         return distanceCalculator.formattedYards(from: selectedShotMarker.ballCoordinate, to: holePinCoordinate)
     }
 
+    var selectedShotMarkerPreviousDistanceLabel: String? {
+        guard let selectedShotMarker else {
+            return nil
+        }
+
+        if selectedShotMarker.shotNumber == 1 {
+            return "From tee"
+        }
+
+        if selectedShotMarker.shotNumber == 2 {
+            return "From drive"
+        }
+
+        return "From shot \(selectedShotMarker.shotNumber - 1)"
+    }
+
+    var selectedShotMarkerPreviousDistanceText: String? {
+        guard let selectedShotMarker else {
+            return nil
+        }
+
+        return distanceCalculator.formattedYards(
+            from: previousShotCoordinate(for: selectedShotMarker),
+            to: selectedShotMarker.ballCoordinate
+        )
+    }
+
     var selectedShotMarkerTitle: String? {
         guard let selectedShotMarker else {
             return nil
@@ -262,6 +289,15 @@ final class CourseMapViewModel {
     var selectedMapInfoSummary: CourseMapInfoSummary? {
         guard let selectedMapInfo else {
             return nil
+        }
+
+        if selectedMapInfoIsSelectedShotMarkerBall(selectedMapInfo) {
+            return CourseMapInfoSummary(
+                title: selectedMapInfo.title,
+                referenceDistanceLabel: selectedShotMarkerPreviousDistanceLabel ?? "From previous",
+                referenceDistanceText: selectedShotMarkerPreviousDistanceText,
+                pinDistanceText: selectedShotMarkerDistanceToPinText
+            )
         }
 
         return CourseMapInfoSummary(
@@ -352,6 +388,22 @@ final class CourseMapViewModel {
         }
 
         selectedClubID = activeClubs.first?.id
+    }
+
+    func selectWoodyClub(from clubs: [GolfClub]) {
+        let activeClubs = clubs.filter(\.isActive).sorted { $0.displayOrder < $1.displayOrder }
+        guard activeClubs.isEmpty == false else {
+            selectedClubID = nil
+            return
+        }
+
+        guard let holePinCoordinate, let shotPlanningCoordinate else {
+            selectedClubID = activeClubs.first?.id
+            return
+        }
+
+        let targetYards = distanceCalculator.yards(from: shotPlanningCoordinate, to: holePinCoordinate)
+        selectedClubID = bestClub(forTargetYards: targetYards, from: activeClubs).id
     }
 
     func clubRecommendation(from clubs: [GolfClub]) -> CourseMapClubRecommendation? {
@@ -1412,9 +1464,20 @@ final class CourseMapViewModel {
 
     private func markShotEnd(at coordinate: CLLocationCoordinate2D, source: ShotRecordSource = .manualMap, modelContext: ModelContext?) {
         shotEndCoordinate = coordinate
+        let club = selectedClub(modelContext: modelContext)
 
         if shotStartCoordinate == nil, shotMarkers.isEmpty, let teeBoxCoordinate {
             shotStartCoordinate = teeBoxCoordinate
+        }
+
+        if shotStartCoordinate == nil, shotMarkers.isEmpty == false {
+            let fallbackID = selectedShotMarkerID ?? currentShotMarkerID ?? shotMarkers.first?.id
+            if let fallbackID,
+               let index = shotMarkers.firstIndex(where: { $0.id == fallbackID }) {
+                updateShotMarker(at: index, ballCoordinate: coordinate, source: source, club: club)
+                syncManualShotCountToScore(modelContext: modelContext)
+                return
+            }
         }
 
         guard let shotStartCoordinate else {
@@ -1422,18 +1485,16 @@ final class CourseMapViewModel {
             return
         }
 
-        let club = selectedClub(modelContext: modelContext)
-
         if let currentShotMarkerID,
            let index = shotMarkers.firstIndex(where: { $0.id == currentShotMarkerID }) {
             shotMarkers[index].startCoordinate = shotStartCoordinate
-            shotMarkers[index].ballCoordinate = coordinate
-            shotMarkers[index].source = source
-            if let club {
-                shotMarkers[index].clubID = club.id
-                shotMarkers[index].clubName = club.name
-            }
-            selectedShotMarkerID = currentShotMarkerID
+            updateShotMarker(at: index, ballCoordinate: coordinate, source: source, club: club)
+            syncManualShotCountToScore(modelContext: modelContext)
+            return
+        }
+
+        if let index = shotMarkers.firstIndex(where: { Self.coordinatesMatch($0.startCoordinate, shotStartCoordinate) }) {
+            updateShotMarker(at: index, ballCoordinate: coordinate, source: source, club: club)
             syncManualShotCountToScore(modelContext: modelContext)
             return
         }
@@ -1450,6 +1511,20 @@ final class CourseMapViewModel {
         currentShotMarkerID = marker.id
         selectedShotMarkerID = marker.id
         syncManualShotCountToScore(modelContext: modelContext)
+    }
+
+    private func updateShotMarker(at index: Int, ballCoordinate: CLLocationCoordinate2D, source: ShotRecordSource, club: GolfClub?) {
+        shotMarkers[index].ballCoordinate = ballCoordinate
+        shotMarkers[index].source = source
+        if let club {
+            shotMarkers[index].clubID = club.id
+            shotMarkers[index].clubName = club.name
+        }
+        currentShotMarkerID = shotMarkers[index].id
+        selectedShotMarkerID = shotMarkers[index].id
+        shotStartCoordinate = shotMarkers[index].startCoordinate
+        shotEndCoordinate = ballCoordinate
+        statusMessage = "Shot \(shotMarkers[index].shotNumber) ball moved."
     }
 
     private var shotLocationCoordinate: CLLocationCoordinate2D? {
@@ -1478,6 +1553,19 @@ final class CourseMapViewModel {
         }
 
         return nil
+    }
+
+    private func selectedMapInfoIsSelectedShotMarkerBall(_ selectedMapInfo: CourseMapInfoSelection) -> Bool {
+        guard let selectedShotMarker else {
+            return false
+        }
+
+        return Self.coordinatesMatch(selectedMapInfo.coordinate, selectedShotMarker.ballCoordinate)
+    }
+
+    private static func coordinatesMatch(_ lhs: CLLocationCoordinate2D, _ rhs: CLLocationCoordinate2D) -> Bool {
+        abs(lhs.latitude - rhs.latitude) < 0.0000001
+            && abs(lhs.longitude - rhs.longitude) < 0.0000001
     }
 
     private func title(_ baseTitle: String, holeNumber: Int) -> String {

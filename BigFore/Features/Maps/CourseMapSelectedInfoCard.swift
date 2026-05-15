@@ -23,7 +23,7 @@ struct CourseMapSelectedInfoCard: View {
                 }
 
                 LabeledContent(summary.referenceDistanceLabel, value: summary.referenceDistanceText ?? "Reference unavailable")
-                LabeledContent("Selected to pin", value: summary.pinDistanceText ?? "Pin unavailable")
+                LabeledContent("To pin", value: summary.pinDistanceText ?? "Pin unavailable")
 
                 if viewModel.selectedShotMarker != nil {
                     Button("Delete Ball", role: .destructive) {

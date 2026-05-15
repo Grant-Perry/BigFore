@@ -815,6 +815,88 @@ struct BigForeTests {
         #expect(viewModel.shotMarkers.first?.startCoordinate.latitude == tee.latitude)
     }
 
+    @Test func courseMapViewModelBallTapUpdatesExistingShotWithSameStart() throws {
+        let course = CourseMapPoint(
+            id: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let viewModel = CourseMapViewModel(course: course)
+        let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
+        let firstBall = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
+        let correctedBall = CLLocationCoordinate2D(latitude: 33.0015, longitude: -84.0)
+
+        viewModel.selectionMode = .teeBox
+        viewModel.selectMapLocation(at: tee)
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: firstBall)
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: correctedBall)
+
+        #expect(viewModel.shotMarkers.count == 1)
+        #expect(viewModel.shotMarkers.first?.shotNumber == 1)
+        #expect(viewModel.shotMarkers.first?.ballCoordinate.latitude == correctedBall.latitude)
+    }
+
+    @Test func courseMapViewModelBallTapMovesFirstExistingShotWhenNoStartSelected() throws {
+        let course = CourseMapPoint(
+            id: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let viewModel = CourseMapViewModel(course: course)
+        let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
+        let firstBall = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
+        let correctedBall = CLLocationCoordinate2D(latitude: 33.0015, longitude: -84.0)
+
+        viewModel.selectionMode = .teeBox
+        viewModel.selectMapLocation(at: tee)
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: firstBall)
+        viewModel.clearShotMeasurement()
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: correctedBall)
+
+        #expect(viewModel.shotMarkers.count == 1)
+        #expect(viewModel.shotMarkers.first?.shotNumber == 1)
+        #expect(viewModel.shotMarkers.first?.ballCoordinate.latitude == correctedBall.latitude)
+        #expect(viewModel.selectedShotMarkerID == viewModel.shotMarkers.first?.id)
+    }
+
+    @Test func courseMapViewModelNextShotBallTapUpdatesExistingSubsequentShot() throws {
+        let course = CourseMapPoint(
+            id: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let viewModel = CourseMapViewModel(course: course)
+        let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
+        let firstBall = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
+        let secondBall = CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0)
+        let correctedSecondBall = CLLocationCoordinate2D(latitude: 33.0025, longitude: -84.0)
+
+        viewModel.selectionMode = .teeBox
+        viewModel.selectMapLocation(at: tee)
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: firstBall)
+        viewModel.startNextShotFromBall()
+        viewModel.selectMapLocation(at: secondBall)
+        let firstMarker = try #require(viewModel.shotMarkers.first)
+        viewModel.selectShotMarker(id: firstMarker.id)
+        viewModel.startNextShotFromBall()
+        viewModel.selectMapLocation(at: correctedSecondBall)
+
+        #expect(viewModel.shotMarkers.count == 2)
+        #expect(viewModel.shotMarkers.last?.shotNumber == 2)
+        #expect(viewModel.shotMarkers.last?.ballCoordinate.latitude == correctedSecondBall.latitude)
+    }
+
     @Test func courseMapViewModelDeletesSelectedShotAndUpdatesScore() throws {
         let score = HoleScore(holeNumber: 1, par: 4)
         let player = RoundPlayer(name: "Grant", displayOrder: 0, scores: [score])
@@ -953,6 +1035,10 @@ struct BigForeTests {
         viewModel.selectShotMarker(id: marker.id)
 
         let distanceToPin = try #require(viewModel.selectedShotMarkerDistanceToPinText)
+        let selectedSummary = try #require(viewModel.selectedMapInfoSummary)
+        #expect(selectedSummary.referenceDistanceLabel == "From tee")
+        #expect(selectedSummary.referenceDistanceText?.hasSuffix(" yds") == true)
+        #expect(selectedSummary.pinDistanceText == distanceToPin)
 
         viewModel.selectionMode = .moveShotBall
         viewModel.selectMapLocation(at: movedBall)
@@ -1298,6 +1384,31 @@ struct BigForeTests {
 
         #expect(recommendation.title == "Woody says PW")
         #expect(recommendation.detail.contains("Selected shot club: Driver"))
+    }
+
+    @Test func courseMapViewModelSelectsWoodyBestFitClub() throws {
+        let driver = GolfClub(template: GolfClubTemplate.defaultBag[0])
+        let pitchingWedge = GolfClub(template: GolfClubTemplate.defaultBag[9])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male"
+        )
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, round: round)
+
+        viewModel.selectedClubID = driver.id
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        viewModel.selectionMode = .holePin
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        viewModel.selectWoodyClub(from: [driver, pitchingWedge])
+
+        #expect(viewModel.selectedClubID == pitchingWedge.id)
     }
 
     @Test func courseMapViewModelBuildsWoodyRecommendedClubLandingTarget() throws {

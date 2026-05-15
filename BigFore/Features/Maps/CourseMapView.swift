@@ -230,24 +230,14 @@ struct CourseMapView: View {
                     }
 
                     if let shotStartCoordinate = viewModel.shotStartCoordinate {
-                        Annotation("Shot Start", coordinate: shotStartCoordinate, anchor: .center) {
+                        Annotation(viewModel.shotEndCoordinate == nil ? "Shot Start" : "", coordinate: shotStartCoordinate, anchor: .center) {
                             Button {
                                 viewModel.selectMapInfo(title: "Shot start", coordinate: shotStartCoordinate)
                             } label: {
                                 CourseMapSymbolMarker(systemImage: "figure.golf", tint: BigForeDesign.Palette.tee)
                             }
                             .buttonStyle(.plain)
-                        }
-                    }
-
-                    if let shotEndCoordinate = viewModel.shotEndCoordinate {
-                        Annotation("Ball", coordinate: shotEndCoordinate, anchor: .center) {
-                            Button {
-                                viewModel.selectMapInfo(title: "Ball", coordinate: shotEndCoordinate)
-                            } label: {
-                                CourseMapSymbolMarker(systemImage: "smallcircle.filled.circle", tint: BigForeDesign.Palette.ball)
-                            }
-                            .buttonStyle(.plain)
+                            .accessibilityLabel("Shot start")
                         }
                     }
 
@@ -281,8 +271,6 @@ struct CourseMapView: View {
                 .mapStyle(.hybrid(elevation: .realistic))
                 .mapControls {
                     MapCompass()
-                    MapPitchToggle()
-                    MapUserLocationButton()
                 }
                 .onMapCameraChange(frequency: .onEnd) { context in
                     viewModel.updateCameraState(context.camera)
@@ -303,7 +291,7 @@ struct CourseMapView: View {
                 .allowsHitTesting(false)
 
             CourseMapDistanceMetricStack(viewModel: viewModel, modelContext: modelContext, activeGolfClubs: activeGolfClubs)
-                .padding(.top, 188)
+                .padding(.top, 108)
                 .padding(.trailing, BigForeDesign.Spacing.medium)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
 
@@ -352,7 +340,7 @@ struct CourseMapView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            viewModel.selectDefaultClubIfNeeded(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs)
             viewModel.applyStoredHoleSetup(from: courseGeometries)
             viewModel.applyPersistedShotRecords()
             focusInitialRoundHoleIfNeeded()
@@ -360,15 +348,40 @@ struct CourseMapView: View {
         }
         .onChange(of: courseGeometries.map(\.updatedAt)) {
             viewModel.applyStoredHoleSetup(from: courseGeometries)
+            viewModel.selectWoodyClub(from: activeGolfClubs)
             focusInitialRoundHoleIfNeeded()
         }
         .onChange(of: viewModel.targetHoleNumber) {
-            viewModel.selectDefaultClubIfNeeded(from: activeGolfClubs)
             viewModel.applyStoredHoleSetup(from: courseGeometries)
             viewModel.applyPersistedShotRecords()
+            viewModel.selectWoodyClub(from: activeGolfClubs)
         }
         .onChange(of: activeGolfClubs.map(\.id)) {
-            viewModel.selectDefaultClubIfNeeded(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs)
+        }
+        .onChange(of: viewModel.shotStartCoordinate?.latitude) {
+            viewModel.selectWoodyClub(from: activeGolfClubs)
+        }
+        .onChange(of: viewModel.shotStartCoordinate?.longitude) {
+            viewModel.selectWoodyClub(from: activeGolfClubs)
+        }
+        .onChange(of: viewModel.shotEndCoordinate?.latitude) {
+            viewModel.selectWoodyClub(from: activeGolfClubs)
+        }
+        .onChange(of: viewModel.shotEndCoordinate?.longitude) {
+            viewModel.selectWoodyClub(from: activeGolfClubs)
+        }
+        .onChange(of: viewModel.teeBoxCoordinate?.latitude) {
+            viewModel.selectWoodyClub(from: activeGolfClubs)
+        }
+        .onChange(of: viewModel.teeBoxCoordinate?.longitude) {
+            viewModel.selectWoodyClub(from: activeGolfClubs)
+        }
+        .onChange(of: viewModel.holePinCoordinate?.latitude) {
+            viewModel.selectWoodyClub(from: activeGolfClubs)
+        }
+        .onChange(of: viewModel.holePinCoordinate?.longitude) {
+            viewModel.selectWoodyClub(from: activeGolfClubs)
         }
     }
 

@@ -77,7 +77,7 @@ struct CourseMapBottomLeadingControls: View {
             Button {
                 viewModel.startNextShotFromBall()
             } label: {
-                compactControlLabel("Next", systemImage: "chevron.right")
+                compactIconLabel("Start next shot", systemImage: "play.circle.fill")
             }
             .buttonStyle(.bordered)
             .disabled(!viewModel.canStartNextShotFromBall)

@@ -25,6 +25,7 @@ struct CourseMapDistanceMetricStack: View {
     let modelContext: ModelContext
     let activeGolfClubs: [GolfClub]
     @State private var isScoreSheetPresented = false
+    @State private var isWoodyExpanded = false
 
     var body: some View {
         VStack(alignment: .trailing, spacing: BigForeDesign.Spacing.small) {
@@ -165,16 +166,26 @@ struct CourseMapDistanceMetricStack: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
-            Text(recommendation.detail)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.trailing)
-                .lineLimit(3)
+            if isWoodyExpanded {
+                Text(recommendation.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(3)
+            }
         }
         .padding(.horizontal, BigForeDesign.Spacing.medium)
         .padding(.vertical, BigForeDesign.Spacing.small)
         .frame(width: 156, alignment: .trailing)
         .bigForePanelBackground(cornerRadius: BigForeDesign.Radius.card, materialOpacity: 0.58)
+        .contentShape(RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous))
+        .onTapGesture {
+            withAnimation(.snappy) {
+                isWoodyExpanded.toggle()
+            }
+        }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(isWoodyExpanded ? "Collapses Woody's advice." : "Expands Woody's advice.")
     }
 
     private func displayDistance(_ distanceText: String) -> String {
