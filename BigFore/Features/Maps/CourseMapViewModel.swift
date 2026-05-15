@@ -62,6 +62,17 @@ private struct CourseMapHoleSession {
     }
 }
 
+private struct CourseMapStickyAnchorUndo {
+    let kind: CourseMapFeatureKind
+    let userMappedCoordinate: CLLocationCoordinate2D?
+}
+
+private struct CourseMapPlacementUndo {
+    let previousSession: CourseMapHoleSession
+    let stickyAnchor: CourseMapStickyAnchorUndo?
+    let syncsShotScore: Bool
+}
+
 @MainActor
 @Observable
 final class CourseMapViewModel {
@@ -94,6 +105,7 @@ final class CourseMapViewModel {
     @ObservationIgnored private let geometryProvider: any OpenStreetMapGolfGeometryProviding
     private var currentShotMarkerID: UUID?
     private var holeSessions: [Int: CourseMapHoleSession] = [:]
+    private var placementUndoActions: [Int: [CourseMapPlacementUndo]] = [:]
     private static let defaultCameraDistance: CLLocationDistance = 1_200
     private static let minimumCameraDistance: CLLocationDistance = 75
     private static let maximumCameraDistance: CLLocationDistance = 25_000
@@ -237,6 +249,10 @@ final class CourseMapViewModel {
 
     var canStartNextShotFromBall: Bool {
         shotEndCoordinate != nil
+    }
+
+    var canUndoLastPin: Bool {
+        placementUndoActions[targetHoleNumber]?.isEmpty == false
     }
 
     var manualShotHelpText: String {
@@ -409,6 +425,30 @@ final class CourseMapViewModel {
 
         let scoreText = selectedHoleScore.map { $0.strokes > 0 ? "\($0.strokes)" : "-" } ?? "-"
         return "Scoring \(selectedScoringPlayer.name): \(scoreText) strokes for Hole \(targetHoleNumber)."
+    }
+
+    var compactHoleScoreText: String {
+        "S\(selectedHoleScoreValueText)"
+    }
+
+    var selectedHoleScoreValueText: String {
+        guard let strokes = selectedHoleScore?.strokes, strokes > 0 else {
+            return "-"
+        }
+
+        return "\(strokes)"
+    }
+
+    var canDecreaseSelectedHoleScore: Bool {
+        (selectedHoleScore?.strokes ?? 0) > 0
+    }
+
+    var canIncreaseSelectedHoleScore: Bool {
+        guard let selectedHoleScore else {
+            return false
+        }
+
+        return selectedHoleScore.strokes < 12
     }
 
     var canSaveHole: Bool {
@@ -609,22 +649,27 @@ final class CourseMapViewModel {
         case .inactive:
             statusMessage = "Choose a map action before tapping."
         case .measurementPin:
+            registerPlacementUndo()
             measurePoint(at: coordinate)
             statusMessage = "Measurement pin set."
             selectionMode = .inactive
         case .teeBox:
+            registerPlacementUndo(stickyAnchorKind: .teeBox, modelContext: modelContext)
             teeBoxCoordinate = coordinate
             saveStickyHoleAnchor(kind: .teeBox, coordinate: coordinate, modelContext: modelContext)
             selectionMode = .inactive
         case .holePin:
+            registerPlacementUndo(stickyAnchorKind: .greenPin, modelContext: modelContext)
             holePinCoordinate = coordinate
             saveStickyHoleAnchor(kind: .greenPin, coordinate: coordinate, modelContext: modelContext)
             selectionMode = .inactive
         case .shotStart:
+            registerPlacementUndo()
             startShot(at: coordinate)
             statusMessage = "Shot start set."
             selectionMode = .inactive
         case .shotBall:
+            registerPlacementUndo(syncsShotScore: shotStartCoordinate != nil)
             markShotEnd(at: coordinate, modelContext: modelContext)
             statusMessage = shotStartCoordinate == nil ? "Ball set. Add a shot start to measure distance." : "Ball set. Use Next Shot to continue from here."
             if shotStartCoordinate != nil {
@@ -632,6 +677,7 @@ final class CourseMapViewModel {
             }
             selectionMode = .inactive
         case .moveShotBall:
+            registerPlacementUndo()
             updateSelectedShotMarkerBall(to: coordinate)
             selectionMode = .inactive
         }
@@ -655,18 +701,22 @@ final class CourseMapViewModel {
         errorMessage = nil
     }
 
-    func setTeeBoxTapMode(geometries: [CourseGeometry] = []) {
+    func setTeeBoxTapMode(geometries: [CourseGeometry] = [], focusesHoleLine: Bool = true) {
         selectionMode = .teeBox
         statusMessage = "Tap the map to save Tee \(targetHoleNumber)."
         errorMessage = nil
-        focusCurrentHoleLineIfAvailable(from: geometries)
+        if focusesHoleLine {
+            focusCurrentHoleLineIfAvailable(from: geometries)
+        }
     }
 
-    func setHolePinTapMode(geometries: [CourseGeometry] = []) {
+    func setHolePinTapMode(geometries: [CourseGeometry] = [], focusesHoleLine: Bool = true) {
         selectionMode = .holePin
         statusMessage = "Tap the map to save Pin \(targetHoleNumber)."
         errorMessage = nil
-        focusCurrentHoleLineIfAvailable(from: geometries)
+        if focusesHoleLine {
+            focusCurrentHoleLineIfAvailable(from: geometries)
+        }
     }
 
     func measurePoint(at coordinate: CLLocationCoordinate2D) {
@@ -685,6 +735,28 @@ final class CourseMapViewModel {
         selectionMode = .inactive
         statusMessage = "Measured point deleted. Choose a map action before tapping."
         errorMessage = nil
+    }
+
+    func undoLastPin(modelContext: ModelContext? = nil) {
+        guard var undoActions = placementUndoActions[targetHoleNumber],
+              let undoAction = undoActions.popLast() else {
+            statusMessage = "Nothing to undo."
+            errorMessage = nil
+            return
+        }
+
+        placementUndoActions[targetHoleNumber] = undoActions.isEmpty ? nil : undoActions
+        restoreStickyAnchor(from: undoAction.stickyAnchor, modelContext: modelContext)
+        restoreSession(undoAction.previousSession)
+
+        if undoAction.syncsShotScore, let selectedHoleScore {
+            selectedHoleScore.strokes = shotMarkers.count
+            saveScoreContext(modelContext)
+        }
+
+        selectedMapInfo = nil
+        selectionMode = .inactive
+        statusMessage = "Undid last map pin."
     }
 
     func clearHoleSetup(modelContext: ModelContext? = nil) {
@@ -879,6 +951,14 @@ final class CourseMapViewModel {
         } catch {
             errorMessage = "Could not save target: \(error.localizedDescription)"
         }
+    }
+
+    func incrementSelectedHoleScore(modelContext: ModelContext? = nil) {
+        adjustSelectedHoleScore(by: 1, modelContext: modelContext)
+    }
+
+    func decrementSelectedHoleScore(modelContext: ModelContext? = nil) {
+        adjustSelectedHoleScore(by: -1, modelContext: modelContext)
     }
 
     func syncManualShotCountToScore(modelContext: ModelContext? = nil) {
@@ -1137,8 +1217,28 @@ final class CourseMapViewModel {
         )
     }
 
-    private func saveCurrentHoleSession() {
-        let session = CourseMapHoleSession(
+    private func registerPlacementUndo(
+        stickyAnchorKind: CourseMapFeatureKind? = nil,
+        modelContext: ModelContext? = nil,
+        syncsShotScore: Bool = false
+    ) {
+        let stickyAnchor = stickyAnchorKind.map {
+            CourseMapStickyAnchorUndo(
+                kind: $0,
+                userMappedCoordinate: userMappedStickyAnchorCoordinate(kind: $0, modelContext: modelContext)
+            )
+        }
+        let undoAction = CourseMapPlacementUndo(
+            previousSession: currentHoleSessionSnapshot(),
+            stickyAnchor: stickyAnchor,
+            syncsShotScore: syncsShotScore
+        )
+
+        placementUndoActions[targetHoleNumber, default: []].append(undoAction)
+    }
+
+    private func currentHoleSessionSnapshot() -> CourseMapHoleSession {
+        CourseMapHoleSession(
             measuredCoordinate: measuredCoordinate,
             teeBoxCoordinate: teeBoxCoordinate,
             holePinCoordinate: holePinCoordinate,
@@ -1148,6 +1248,10 @@ final class CourseMapViewModel {
             selectedShotMarkerID: selectedShotMarkerID,
             currentShotMarkerID: currentShotMarkerID
         )
+    }
+
+    private func saveCurrentHoleSession() {
+        let session = currentHoleSessionSnapshot()
 
         if session.isEmpty {
             holeSessions[targetHoleNumber] = nil
@@ -1177,6 +1281,85 @@ final class CourseMapViewModel {
         shotMarkers = session.shotMarkers
         selectedShotMarkerID = session.selectedShotMarkerID
         currentShotMarkerID = session.currentShotMarkerID
+    }
+
+    private func restoreSession(_ session: CourseMapHoleSession) {
+        measuredCoordinate = session.measuredCoordinate
+        teeBoxCoordinate = session.teeBoxCoordinate
+        holePinCoordinate = session.holePinCoordinate
+        shotStartCoordinate = session.shotStartCoordinate
+        shotEndCoordinate = session.shotEndCoordinate
+        shotMarkers = session.shotMarkers
+        selectedShotMarkerID = session.selectedShotMarkerID
+        currentShotMarkerID = session.currentShotMarkerID
+    }
+
+    private func restoreStickyAnchor(from undoAnchor: CourseMapStickyAnchorUndo?, modelContext: ModelContext?) {
+        guard let undoAnchor, let modelContext else {
+            errorMessage = nil
+            return
+        }
+
+        do {
+            if let userMappedCoordinate = undoAnchor.userMappedCoordinate {
+                _ = try geometryEditor.setStickyHoleAnchor(
+                    courseExternalID: course.id,
+                    holeNumber: targetHoleNumber,
+                    kind: undoAnchor.kind,
+                    coordinate: userMappedCoordinate,
+                    modelContext: modelContext
+                )
+            } else {
+                try geometryEditor.clearStickyHoleAnchor(
+                    courseExternalID: course.id,
+                    holeNumber: targetHoleNumber,
+                    kind: undoAnchor.kind,
+                    modelContext: modelContext
+                )
+            }
+            errorMessage = nil
+        } catch {
+            errorMessage = "Could not undo \(undoAnchor.kind.title.lowercased()): \(error.localizedDescription)"
+        }
+    }
+
+    private func userMappedStickyAnchorCoordinate(kind: CourseMapFeatureKind, modelContext: ModelContext?) -> CLLocationCoordinate2D? {
+        guard let modelContext else {
+            return nil
+        }
+
+        do {
+            let courseExternalID = course.id
+            var descriptor = FetchDescriptor<CourseGeometry>(
+                predicate: #Predicate { geometry in
+                    geometry.courseExternalID == courseExternalID
+                }
+            )
+            descriptor.fetchLimit = 1
+            let geometry = try modelContext.fetch(descriptor).first
+            return geometry?
+                .holes
+                .first { $0.number == targetHoleNumber }?
+                .featurePoints
+                .first { $0.kind == kind && $0.source == .userMapped }?
+                .coordinate
+        } catch {
+            errorMessage = "Could not prepare undo: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    private func adjustSelectedHoleScore(by delta: Int, modelContext: ModelContext?) {
+        guard let selectedHoleScore else {
+            statusMessage = "Open from a scorecard to update strokes."
+            errorMessage = nil
+            return
+        }
+
+        selectedHoleScore.strokes = min(max(selectedHoleScore.strokes + delta, 0), 12)
+        saveScoreContext(modelContext)
+        statusMessage = "Updated Hole \(targetHoleNumber) score to \(selectedHoleScoreValueText)."
+        errorMessage = nil
     }
 
     private func saveScoreContext(_ modelContext: ModelContext?) {

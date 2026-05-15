@@ -28,6 +28,8 @@ struct CourseMapScoringControls: View {
                         .foregroundStyle(.secondary)
                 }
 
+                scoreAdjustmentControls
+
                 Button {
                     viewModel.saveCurrentHole(modelContext: modelContext)
                 } label: {
@@ -46,6 +48,34 @@ struct CourseMapScoringControls: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var scoreAdjustmentControls: some View {
+        if viewModel.selectedHoleScore != nil {
+            HStack(spacing: BigForeDesign.Spacing.small) {
+                Button("Decrease score", systemImage: "minus") {
+                    viewModel.decrementSelectedHoleScore(modelContext: modelContext)
+                }
+                .labelStyle(.iconOnly)
+                .disabled(!viewModel.canDecreaseSelectedHoleScore)
+
+                Text(viewModel.selectedHoleScoreValueText)
+                    .font(.title2.weight(.bold))
+                    .monospacedDigit()
+                    .frame(minWidth: 36)
+                    .accessibilityLabel("Hole score")
+                    .accessibilityValue(viewModel.selectedHoleScoreValueText == "-" ? "Not scored" : "\(viewModel.selectedHoleScoreValueText) strokes")
+
+                Button("Increase score", systemImage: "plus") {
+                    viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+                }
+                .labelStyle(.iconOnly)
+                .disabled(!viewModel.canIncreaseSelectedHoleScore)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
         }
     }
 }

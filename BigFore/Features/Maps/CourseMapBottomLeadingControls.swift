@@ -5,15 +5,11 @@ struct CourseMapBottomLeadingControls: View {
     let viewModel: CourseMapViewModel
     let modelContext: ModelContext
     let courseGeometries: [CourseGeometry]
-    let activeGeometry: CourseGeometry?
-    let geometrySummaryText: String?
-    let compactGeometryTitle: String
 
     var body: some View {
         ScrollView(.horizontal) {
             HStack(spacing: BigForeDesign.Spacing.medium) {
                 compactZoomControls
-                compactGeometryImportButton
                 compactHoleActionControls
             }
             .fixedSize(horizontal: true, vertical: false)
@@ -45,23 +41,31 @@ struct CourseMapBottomLeadingControls: View {
         .bigForePanelBackground(cornerRadius: BigForeDesign.Radius.capsulePanel)
     }
 
-    private var compactGeometryImportButton: some View {
-        Button {
-            Task {
-                await viewModel.refreshOpenStreetMapGeometry(modelContext: modelContext)
+    private var compactHoleAnchorControls: some View {
+        HStack(spacing: BigForeDesign.Spacing.small) {
+            compactTapModeButton(
+                "T\(viewModel.targetHoleNumber)",
+                systemImage: "figure.golf",
+                accessibilityLabel: "Mark tee location",
+                mode: .teeBox
+            ) {
+                viewModel.setTeeBoxTapMode(geometries: courseGeometries, focusesHoleLine: false)
             }
-        } label: {
-            compactControlLabel(compactGeometryTitle, systemImage: "map")
+
+            compactTapModeButton(
+                "P\(viewModel.targetHoleNumber)",
+                systemImage: "flag.fill",
+                accessibilityLabel: "Mark pin location",
+                mode: .holePin
+            ) {
+                viewModel.setHolePinTapMode(geometries: courseGeometries, focusesHoleLine: false)
+            }
         }
-        .buttonStyle(.bordered)
         .controlSize(.small)
         .font(.callout.weight(.semibold))
         .lineLimit(1)
         .minimumScaleFactor(0.75)
         .buttonBorderShape(.capsule)
-        .disabled(viewModel.isRefreshingGeometry)
-        .accessibilityLabel(activeGeometry == nil ? "Find OpenStreetMap geometry" : "Refresh OpenStreetMap geometry")
-        .accessibilityValue(geometrySummaryText ?? "No OpenStreetMap geometry imported")
     }
 
     private var compactHoleActionControls: some View {
@@ -81,6 +85,9 @@ struct CourseMapBottomLeadingControls: View {
             .accessibilityLabel("Current hole")
             .accessibilityValue("Hole \(viewModel.targetHoleNumber)")
             .accessibilityHint("Focuses the selected hole on the map.")
+
+            compactHoleAnchorControls
+            compactScoreControls
 
             compactTapModeButton(
                 "Start",
@@ -117,6 +124,15 @@ struct CourseMapBottomLeadingControls: View {
             ) {
                 viewModel.setMeasurementPinTapMode()
             }
+
+            Button {
+                viewModel.undoLastPin(modelContext: modelContext)
+            } label: {
+                compactIconLabel("Undo last pin", systemImage: "arrow.uturn.backward")
+            }
+            .buttonStyle(.bordered)
+            .disabled(!viewModel.canUndoLastPin)
+            .accessibilityHint("Removes the most recent map pin for this hole.")
         }
         .controlSize(.small)
         .font(.callout.weight(.semibold))
@@ -126,6 +142,36 @@ struct CourseMapBottomLeadingControls: View {
         .padding(.horizontal, BigForeDesign.Spacing.medium)
         .padding(.vertical, BigForeDesign.Spacing.small)
         .bigForePanelBackground(cornerRadius: BigForeDesign.Radius.capsulePanel)
+    }
+
+    @ViewBuilder
+    private var compactScoreControls: some View {
+        if viewModel.selectedHoleScore != nil {
+            HStack(spacing: BigForeDesign.Spacing.xSmall) {
+                Button {
+                    viewModel.decrementSelectedHoleScore(modelContext: modelContext)
+                } label: {
+                    compactIconLabel("Decrease hole score", systemImage: "minus")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!viewModel.canDecreaseSelectedHoleScore)
+
+                Text(viewModel.compactHoleScoreText)
+                    .font(.callout.weight(.semibold))
+                    .monospacedDigit()
+                    .frame(minWidth: 34, minHeight: 36)
+                    .accessibilityLabel("Hole score")
+                    .accessibilityValue(viewModel.selectedHoleScoreValueText == "-" ? "Not scored" : "\(viewModel.selectedHoleScoreValueText) strokes")
+
+                Button {
+                    viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+                } label: {
+                    compactIconLabel("Increase hole score", systemImage: "plus")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!viewModel.canIncreaseSelectedHoleScore)
+            }
+        }
     }
 
     @ViewBuilder

@@ -117,19 +117,6 @@ struct CourseMapView: View {
         return "\(source): \(mappedHoleCount) mapped \(mappedHoleCount == 1 ? "hole" : "holes")"
     }
 
-    private var compactGeometryTitle: String {
-        if viewModel.isRefreshingGeometry {
-            return "OSM..."
-        }
-
-        guard let activeGeometry else {
-            return "OSM"
-        }
-
-        let mappedHoleCount = mappedHoleCount(for: activeGeometry)
-        return mappedHoleCount > 0 ? "OSM \(mappedHoleCount)" : "OSM"
-    }
-
     private var currentHoleUserMappedFeaturePoints: [CourseMapFeaturePoint] {
         courseGeometries
             .flatMap(\.holes)
@@ -310,12 +297,6 @@ struct CourseMapView: View {
             }
             .ignoresSafeArea(edges: .bottom)
 
-            CourseMapDistanceHUD(viewModel: viewModel)
-                .padding(.top, 12)
-                .padding(.horizontal)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .allowsHitTesting(false)
-
             if isControlPanelExpanded {
                 CourseMapControlPanel(
                     viewModel: viewModel,
@@ -350,10 +331,7 @@ struct CourseMapView: View {
             CourseMapBottomLeadingControls(
                 viewModel: viewModel,
                 modelContext: modelContext,
-                courseGeometries: courseGeometries,
-                activeGeometry: activeGeometry,
-                geometrySummaryText: geometrySummaryText,
-                compactGeometryTitle: compactGeometryTitle
+                courseGeometries: courseGeometries
             )
                 .padding(.leading)
                 .padding(.bottom, isControlPanelExpanded ? 456 : 24)
@@ -362,8 +340,14 @@ struct CourseMapView: View {
         .animation(.snappy, value: isControlPanelExpanded)
         .animation(.snappy, value: isDistancesExpanded)
         .animation(.snappy, value: isSaveTargetExpanded)
-        .navigationTitle("Course Map")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                CourseMapDistanceHUD(viewModel: viewModel)
+                    .allowsHitTesting(false)
+            }
+        }
         .onAppear {
             viewModel.applyStoredHoleSetup(from: courseGeometries)
             focusInitialRoundHoleIfNeeded()

@@ -195,6 +195,56 @@ struct BigForeTests {
         #expect(viewModel.selectionMode == .inactive)
     }
 
+    @Test func courseMapViewModelUndoesPlacedMapPinsInReverseOrder() {
+        let course = CourseMapPoint(
+            id: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let viewModel = CourseMapViewModel(course: course)
+        let measurement = CLLocationCoordinate2D(latitude: 33.0001, longitude: -84.0001)
+        let teeBox = CLLocationCoordinate2D(latitude: 33.0002, longitude: -84.0002)
+        let holePin = CLLocationCoordinate2D(latitude: 33.0012, longitude: -84.0002)
+        let shotStart = CLLocationCoordinate2D(latitude: 33.0003, longitude: -84.0003)
+        let ball = CLLocationCoordinate2D(latitude: 33.0008, longitude: -84.0003)
+
+        viewModel.selectionMode = .measurementPin
+        viewModel.selectMapLocation(at: measurement)
+        viewModel.selectionMode = .teeBox
+        viewModel.selectMapLocation(at: teeBox)
+        viewModel.selectionMode = .holePin
+        viewModel.selectMapLocation(at: holePin)
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: shotStart)
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: ball)
+
+        #expect(viewModel.canUndoLastPin)
+
+        viewModel.undoLastPin()
+        #expect(viewModel.shotEndCoordinate == nil)
+        #expect(viewModel.shotMarkers.isEmpty)
+        #expect(viewModel.shotStartCoordinate?.latitude == shotStart.latitude)
+
+        viewModel.undoLastPin()
+        #expect(viewModel.shotStartCoordinate == nil)
+        #expect(viewModel.holePinCoordinate?.latitude == holePin.latitude)
+
+        viewModel.undoLastPin()
+        #expect(viewModel.holePinCoordinate == nil)
+        #expect(viewModel.teeBoxCoordinate?.latitude == teeBox.latitude)
+
+        viewModel.undoLastPin()
+        #expect(viewModel.teeBoxCoordinate == nil)
+        #expect(viewModel.measuredCoordinate?.latitude == measurement.latitude)
+
+        viewModel.undoLastPin()
+        #expect(viewModel.measuredCoordinate == nil)
+        #expect(viewModel.canUndoLastPin == false)
+    }
+
     @Test func courseMapViewModelTapModesDeactivateAfterPlacement() {
         let course = CourseMapPoint(
             id: 42,
@@ -905,6 +955,48 @@ struct BigForeTests {
         #expect(viewModel.shotSummaries.first?.isSelected == true)
     }
 
+    @Test func courseMapViewModelScoreButtonsUpdateCurrentHoleScore() throws {
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let score = HoleScore(holeNumber: 1, par: 4)
+        let player = RoundPlayer(name: "Grant", displayOrder: 0, scores: [score])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male",
+            players: [player]
+        )
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, round: round)
+
+        modelContext.insert(round)
+        try modelContext.save()
+
+        viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+        viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+
+        #expect(score.strokes == 2)
+        #expect(viewModel.compactHoleScoreText == "S2")
+        #expect(viewModel.canDecreaseSelectedHoleScore)
+
+        viewModel.decrementSelectedHoleScore(modelContext: modelContext)
+
+        #expect(score.strokes == 1)
+
+        for _ in 0..<20 {
+            viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+        }
+
+        #expect(score.strokes == 12)
+        #expect(viewModel.canIncreaseSelectedHoleScore == false)
+    }
+
     @Test func courseMapViewModelManualShotsUpdateFirstPlayerHoleScore() throws {
         let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -929,6 +1021,10 @@ struct BigForeTests {
 
         modelContext.insert(round)
         try modelContext.save()
+
+        viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+        viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+        viewModel.incrementSelectedHoleScore(modelContext: modelContext)
 
         viewModel.selectionMode = .shotStart
         viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0), modelContext: modelContext)
