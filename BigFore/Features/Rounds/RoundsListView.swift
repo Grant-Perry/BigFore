@@ -35,7 +35,7 @@ struct RoundsListView: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .task(id: round.id) {
-                            await weatherViewModel.loadWeather(for: round)
+                            await weatherViewModel.loadWeather(for: round, modelContext: modelContext)
                         }
                         .swipeActions {
                             Button("Delete", role: .destructive) {
@@ -66,7 +66,7 @@ struct RoundsListView: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .task(id: round.id) {
-                            await weatherViewModel.loadWeather(for: round)
+                            await weatherViewModel.loadWeather(for: round, modelContext: modelContext)
                         }
                         .swipeActions {
                             Button("Delete", role: .destructive) {
@@ -131,6 +131,9 @@ struct RoundRow: View {
         var badges = [round.isComplete ? "Completed" : viewModel.resumeText(for: round)]
         if let weatherSummary {
             badges.append(weatherSummary.temperatureText)
+            if let windText = weatherSummary.windText {
+                badges.append(windText)
+            }
         } else if weatherErrorText != nil {
             badges.append("Weather unavailable")
         }

@@ -1,7 +1,9 @@
+import SwiftData
 import SwiftUI
 
 struct CourseMapSelectedInfoCard: View {
     let viewModel: CourseMapViewModel
+    let modelContext: ModelContext
 
     var body: some View {
         if let summary = viewModel.selectedMapInfoSummary {
@@ -22,6 +24,14 @@ struct CourseMapSelectedInfoCard: View {
 
                 LabeledContent(summary.referenceDistanceLabel, value: summary.referenceDistanceText ?? "Reference unavailable")
                 LabeledContent("Selected to pin", value: summary.pinDistanceText ?? "Pin unavailable")
+
+                if viewModel.selectedShotMarker != nil {
+                    Button("Delete Ball", role: .destructive) {
+                        viewModel.deleteSelectedShotMarker(modelContext: modelContext)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
             }
             .font(.callout)
             .padding(BigForeDesign.Spacing.medium)

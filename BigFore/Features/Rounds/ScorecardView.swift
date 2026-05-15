@@ -17,7 +17,8 @@ struct ScorecardView: View {
                 if let mapPoint = CourseMapPoint(round: viewModel.round) {
                     ScorecardGPSMapActionCard(
                         mapPoint: mapPoint,
-                        round: viewModel.round
+                        round: viewModel.round,
+                        focusedPlayerID: viewModel.focusedPlayerID
                     )
                 }
 

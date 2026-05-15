@@ -3,6 +3,8 @@ import SwiftUI
 struct PlayActiveRoundCard: View {
     let round: GolfRound
     let viewModel: PlayHomeViewModel
+    let weatherSummary: WeatherSummary?
+    let weatherErrorText: String?
 
     private var mapPoint: CourseMapPoint? {
         CourseMapPoint(round: round)
@@ -11,6 +13,7 @@ struct PlayActiveRoundCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.large) {
             header
+            weatherContext
             PlayStatGrid(round: round, viewModel: viewModel)
             leaderSummary
             actions
@@ -27,6 +30,27 @@ struct PlayActiveRoundCard: View {
                 .stroke(BigForeDesign.Palette.primaryAction.opacity(0.24), lineWidth: 1)
         }
         .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var weatherContext: some View {
+        if let weatherSummary {
+            HStack(spacing: BigForeDesign.Spacing.medium) {
+                Label(weatherSummary.temperatureText, systemImage: weatherSummary.symbolName)
+                    .font(.subheadline.weight(.semibold))
+
+                if let windText = weatherSummary.windText {
+                    Label(windText, systemImage: "wind")
+                        .font(.subheadline.weight(.semibold))
+                }
+            }
+            .foregroundStyle(.secondary)
+            .accessibilityElement(children: .combine)
+        } else if let weatherErrorText {
+            Label(weatherErrorText, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var header: some View {

@@ -5,17 +5,27 @@ struct PlayHomeView: View {
     let openCourseSearch: () -> Void
     let openSavedCourses: () -> Void
 
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \GolfRound.startedAt, order: .reverse) private var rounds: [GolfRound]
     @Query(sort: \GolfCourse.courseName) private var savedCourses: [GolfCourse]
     @AppStorage("playHome.prefersDarkMode") private var prefersDarkMode = false
     @State private var viewModel = PlayHomeViewModel()
+    @State private var weatherViewModel = WeatherViewModel()
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: BigForeDesign.Spacing.large) {
                     if let activeRound = viewModel.activeRound(from: rounds) {
-                        PlayActiveRoundCard(round: activeRound, viewModel: viewModel)
+                        PlayActiveRoundCard(
+                            round: activeRound,
+                            viewModel: viewModel,
+                            weatherSummary: weatherViewModel.summary(for: activeRound),
+                            weatherErrorText: weatherViewModel.errorText(for: activeRound)
+                        )
+                        .task(id: activeRound.id) {
+                            await weatherViewModel.loadWeather(for: activeRound, modelContext: modelContext)
+                        }
                     } else {
                         PlayEmptyStateCard(
                             hasSavedCourses: !savedCourses.isEmpty,

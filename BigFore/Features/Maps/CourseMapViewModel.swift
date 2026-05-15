@@ -11,25 +11,32 @@ struct CourseMapShotMarker: Identifiable {
     var startCoordinate: CLLocationCoordinate2D
     var ballCoordinate: CLLocationCoordinate2D
     var source: ShotRecordSource
+    var clubID: UUID?
+    var clubName: String?
 
     init(
         id: UUID = UUID(),
         shotNumber: Int,
         startCoordinate: CLLocationCoordinate2D,
         ballCoordinate: CLLocationCoordinate2D,
-        source: ShotRecordSource = .manualMap
+        source: ShotRecordSource = .manualMap,
+        clubID: UUID? = nil,
+        clubName: String? = nil
     ) {
         self.id = id
         self.shotNumber = shotNumber
         self.startCoordinate = startCoordinate
         self.ballCoordinate = ballCoordinate
         self.source = source
+        self.clubID = clubID
+        self.clubName = clubName
     }
 }
 
 struct CourseMapShotSummary: Identifiable, Equatable {
     let id: UUID
     let shotNumber: Int
+    let clubName: String?
     let distanceFromPreviousText: String
     let distanceToPinText: String?
     let isSelected: Bool
@@ -52,6 +59,14 @@ struct CourseMapInfoSummary: Equatable {
     let referenceDistanceLabel: String
     let referenceDistanceText: String?
     let pinDistanceText: String?
+}
+
+struct CourseMapClubRecommendation: Equatable {
+    let title: String
+    let detail: String
+    let distanceText: String
+    let confidenceText: String
+    let weatherText: String?
 }
 
 private struct CourseMapHoleSession {
@@ -105,6 +120,7 @@ final class CourseMapViewModel {
     var selectedShotMarkerID: UUID?
     var selectedMapInfo: CourseMapInfoSelection?
     var selectedScoringPlayerID: UUID?
+    var selectedClubID: UUID?
     var selectedFeatureKind = CourseMapFeatureKind.target
     var featureLabel = ""
     var statusMessage: String?
@@ -131,6 +147,7 @@ final class CourseMapViewModel {
         course: CourseMapPoint,
         currentHoleNumber: Int? = nil,
         round: GolfRound? = nil,
+        focusedPlayerID: UUID? = nil,
         locationService: LocationService? = nil,
         distanceCalculator: DistanceCalculator? = nil,
         geometryEditor: CourseGeometryEditor = CourseGeometryEditor(),
@@ -143,7 +160,8 @@ final class CourseMapViewModel {
         self.distanceCalculator = distanceCalculator ?? DistanceCalculator()
         self.geometryEditor = geometryEditor
         self.geometryProvider = geometryProvider
-        selectedScoringPlayerID = Self.sortedPlayers(for: round).first?.id
+        let sortedPlayers = Self.sortedPlayers(for: round)
+        selectedScoringPlayerID = sortedPlayers.first { $0.id == focusedPlayerID }?.id ?? sortedPlayers.first?.id
         cameraCenter = course.coordinate
         cameraDistance = Self.defaultCameraDistance
         cameraHeading = 0
@@ -249,6 +267,7 @@ final class CourseMapViewModel {
             CourseMapShotSummary(
                 id: marker.id,
                 shotNumber: marker.shotNumber,
+                clubName: marker.clubName,
                 distanceFromPreviousText: distanceCalculator.formattedYards(
                     from: previousShotCoordinate(for: marker),
                     to: marker.ballCoordinate
@@ -265,12 +284,88 @@ final class CourseMapViewModel {
         shotEndCoordinate != nil
     }
 
+    var canMarkBall: Bool {
+        shotStartCoordinate != nil || (shotMarkers.isEmpty && teeBoxCoordinate != nil)
+    }
+
     var canUndoLastPin: Bool {
         placementUndoActions[targetHoleNumber]?.isEmpty == false
     }
 
     var manualShotHelpText: String {
         "Set Tee and Pin once. Then Start, Ball, Next Shot, repeat."
+    }
+
+    func selectedClubName(from clubs: [GolfClub]) -> String {
+        selectedClub(from: clubs)?.name ?? "No club selected"
+    }
+
+    func selectedClubAverageText(from clubs: [GolfClub]) -> String? {
+        guard let club = selectedClub(from: clubs) else {
+            return "Pick a club so Woody can learn your distances."
+        }
+
+        let matchingShots = persistedShots(for: club)
+        guard matchingShots.isEmpty == false else {
+            return "Woody will use \(club.name)'s \(club.carryYards)-yard default until you have shot history."
+        }
+
+        let average = matchingShots.map(\.distanceYards).reduce(0, +) / matchingShots.count
+        return "\(club.name) average: \(average) yds from \(matchingShots.count) saved \(matchingShots.count == 1 ? "shot" : "shots")."
+    }
+
+    func selectDefaultClubIfNeeded(from clubs: [GolfClub]) {
+        let activeClubs = clubs.filter(\.isActive).sorted { $0.displayOrder < $1.displayOrder }
+        guard selectedClubID == nil || activeClubs.contains(where: { $0.id == selectedClubID }) == false else {
+            return
+        }
+
+        selectedClubID = activeClubs.first?.id
+    }
+
+    func clubRecommendation(from clubs: [GolfClub]) -> CourseMapClubRecommendation? {
+        guard let club = selectedClub(from: clubs) else {
+            return CourseMapClubRecommendation(
+                title: "Woody needs a club",
+                detail: "Pick a club from your bag before Woody can make a call.",
+                distanceText: "No club selected",
+                confidenceText: "No recommendation yet",
+                weatherText: latestWeatherText
+            )
+        }
+
+        guard let holePinCoordinate, let shotLocationCoordinate else {
+            return CourseMapClubRecommendation(
+                title: "Woody needs a pin",
+                detail: "Set the tee, pin, or ball position so Woody can see the shot.",
+                distanceText: "\(club.name): \(club.carryYards) yd default",
+                confidenceText: "Waiting for target distance",
+                weatherText: latestWeatherText
+            )
+        }
+
+        let targetYards = distanceCalculator.yards(from: shotLocationCoordinate, to: holePinCoordinate)
+        let history = persistedShots(for: club)
+        let expectedYards = history.isEmpty ? club.carryYards : history.map(\.distanceYards).reduce(0, +) / history.count
+        let sourceText = history.isEmpty ? "default" : "\(history.count)-shot average"
+        let gap = targetYards - expectedYards
+        let detail: String
+
+        if abs(gap) <= 7 {
+            detail = "\(club.name) fits: \(expectedYards) yds \(sourceText) for a \(targetYards)-yd shot."
+        } else if gap > 0 {
+            detail = "\(club.name) may be short: \(expectedYards) yds \(sourceText), \(targetYards) to the pin."
+        } else {
+            detail = "\(club.name) may be long: \(expectedYards) yds \(sourceText), \(targetYards) to the pin."
+        }
+
+        return CourseMapClubRecommendation(
+            title: "Woody says \(club.name)",
+            detail: detail,
+            distanceText: "\(targetYards) yds to pin",
+            confidenceText: history.isEmpty ? "Using starter bag distance" : "Using your saved shots",
+            weatherText: latestWeatherText
+        )
     }
 
     var courseToMeasuredCoordinates: [CLLocationCoordinate2D]? {
@@ -394,6 +489,18 @@ final class CourseMapViewModel {
         selectedScoringPlayer?.scores.first { $0.holeNumber == targetHoleNumber }
     }
 
+    var selectedScoringPlayerName: String? {
+        selectedScoringPlayer?.name
+    }
+
+    var scoringPlayerDetailText: String? {
+        guard let selectedScoringPlayer else {
+            return nil
+        }
+
+        return "Ball: \(selectedScoringPlayer.name)"
+    }
+
     func holeParText(for holeNumber: Int) -> String? {
         let holeScore = selectedScoringPlayer?.scores.first { $0.holeNumber == holeNumber }
             ?? round?.players
@@ -453,6 +560,14 @@ final class CourseMapViewModel {
         return "\(strokes)"
     }
 
+    var selectedHoleScoreResult: ScorecardScoreResult? {
+        scoreResult(for: selectedScoringPlayer)
+    }
+
+    var selectedHoleScoreResultText: String? {
+        selectedHoleScoreResult?.title
+    }
+
     var canDecreaseSelectedHoleScore: Bool {
         (selectedHoleScore?.strokes ?? 0) > 0
     }
@@ -470,7 +585,11 @@ final class CourseMapViewModel {
     }
 
     var saveHoleButtonTitle: String {
-        "Save Hole"
+        guard let selectedScoringPlayerName else {
+            return "Save Hole"
+        }
+
+        return "Save \(selectedScoringPlayerName)"
     }
 
     var saveHoleActionAccessibilityLabel: String {
@@ -478,11 +597,13 @@ final class CourseMapViewModel {
             return "Save hole"
         }
 
+        let playerText = selectedScoringPlayerName.map { " for \($0)" } ?? ""
+
         if nextHoleNumber == nil {
-            return "Save final hole and finish round"
+            return "Save final hole\(playerText) and finish round"
         }
 
-        return "Save hole and go to next hole"
+        return "Save hole\(playerText) and go to next hole"
     }
 
     var saveHoleHelpText: String? {
@@ -491,14 +612,20 @@ final class CourseMapViewModel {
         }
 
         if !canSaveHole {
+            if let selectedScoringPlayerName {
+                return "Track a shot or enter \(selectedScoringPlayerName)'s score to enable Save Hole."
+            }
+
             return "Track a shot or enter a score to enable Save Hole."
         }
 
+        let playerText = selectedScoringPlayerName.map { " for \($0)" } ?? ""
+
         if let nextHoleNumber {
-            return "Saves Hole \(targetHoleNumber) and moves to Hole \(nextHoleNumber)."
+            return "Saves Hole \(targetHoleNumber)\(playerText) and moves to Hole \(nextHoleNumber)."
         }
 
-        return "Saves Hole \(targetHoleNumber) and finishes the round."
+        return "Saves Hole \(targetHoleNumber)\(playerText) and finishes the round."
     }
 
     func applyStoredHoleSetup(from geometries: [CourseGeometry]) {
@@ -691,12 +818,9 @@ final class CourseMapViewModel {
             statusMessage = "Shot start set."
             selectionMode = .inactive
         case .shotBall:
-            registerPlacementUndo(syncsShotScore: shotStartCoordinate != nil)
+            registerPlacementUndo(syncsShotScore: canMarkBall)
             markShotEnd(at: coordinate, modelContext: modelContext)
             statusMessage = shotStartCoordinate == nil ? "Ball set. Add a shot start to measure distance." : "Ball set. Use Next Shot to continue from here."
-            if shotStartCoordinate != nil {
-                showShotMeasurement()
-            }
             selectionMode = .inactive
         case .moveShotBall:
             registerPlacementUndo()
@@ -724,7 +848,9 @@ final class CourseMapViewModel {
                 shotNumber: index + 1,
                 startCoordinate: record.startCoordinate,
                 ballCoordinate: record.endCoordinate,
-                source: record.source
+                source: record.source,
+                clubID: record.club?.id,
+                clubName: record.clubNameSnapshot
             )
         }
         selectedShotMarkerID = nil
@@ -879,21 +1005,19 @@ final class CourseMapViewModel {
     }
 
     func markShotEndAtCurrentLocation(modelContext: ModelContext? = nil) {
-        guard shotStartCoordinate != nil, let currentLocation = locationService.currentLocation else {
+        guard canMarkBall, let currentLocation = locationService.currentLocation else {
             return
         }
 
         markShotEnd(at: currentLocation.coordinate, source: .gps, modelContext: modelContext)
-        showShotMeasurement()
     }
 
     func markShotEndAtMeasuredPoint(modelContext: ModelContext? = nil) {
-        guard shotStartCoordinate != nil, let measuredCoordinate else {
+        guard canMarkBall, let measuredCoordinate else {
             return
         }
 
         markShotEnd(at: measuredCoordinate, source: .manualMap, modelContext: modelContext)
-        showShotMeasurement()
     }
 
     func clearShotMeasurement() {
@@ -917,7 +1041,9 @@ final class CourseMapViewModel {
                 shotNumber: index + 1,
                 startCoordinate: marker.startCoordinate,
                 ballCoordinate: marker.ballCoordinate,
-                source: marker.source
+                source: marker.source,
+                clubID: marker.clubID,
+                clubName: marker.clubName
             )
         }
         self.selectedShotMarkerID = nil
@@ -956,8 +1082,8 @@ final class CourseMapViewModel {
         shotStartCoordinate = marker.startCoordinate
         shotEndCoordinate = marker.ballCoordinate
         selectMapInfo(title: "Shot \(marker.shotNumber) ball", coordinate: marker.ballCoordinate)
-        statusMessage = "Shot \(marker.shotNumber) selected. Use Move Ball, then tap the corrected spot."
-        showShotMeasurement()
+        selectionMode = .moveShotBall
+        statusMessage = "Shot \(marker.shotNumber) selected. Tap the corrected ball spot or delete it."
     }
 
     func updateSelectedShotMarkerBall(to coordinate: CLLocationCoordinate2D, modelContext: ModelContext? = nil) {
@@ -975,7 +1101,20 @@ final class CourseMapViewModel {
         saveScoreContext(modelContext)
         statusMessage = "Shot \(shotMarkers[index].shotNumber) ball moved."
         errorMessage = nil
-        showShotMeasurement()
+    }
+
+    func applySelectedClubToCurrentShot(from clubs: [GolfClub], modelContext: ModelContext? = nil) {
+        guard let selectedShotMarkerID,
+              let index = shotMarkers.firstIndex(where: { $0.id == selectedShotMarkerID }),
+              let club = selectedClub(from: clubs) else {
+            return
+        }
+
+        shotMarkers[index].clubID = club.id
+        shotMarkers[index].clubName = club.name
+        persistCurrentShotRecords(modelContext: modelContext)
+        saveScoreContext(modelContext)
+        statusMessage = "Shot \(shotMarkers[index].shotNumber) set to \(club.name)."
     }
 
     func saveMeasuredPointAsFeature(modelContext: ModelContext) {
@@ -1012,6 +1151,44 @@ final class CourseMapViewModel {
 
     func decrementSelectedHoleScore(modelContext: ModelContext? = nil) {
         adjustSelectedHoleScore(by: -1, modelContext: modelContext)
+    }
+
+    func scoreValueText(for player: RoundPlayer) -> String {
+        guard let strokes = score(for: player)?.strokes, strokes > 0 else {
+            return "-"
+        }
+
+        return "\(strokes)"
+    }
+
+    func scoreResult(for player: RoundPlayer?) -> ScorecardScoreResult? {
+        guard let player,
+              let score = score(for: player),
+              score.strokes > 0 else {
+            return nil
+        }
+
+        return ScorecardScoreResult(relativeToPar: score.strokes - score.par)
+    }
+
+    func canDecreaseScore(for player: RoundPlayer) -> Bool {
+        (score(for: player)?.strokes ?? 0) > 0
+    }
+
+    func canIncreaseScore(for player: RoundPlayer) -> Bool {
+        guard let score = score(for: player) else {
+            return false
+        }
+
+        return score.strokes < 12
+    }
+
+    func incrementScore(for player: RoundPlayer, modelContext: ModelContext? = nil) {
+        adjustScore(for: player, by: 1, modelContext: modelContext)
+    }
+
+    func decrementScore(for player: RoundPlayer, modelContext: ModelContext? = nil) {
+        adjustScore(for: player, by: -1, modelContext: modelContext)
     }
 
     func syncManualShotCountToScore(modelContext: ModelContext? = nil) {
@@ -1177,15 +1354,26 @@ final class CourseMapViewModel {
     private func markShotEnd(at coordinate: CLLocationCoordinate2D, source: ShotRecordSource = .manualMap, modelContext: ModelContext?) {
         shotEndCoordinate = coordinate
 
+        if shotStartCoordinate == nil, shotMarkers.isEmpty, let teeBoxCoordinate {
+            shotStartCoordinate = teeBoxCoordinate
+        }
+
         guard let shotStartCoordinate else {
+            errorMessage = "Set a shot start or tee box before marking the ball."
             return
         }
+
+        let club = selectedClub(modelContext: modelContext)
 
         if let currentShotMarkerID,
            let index = shotMarkers.firstIndex(where: { $0.id == currentShotMarkerID }) {
             shotMarkers[index].startCoordinate = shotStartCoordinate
             shotMarkers[index].ballCoordinate = coordinate
             shotMarkers[index].source = source
+            if let club {
+                shotMarkers[index].clubID = club.id
+                shotMarkers[index].clubName = club.name
+            }
             selectedShotMarkerID = currentShotMarkerID
             syncManualShotCountToScore(modelContext: modelContext)
             return
@@ -1195,7 +1383,9 @@ final class CourseMapViewModel {
             shotNumber: shotMarkers.count + 1,
             startCoordinate: shotStartCoordinate,
             ballCoordinate: coordinate,
-            source: source
+            source: source,
+            clubID: club?.id,
+            clubName: club?.name
         )
         shotMarkers.append(marker)
         currentShotMarkerID = marker.id
@@ -1424,6 +1614,23 @@ final class CourseMapViewModel {
         errorMessage = nil
     }
 
+    private func adjustScore(for player: RoundPlayer, by delta: Int, modelContext: ModelContext?) {
+        guard let score = score(for: player) else {
+            statusMessage = "No score slot for \(player.name) on Hole \(targetHoleNumber)."
+            errorMessage = nil
+            return
+        }
+
+        score.strokes = min(max(score.strokes + delta, 0), 12)
+        saveScoreContext(modelContext)
+        statusMessage = "Updated \(player.name) on Hole \(targetHoleNumber) to \(scoreValueText(for: player))."
+        errorMessage = nil
+    }
+
+    private func score(for player: RoundPlayer) -> HoleScore? {
+        player.scores.first { $0.holeNumber == targetHoleNumber }
+    }
+
     private func saveScoreContext(_ modelContext: ModelContext?) {
         guard let modelContext else {
             return
@@ -1455,10 +1662,12 @@ final class CourseMapViewModel {
 
         for marker in shotMarkers {
             let distanceYards = distanceCalculator.yards(from: marker.startCoordinate, to: marker.ballCoordinate)
+            let markerClub = club(id: marker.clubID, modelContext: modelContext)
             let record = round.shotRecords.first { $0.id == marker.id } ?? ShotRecord(
                 id: marker.id,
                 round: round,
                 player: selectedScoringPlayer,
+                club: markerClub,
                 weatherSnapshot: latestWeatherSnapshot(for: round),
                 holeNumber: targetHoleNumber,
                 shotNumber: marker.shotNumber,
@@ -1470,6 +1679,7 @@ final class CourseMapViewModel {
 
             record.round = round
             record.player = selectedScoringPlayer
+            record.club = markerClub
             record.weatherSnapshot = record.weatherSnapshot ?? latestWeatherSnapshot(for: round)
             record.holeNumber = targetHoleNumber
             record.shotNumber = marker.shotNumber
@@ -1478,6 +1688,7 @@ final class CourseMapViewModel {
             record.endLatitude = marker.ballCoordinate.latitude
             record.endLongitude = marker.ballCoordinate.longitude
             record.distanceYards = distanceYards
+            record.clubNameSnapshot = marker.clubName ?? markerClub?.name
             record.source = marker.source
 
             if record.modelContext == nil {
@@ -1488,6 +1699,65 @@ final class CourseMapViewModel {
 
     private func latestWeatherSnapshot(for round: GolfRound) -> RoundWeatherSnapshot? {
         round.weatherSnapshots.max { $0.observedAt < $1.observedAt }
+    }
+
+    private var latestWeatherText: String? {
+        guard let snapshot = round.flatMap(latestWeatherSnapshot(for:)) else {
+            return nil
+        }
+
+        var parts: [String] = []
+        if let temperatureText = snapshot.temperatureText {
+            parts.append(temperatureText)
+        }
+        if let windSpeed = snapshot.windSpeedMilesPerHour {
+            let windText = windSpeed.rounded().formatted(.number.precision(.fractionLength(0)))
+            parts.append("wind \(windText) mph")
+        }
+
+        return parts.isEmpty ? snapshot.conditionText : parts.joined(separator: " · ")
+    }
+
+    private func selectedClub(from clubs: [GolfClub]) -> GolfClub? {
+        guard let selectedClubID else {
+            return nil
+        }
+
+        return clubs.first { $0.id == selectedClubID }
+    }
+
+    private func selectedClub(modelContext: ModelContext?) -> GolfClub? {
+        guard let selectedClubID else {
+            return nil
+        }
+
+        return club(id: selectedClubID, modelContext: modelContext)
+    }
+
+    private func club(id: UUID?, modelContext: ModelContext?) -> GolfClub? {
+        guard let id, let modelContext else {
+            return nil
+        }
+
+        do {
+            var descriptor = FetchDescriptor<GolfClub>(
+                predicate: #Predicate { club in
+                    club.id == id
+                }
+            )
+            descriptor.fetchLimit = 1
+            return try modelContext.fetch(descriptor).first
+        } catch {
+            errorMessage = "Could not load selected club: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    private func persistedShots(for club: GolfClub) -> [ShotRecord] {
+        round?
+            .shotRecords
+            .filter { $0.club?.id == club.id && $0.distanceYards > 0 }
+            ?? []
     }
 
     private static func sortedPlayers(for round: GolfRound?) -> [RoundPlayer] {

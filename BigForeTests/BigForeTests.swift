@@ -792,6 +792,29 @@ struct BigForeTests {
         #expect(viewModel.selectionMode == .shotBall)
     }
 
+    @Test func courseMapViewModelFirstBallDefaultsShotStartToTeeBox() throws {
+        let course = CourseMapPoint(
+            id: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let viewModel = CourseMapViewModel(course: course)
+        let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
+        let ball = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
+
+        viewModel.selectionMode = .teeBox
+        viewModel.selectMapLocation(at: tee)
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: ball)
+
+        #expect(viewModel.shotMarkers.count == 1)
+        #expect(viewModel.shotStartCoordinate?.latitude == tee.latitude)
+        #expect(viewModel.shotEndCoordinate?.latitude == ball.latitude)
+        #expect(viewModel.shotMarkers.first?.startCoordinate.latitude == tee.latitude)
+    }
+
     @Test func courseMapViewModelDeletesSelectedShotAndUpdatesScore() throws {
         let score = HoleScore(holeNumber: 1, par: 4)
         let player = RoundPlayer(name: "Grant", displayOrder: 0, scores: [score])
@@ -978,7 +1001,7 @@ struct BigForeTests {
         #expect(secondSummary.distanceToPinText == calculator.formattedYards(from: secondBall, to: pin))
     }
 
-    @Test func courseMapViewModelSelectingShotUpdatesCurrentShotAndCamera() throws {
+    @Test func courseMapViewModelSelectingShotPreparesBallMoveWithoutChangingCamera() throws {
         let course = CourseMapPoint(
             id: 42,
             courseName: "Example Course",
@@ -997,6 +1020,7 @@ struct BigForeTests {
         viewModel.selectMapLocation(at: firstBall)
         viewModel.startNextShotFromBall()
         viewModel.selectMapLocation(at: secondBall)
+        let cameraCenter = viewModel.cameraCenter
 
         let firstMarker = try #require(viewModel.shotMarkers.first)
         viewModel.selectShotMarker(id: firstMarker.id)
@@ -1004,7 +1028,9 @@ struct BigForeTests {
         #expect(viewModel.selectedShotMarkerID == firstMarker.id)
         #expect(viewModel.shotStartCoordinate?.latitude == firstStart.latitude)
         #expect(viewModel.shotEndCoordinate?.latitude == firstBall.latitude)
-        #expect(viewModel.cameraCenter.latitude != course.latitude)
+        #expect(viewModel.selectionMode == .moveShotBall)
+        #expect(viewModel.cameraCenter.latitude == cameraCenter.latitude)
+        #expect(viewModel.cameraCenter.longitude == cameraCenter.longitude)
         #expect(viewModel.shotSummaries.first?.isSelected == true)
     }
 
@@ -1091,11 +1117,41 @@ struct BigForeTests {
         #expect(alexScore.strokes == 0)
     }
 
+    @Test func courseMapViewModelUsesFocusedScorecardPlayerForShots() throws {
+        let grantScore = HoleScore(holeNumber: 1, par: 4)
+        let alexScore = HoleScore(holeNumber: 1, par: 4)
+        let grant = RoundPlayer(name: "Grant", displayOrder: 0, scores: [grantScore])
+        let alex = RoundPlayer(name: "Alex", displayOrder: 1, scores: [alexScore])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male",
+            players: [grant, alex]
+        )
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, round: round, focusedPlayerID: alex.id)
+
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+
+        #expect(viewModel.selectedScoringPlayer?.name == "Alex")
+        #expect(viewModel.scoringPlayerDetailText == "Ball: Alex")
+        #expect(alexScore.strokes == 1)
+        #expect(grantScore.strokes == 0)
+    }
+
     @Test func courseMapViewModelPersistsAndRestoresShotRecords() throws {
         let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
+        let club = GolfClub(template: GolfClubTemplate.defaultBag[8])
         let score = HoleScore(holeNumber: 1, par: 4)
         let player = RoundPlayer(name: "Grant", displayOrder: 0, scores: [score])
         let round = GolfRound(
@@ -1113,8 +1169,10 @@ struct BigForeTests {
         let shotStart = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let ball = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
 
+        modelContext.insert(club)
         modelContext.insert(round)
         try modelContext.save()
+        viewModel.selectedClubID = club.id
         viewModel.selectionMode = .shotStart
         viewModel.selectMapLocation(at: shotStart, modelContext: modelContext)
         viewModel.selectionMode = .shotBall
@@ -1129,6 +1187,8 @@ struct BigForeTests {
         #expect(record.holeNumber == 1)
         #expect(record.shotNumber == 1)
         #expect(record.source == .manualMap)
+        #expect(record.club === club)
+        #expect(record.clubNameSnapshot == "9 Iron")
         #expect(score.strokes == 1)
 
         let restoredViewModel = CourseMapViewModel(course: course, round: round)
@@ -1137,6 +1197,7 @@ struct BigForeTests {
         #expect(restoredViewModel.shotMarkers.count == 1)
         #expect(restoredViewModel.shotMarkers.first?.id == record.id)
         #expect(restoredViewModel.shotMarkers.first?.ballCoordinate.latitude == ball.latitude)
+        #expect(restoredViewModel.shotSummaries.first?.clubName == "9 Iron")
     }
 
     @Test func courseMapViewModelDeletingShotRemovesPersistedRecord() throws {
@@ -1172,6 +1233,95 @@ struct BigForeTests {
 
         #expect(try modelContext.fetch(FetchDescriptor<ShotRecord>()).isEmpty)
         #expect(score.strokes == 0)
+    }
+
+    @Test func courseMapViewModelBuildsWoodyRecommendationFromDefaultClubDistance() throws {
+        let club = GolfClub(template: GolfClubTemplate.defaultBag[8])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male"
+        )
+        let weatherSnapshot = RoundWeatherSnapshot(
+            round: round,
+            latitude: 33.0,
+            longitude: -84.0,
+            symbolName: "sun.max.fill",
+            temperatureFahrenheit: 72,
+            windSpeedMilesPerHour: 8
+        )
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, round: round)
+
+        round.weatherSnapshots = [weatherSnapshot]
+        viewModel.selectedClubID = club.id
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        viewModel.selectionMode = .holePin
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+
+        let recommendation = try #require(viewModel.clubRecommendation(from: [club]))
+
+        #expect(recommendation.title == "Woody says 9 Iron")
+        #expect(recommendation.detail.contains("default"))
+        #expect(recommendation.distanceText.hasSuffix("yds to pin"))
+        #expect(recommendation.confidenceText == "Using starter bag distance")
+        #expect(recommendation.weatherText == "72° · wind 8 mph")
+    }
+
+    @Test func courseMapViewModelBuildsWoodyRecommendationFromSavedClubAverage() throws {
+        let club = GolfClub(template: GolfClubTemplate.defaultBag[8])
+        let score = HoleScore(holeNumber: 1, par: 4)
+        let player = RoundPlayer(name: "Grant", displayOrder: 0, scores: [score])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male",
+            players: [player]
+        )
+        let firstShot = ShotRecord(
+            round: round,
+            player: player,
+            club: club,
+            holeNumber: 1,
+            shotNumber: 1,
+            startCoordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0),
+            endCoordinate: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0),
+            distanceYards: 120
+        )
+        let secondShot = ShotRecord(
+            round: round,
+            player: player,
+            club: club,
+            holeNumber: 2,
+            shotNumber: 1,
+            startCoordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0),
+            endCoordinate: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0),
+            distanceYards: 124
+        )
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, round: round)
+
+        round.shotRecords = [firstShot, secondShot]
+        viewModel.selectedClubID = club.id
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        viewModel.selectionMode = .holePin
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+
+        let recommendation = try #require(viewModel.clubRecommendation(from: [club]))
+
+        #expect(recommendation.detail.contains("122 yds"))
+        #expect(recommendation.detail.contains("2-shot average"))
+        #expect(recommendation.confidenceText == "Using your saved shots")
     }
 
     @Test func courseMapViewModelHandleMapTapSetsMeasurementPin() {
@@ -1294,8 +1444,8 @@ struct BigForeTests {
         let viewModel = CourseMapViewModel(course: course, round: round)
 
         #expect(viewModel.canSaveHole == false)
-        #expect(viewModel.saveHoleButtonTitle == "Save Hole")
-        #expect(viewModel.saveHoleActionAccessibilityLabel == "Save hole and go to next hole")
+        #expect(viewModel.saveHoleButtonTitle == "Save Grant")
+        #expect(viewModel.saveHoleActionAccessibilityLabel == "Save hole for Grant and go to next hole")
         viewModel.saveCurrentHole()
         #expect(round.currentHole == 1)
 
@@ -1304,6 +1454,9 @@ struct BigForeTests {
         viewModel.selectionMode = .shotBall
         viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
         #expect(viewModel.canSaveHole)
+        #expect(viewModel.saveHoleButtonTitle == "Save Grant")
+        #expect(viewModel.saveHoleHelpText == "Saves Hole 1 for Grant and moves to Hole 2.")
+        #expect(viewModel.scoringPlayerDetailText == "Ball: Grant")
         viewModel.saveCurrentHole()
 
         #expect(firstScore.strokes == 1)
@@ -1384,8 +1537,8 @@ struct BigForeTests {
         let viewModel = CourseMapViewModel(course: course, round: round)
 
         #expect(viewModel.canSaveHole)
-        #expect(viewModel.saveHoleButtonTitle == "Save Hole")
-        #expect(viewModel.saveHoleActionAccessibilityLabel == "Save final hole and finish round")
+        #expect(viewModel.saveHoleButtonTitle == "Save Grant")
+        #expect(viewModel.saveHoleActionAccessibilityLabel == "Save final hole for Grant and finish round")
 
         viewModel.saveCurrentHole()
 
@@ -2413,6 +2566,40 @@ struct BigForeTests {
         #expect(viewModel.summary(for: round) == nil)
     }
 
+    @Test func weatherViewModelPersistsAndReusesRoundSnapshot() async throws {
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male"
+        )
+        let provider = StubWeatherProvider()
+        let viewModel = WeatherViewModel(provider: provider)
+
+        modelContext.insert(round)
+        try modelContext.save()
+        await viewModel.loadWeather(for: round, modelContext: modelContext)
+        viewModel.removeWeather(for: round.id)
+        await viewModel.loadWeather(for: round, modelContext: modelContext)
+
+        let snapshots = try modelContext.fetch(FetchDescriptor<RoundWeatherSnapshot>())
+        let summary = try #require(viewModel.summary(for: round))
+
+        #expect(snapshots.count == 1)
+        #expect(snapshots.first?.round === round)
+        #expect(snapshots.first?.temperatureText == "72°")
+        #expect(summary.temperatureText == "72°")
+        #expect(summary.windText == "Wind 8 mph")
+        #expect(provider.requestCount == 1)
+    }
+
     @Test func weatherViewModelStoresWeatherErrors() async throws {
         let round = GolfRound(
             courseExternalID: 42,
@@ -2522,7 +2709,13 @@ private final class StubWeatherProvider: WeatherProviding {
         if let error {
             throw error
         }
-        return WeatherSummary(symbolName: "sun.max.fill", temperatureText: "72°")
+        return WeatherSummary(
+            symbolName: "sun.max.fill",
+            temperatureFahrenheit: 72,
+            conditionText: "Sunny",
+            windSpeedMilesPerHour: 8,
+            windDirectionDegrees: 180
+        )
     }
 }
 

@@ -8,6 +8,7 @@ struct CourseMapControlPanel: View {
     let activeGeometry: CourseGeometry?
     let geometrySummaryText: String?
     let currentHoleUserMappedFeaturePoints: [CourseMapFeaturePoint]
+    let activeGolfClubs: [GolfClub]
     let hasUserMappedTee: Bool
     let hasUserMappedPin: Bool
     @Binding var isDistancesExpanded: Bool
@@ -240,6 +241,8 @@ struct CourseMapControlPanel: View {
                     .foregroundStyle(.secondary)
             }
             CourseMapShotSummaryList(viewModel: viewModel)
+            clubSelectionControls
+            woodyRecommendationCard
             CourseMapScoringControls(viewModel: viewModel, modelContext: modelContext)
             ViewThatFits(in: .horizontal) {
                 CourseMapShotActionButtons(viewModel: viewModel, modelContext: modelContext)
@@ -247,6 +250,64 @@ struct CourseMapControlPanel: View {
                     CourseMapShotActionButtons(viewModel: viewModel, modelContext: modelContext)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var clubSelectionControls: some View {
+        if activeGolfClubs.isEmpty {
+            Text("Add clubs in Bag so Woody can track distances.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            VStack(alignment: .leading, spacing: BigForeDesign.Spacing.xSmall) {
+                Picker("Club", selection: Binding(
+                    get: { viewModel.selectedClubID },
+                    set: { newValue in
+                        viewModel.selectedClubID = newValue
+                        viewModel.applySelectedClubToCurrentShot(from: activeGolfClubs, modelContext: modelContext)
+                    }
+                )) {
+                    ForEach(activeGolfClubs) { club in
+                        Text(club.name).tag(Optional(club.id))
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Text(viewModel.selectedClubAverageText(from: activeGolfClubs) ?? viewModel.selectedClubName(from: activeGolfClubs))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var woodyRecommendationCard: some View {
+        if let recommendation = viewModel.clubRecommendation(from: activeGolfClubs) {
+            VStack(alignment: .leading, spacing: BigForeDesign.Spacing.xSmall) {
+                Label(recommendation.title, systemImage: "figure.golf")
+                    .font(.callout.weight(.bold))
+
+                Text(recommendation.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: BigForeDesign.Spacing.small) {
+                    Text(recommendation.distanceText)
+                    Text(recommendation.confidenceText)
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+                if let weatherText = recommendation.weatherText {
+                    Label(weatherText, systemImage: "cloud.sun")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(BigForeDesign.Spacing.medium)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BigForeDesign.Gradients.softFill(for: BigForeDesign.Palette.primaryAction), in: RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous))
         }
     }
 

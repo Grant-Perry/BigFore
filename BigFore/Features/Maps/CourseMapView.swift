@@ -22,6 +22,7 @@ struct CourseMapPoint: Identifiable, Hashable {
 struct CourseMapView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var courseGeometries: [CourseGeometry]
+    @Query(sort: \GolfClub.displayOrder) private var golfClubs: [GolfClub]
     @State private var viewModel: CourseMapViewModel
     @State private var isMeasuredPointDeleteVisible = false
     @State private var hasFocusedInitialRoundHole = false
@@ -29,8 +30,13 @@ struct CourseMapView: View {
     @AppStorage("courseMap.isDistancesExpanded") private var isDistancesExpanded = true
     @AppStorage("courseMap.isSaveTargetExpanded") private var isSaveTargetExpanded = false
 
-    init(course: CourseMapPoint, currentHoleNumber: Int? = nil, round: GolfRound? = nil) {
-        _viewModel = State(initialValue: CourseMapViewModel(course: course, currentHoleNumber: currentHoleNumber, round: round))
+    init(course: CourseMapPoint, currentHoleNumber: Int? = nil, round: GolfRound? = nil, focusedPlayerID: UUID? = nil) {
+        _viewModel = State(initialValue: CourseMapViewModel(
+            course: course,
+            currentHoleNumber: currentHoleNumber,
+            round: round,
+            focusedPlayerID: focusedPlayerID
+        ))
         let courseExternalID = course.id
         _courseGeometries = Query(
             filter: #Predicate<CourseGeometry> { geometry in
@@ -124,6 +130,10 @@ struct CourseMapView: View {
             .flatMap(\.featurePoints)
             .filter { !$0.kind.isStickyHoleAnchor && $0.source == .userMapped }
             .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private var activeGolfClubs: [GolfClub] {
+        golfClubs.filter(\.isActive)
     }
 
     var body: some View {
@@ -277,7 +287,7 @@ struct CourseMapView: View {
 
                     if let selectedMapInfo = viewModel.selectedMapInfo {
                         Annotation("", coordinate: selectedMapInfo.coordinate, anchor: selectedMapInfo.cardPlacement.annotationAnchor) {
-                            CourseMapSelectedInfoCard(viewModel: viewModel)
+                            CourseMapSelectedInfoCard(viewModel: viewModel, modelContext: modelContext)
                                 .offset(selectedMapInfo.cardPlacement.cardOffset)
                         }
                     }
@@ -302,15 +312,14 @@ struct CourseMapView: View {
             .ignoresSafeArea(edges: .bottom)
 
             CourseMapVenueChip(viewModel: viewModel)
-                .padding(.top, -30)
+                .padding(.top, -54)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .allowsHitTesting(false)
 
-            CourseMapDistanceMetricStack(viewModel: viewModel)
+            CourseMapDistanceMetricStack(viewModel: viewModel, modelContext: modelContext)
                 .padding(.top, 188)
                 .padding(.trailing, BigForeDesign.Spacing.medium)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .allowsHitTesting(false)
 
             if isControlPanelExpanded {
                 CourseMapControlPanel(
@@ -320,6 +329,7 @@ struct CourseMapView: View {
                     activeGeometry: activeGeometry,
                     geometrySummaryText: geometrySummaryText,
                     currentHoleUserMappedFeaturePoints: currentHoleUserMappedFeaturePoints,
+                    activeGolfClubs: activeGolfClubs,
                     hasUserMappedTee: userMappedStickyAnchor(kind: .teeBox) != nil,
                     hasUserMappedPin: userMappedStickyAnchor(kind: .greenPin) != nil,
                     isDistancesExpanded: $isDistancesExpanded,
@@ -358,6 +368,7 @@ struct CourseMapView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            viewModel.selectDefaultClubIfNeeded(from: activeGolfClubs)
             viewModel.applyStoredHoleSetup(from: courseGeometries)
             viewModel.applyPersistedShotRecords()
             focusInitialRoundHoleIfNeeded()
@@ -368,8 +379,12 @@ struct CourseMapView: View {
             focusInitialRoundHoleIfNeeded()
         }
         .onChange(of: viewModel.targetHoleNumber) {
+            viewModel.selectDefaultClubIfNeeded(from: activeGolfClubs)
             viewModel.applyStoredHoleSetup(from: courseGeometries)
             viewModel.applyPersistedShotRecords()
+        }
+        .onChange(of: activeGolfClubs.map(\.id)) {
+            viewModel.selectDefaultClubIfNeeded(from: activeGolfClubs)
         }
     }
 

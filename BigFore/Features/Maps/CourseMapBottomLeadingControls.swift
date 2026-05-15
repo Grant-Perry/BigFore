@@ -87,7 +87,6 @@ struct CourseMapBottomLeadingControls: View {
             .accessibilityHint("Focuses the selected hole on the map.")
 
             compactHoleAnchorControls
-            compactScoreControls
 
             compactTapModeButton(
                 "Start",
@@ -110,7 +109,7 @@ struct CourseMapBottomLeadingControls: View {
             Button {
                 viewModel.startNextShotFromBall()
             } label: {
-                compactIconLabel("Start next shot", systemImage: "chevron.right")
+                compactControlLabel("Next", systemImage: "chevron.right")
             }
             .buttonStyle(.bordered)
             .disabled(!viewModel.canStartNextShotFromBall)
@@ -142,36 +141,6 @@ struct CourseMapBottomLeadingControls: View {
         .padding(.horizontal, BigForeDesign.Spacing.medium)
         .padding(.vertical, BigForeDesign.Spacing.small)
         .bigForePanelBackground(cornerRadius: BigForeDesign.Radius.capsulePanel)
-    }
-
-    @ViewBuilder
-    private var compactScoreControls: some View {
-        if viewModel.selectedHoleScore != nil {
-            HStack(spacing: BigForeDesign.Spacing.xSmall) {
-                Button {
-                    viewModel.decrementSelectedHoleScore(modelContext: modelContext)
-                } label: {
-                    compactIconLabel("Decrease hole score", systemImage: "minus")
-                }
-                .buttonStyle(.bordered)
-                .disabled(!viewModel.canDecreaseSelectedHoleScore)
-
-                Text(viewModel.compactHoleScoreText)
-                    .font(.callout.weight(.semibold))
-                    .monospacedDigit()
-                    .frame(minWidth: 34, minHeight: 36)
-                    .accessibilityLabel("Hole score")
-                    .accessibilityValue(viewModel.selectedHoleScoreValueText == "-" ? "Not scored" : "\(viewModel.selectedHoleScoreValueText) strokes")
-
-                Button {
-                    viewModel.incrementSelectedHoleScore(modelContext: modelContext)
-                } label: {
-                    compactIconLabel("Increase hole score", systemImage: "plus")
-                }
-                .buttonStyle(.bordered)
-                .disabled(!viewModel.canIncreaseSelectedHoleScore)
-            }
-        }
     }
 
     @ViewBuilder

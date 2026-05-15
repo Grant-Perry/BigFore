@@ -11,12 +11,13 @@ struct CourseMapScoringControls: View {
         if viewModel.scoringPlayers.isEmpty == false {
             VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
                 if viewModel.scoringPlayers.count > 1 {
-                    Picker("Scoring player", selection: $viewModel.selectedScoringPlayerID) {
+                    Picker("Ball / scoring player", selection: $viewModel.selectedScoringPlayerID) {
                         ForEach(viewModel.scoringPlayers) { player in
                             Text(player.name).tag(Optional(player.id))
                         }
                     }
                     .pickerStyle(.menu)
+                    .accessibilityLabel("Ball and scoring player")
                     .onChange(of: viewModel.selectedScoringPlayerID) {
                         viewModel.syncManualShotCountToScore(modelContext: modelContext)
                     }

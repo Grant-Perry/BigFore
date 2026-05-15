@@ -34,6 +34,12 @@ struct CourseMapShotSummaryList: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            if let clubName = summary.clubName {
+                Text("Club: \(clubName)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if let distanceToPinText = summary.distanceToPinText {
                 Text("To pin: \(distanceToPinText)")
                     .font(.caption)

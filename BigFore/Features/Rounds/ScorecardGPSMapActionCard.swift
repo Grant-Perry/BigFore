@@ -3,10 +3,16 @@ import SwiftUI
 struct ScorecardGPSMapActionCard: View {
     let mapPoint: CourseMapPoint
     let round: GolfRound
+    let focusedPlayerID: UUID?
 
     var body: some View {
         NavigationLink {
-            CourseMapView(course: mapPoint, currentHoleNumber: round.currentHole, round: round)
+            CourseMapView(
+                course: mapPoint,
+                currentHoleNumber: round.currentHole,
+                round: round,
+                focusedPlayerID: focusedPlayerID
+            )
         } label: {
             HStack(spacing: BigForeDesign.Spacing.medium) {
                 Label("GPS Map", systemImage: "location.viewfinder")
