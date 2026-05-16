@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import SwiftData
 
 enum CourseGeometrySource: String, CaseIterable, Codable, Identifiable {
@@ -59,6 +60,26 @@ enum CourseMapFeatureKind: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+enum CourseMapAreaKind: String, CaseIterable, Codable, Identifiable {
+    case fairway
+    case rough
+    case green
+    case bunker
+    case water
+    case woods
+
+    var id: String { rawValue }
+
+    var isPenaltyArea: Bool {
+        switch self {
+        case .bunker, .water, .woods:
+            true
+        case .fairway, .rough, .green:
+            false
+        }
+    }
+}
+
 @Model
 final class CourseGeometry {
     @Attribute(.unique) var courseExternalID: Int
@@ -98,6 +119,7 @@ final class HoleGeometry {
     var greenContourAssetIdentifier: String?
     var flyoverAssetIdentifier: String?
     @Relationship(deleteRule: .cascade, inverse: \CourseMapFeaturePoint.holeGeometry) var featurePoints: [CourseMapFeaturePoint]
+    @Relationship(deleteRule: .cascade, inverse: \CourseMapAreaFeature.holeGeometry) var areaFeatures: [CourseMapAreaFeature]
 
     init(
         number: Int,
@@ -109,7 +131,8 @@ final class HoleGeometry {
         greenBackLongitude: Double? = nil,
         greenContourAssetIdentifier: String? = nil,
         flyoverAssetIdentifier: String? = nil,
-        featurePoints: [CourseMapFeaturePoint] = []
+        featurePoints: [CourseMapFeaturePoint] = [],
+        areaFeatures: [CourseMapAreaFeature] = []
     ) {
         self.number = number
         self.greenFrontLatitude = greenFrontLatitude
@@ -121,6 +144,7 @@ final class HoleGeometry {
         self.greenContourAssetIdentifier = greenContourAssetIdentifier
         self.flyoverAssetIdentifier = flyoverAssetIdentifier
         self.featurePoints = featurePoints
+        self.areaFeatures = areaFeatures
     }
 }
 
@@ -151,6 +175,30 @@ final class CourseMapFeaturePoint {
     }
 }
 
+@Model
+final class CourseMapAreaFeature {
+    var holeGeometry: HoleGeometry?
+    var kindRawValue: String
+    var sourceRawValue: String
+    var label: String
+    var encodedCoordinates: String
+    var sortOrder: Int
+
+    init(
+        kind: CourseMapAreaKind,
+        label: String,
+        coordinates: [CourseMapAreaCoordinate],
+        source: CourseGeometrySource = .openStreetMap,
+        sortOrder: Int = 0
+    ) {
+        kindRawValue = kind.rawValue
+        sourceRawValue = source.rawValue
+        self.label = label
+        encodedCoordinates = coordinates.encodedString
+        self.sortOrder = sortOrder
+    }
+}
+
 extension CourseMapFeaturePoint {
     var kind: CourseMapFeatureKind {
         CourseMapFeatureKind(rawValue: kindRawValue) ?? .target
@@ -158,5 +206,51 @@ extension CourseMapFeaturePoint {
 
     var source: CourseGeometrySource {
         CourseGeometrySource(rawValue: sourceRawValue) ?? .userMapped
+    }
+}
+
+extension CourseMapAreaFeature {
+    var kind: CourseMapAreaKind {
+        CourseMapAreaKind(rawValue: kindRawValue) ?? .rough
+    }
+
+    var source: CourseGeometrySource {
+        CourseGeometrySource(rawValue: sourceRawValue) ?? .openStreetMap
+    }
+
+    var coordinates: [CourseMapAreaCoordinate] {
+        CourseMapAreaCoordinate.decode(encodedCoordinates)
+    }
+}
+
+extension CourseMapAreaFeature {
+    var clLocationCoordinates: [CLLocationCoordinate2D] {
+        coordinates.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+}
+
+struct CourseMapAreaCoordinate: Codable, Equatable {
+    let latitude: Double
+    let longitude: Double
+}
+
+extension Array where Element == CourseMapAreaCoordinate {
+    nonisolated var encodedString: String {
+        guard let data = try? JSONEncoder().encode(self) else {
+            return "[]"
+        }
+
+        return String(data: data, encoding: .utf8) ?? "[]"
+    }
+}
+
+extension CourseMapAreaCoordinate {
+    nonisolated static func decode(_ encodedString: String) -> [CourseMapAreaCoordinate] {
+        guard let data = encodedString.data(using: .utf8),
+              let coordinates = try? JSONDecoder().decode([CourseMapAreaCoordinate].self, from: data) else {
+            return []
+        }
+
+        return coordinates
     }
 }

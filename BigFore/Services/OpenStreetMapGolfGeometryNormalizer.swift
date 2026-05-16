@@ -14,6 +14,28 @@ struct OpenStreetMapGolfGeometryNormalizer {
         var holeBuilders: [Int: HoleGeometryImportBuilder] = [:]
 
         for element in elements {
+            guard let areaKind = Self.areaKind(from: element.tags),
+                  let coordinates = Self.areaCoordinates(for: element),
+                  let coordinate = Self.coordinate(for: element) else {
+                continue
+            }
+
+            let explicitHoleNumber = Self.holeNumber(from: element.tags)
+            let inferredHoleNumber = Self.nearestRouteHoleNumber(to: coordinate, routes: routes)
+            guard let holeNumber = explicitHoleNumber ?? inferredHoleNumber else {
+                continue
+            }
+
+            var builder = holeBuilders[holeNumber] ?? HoleGeometryImportBuilder(number: holeNumber)
+            builder.addAreaFeature(
+                kind: areaKind,
+                label: Self.areaLabel(from: element.tags, kind: areaKind, holeNumber: holeNumber),
+                coordinates: coordinates
+            )
+            holeBuilders[holeNumber] = builder
+        }
+
+        for element in elements {
             guard let golfTag = element.tags["golf"]?.lowercased() else {
                 continue
             }
@@ -119,6 +141,43 @@ struct OpenStreetMapGolfGeometryNormalizer {
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 
+    private static func areaCoordinates(for element: OpenStreetMapElement) -> [CLLocationCoordinate2D]? {
+        guard let geometry = element.geometry, geometry.count >= 3 else {
+            return nil
+        }
+
+        return geometry.map(\.clLocationCoordinate)
+    }
+
+    private static func areaKind(from tags: [String: String]) -> CourseMapAreaKind? {
+        if let golfTag = tags["golf"]?.lowercased() {
+            switch golfTag {
+            case "fairway":
+                return .fairway
+            case "rough":
+                return .rough
+            case "green":
+                return .green
+            case "bunker":
+                return .bunker
+            case "water_hazard", "lateral_water_hazard":
+                return .water
+            default:
+                break
+            }
+        }
+
+        if tags["natural"]?.lowercased() == "water" {
+            return .water
+        }
+
+        if tags["natural"]?.lowercased() == "wood" || tags["landuse"]?.lowercased() == "forest" {
+            return .woods
+        }
+
+        return nil
+    }
+
     private static func route(_ element: OpenStreetMapElement) -> HoleRoute? {
         guard element.tags["golf"]?.lowercased() == "hole" else {
             return nil
@@ -202,6 +261,26 @@ struct OpenStreetMapGolfGeometryNormalizer {
         }
     }
 
+    private static func areaLabel(from tags: [String: String], kind: CourseMapAreaKind, holeNumber: Int) -> String {
+        let fallback: String
+        switch kind {
+        case .fairway:
+            fallback = "OSM Fairway \(holeNumber)"
+        case .rough:
+            fallback = "OSM Rough \(holeNumber)"
+        case .green:
+            fallback = "OSM Green \(holeNumber)"
+        case .bunker:
+            fallback = "OSM Bunker \(holeNumber)"
+        case .water:
+            fallback = "OSM Water \(holeNumber)"
+        case .woods:
+            fallback = "OSM Woods \(holeNumber)"
+        }
+
+        return label(from: tags, fallback: fallback)
+    }
+
     private static func distanceMeters(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D) -> Double {
         let startLocation = CLLocation(latitude: start.latitude, longitude: start.longitude)
         let endLocation = CLLocation(latitude: end.latitude, longitude: end.longitude)
@@ -263,6 +342,7 @@ private struct HoleGeometryImportBuilder {
     var greenCenterCoordinate: CLLocationCoordinate2D?
     var greenBackCoordinate: CLLocationCoordinate2D?
     private(set) var featurePoints: [CourseGeometryFeatureImport] = []
+    private(set) var areaFeatures: [CourseGeometryAreaImport] = []
 
     var geometryImport: HoleGeometryImport {
         HoleGeometryImport(
@@ -270,7 +350,8 @@ private struct HoleGeometryImportBuilder {
             greenFrontCoordinate: greenFrontCoordinate,
             greenCenterCoordinate: greenCenterCoordinate,
             greenBackCoordinate: greenBackCoordinate,
-            featurePoints: featurePoints
+            featurePoints: featurePoints,
+            areaFeatures: areaFeatures
         )
     }
 
@@ -294,6 +375,34 @@ private struct HoleGeometryImportBuilder {
             label: label,
             coordinate: coordinate,
             sortOrder: featurePoints.count
+        ))
+    }
+
+    mutating func addAreaFeature(
+        kind: CourseMapAreaKind,
+        label: String,
+        coordinates: [CLLocationCoordinate2D]
+    ) {
+        guard coordinates.count >= 3 else {
+            return
+        }
+
+        let hasExistingArea = areaFeatures.contains { areaFeature in
+            areaFeature.kind == kind &&
+                areaFeature.coordinates.count == coordinates.count &&
+                abs((areaFeature.coordinates.first?.latitude ?? 0) - (coordinates.first?.latitude ?? 1)) < 0.000001 &&
+                abs((areaFeature.coordinates.first?.longitude ?? 0) - (coordinates.first?.longitude ?? 1)) < 0.000001
+        }
+
+        guard !hasExistingArea else {
+            return
+        }
+
+        areaFeatures.append(CourseGeometryAreaImport(
+            kind: kind,
+            label: label,
+            coordinates: coordinates,
+            sortOrder: areaFeatures.count
         ))
     }
 }

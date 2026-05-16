@@ -18,6 +18,7 @@ struct BigForeApp: App {
             CourseGeometry.self,
             HoleGeometry.self,
             CourseMapFeaturePoint.self,
+            CourseMapAreaFeature.self,
             GolfRound.self,
             RoundPlayer.self,
             HoleScore.self,

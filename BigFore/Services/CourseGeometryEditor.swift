@@ -31,6 +31,12 @@ struct CourseGeometryEditor {
                 in: hole,
                 modelContext: modelContext
             )
+            replaceImportedAreaFeatures(
+                from: holeImport,
+                source: geometryImport.source,
+                in: hole,
+                modelContext: modelContext
+            )
         }
 
         geometry.updatedAt = .now
@@ -260,6 +266,35 @@ struct CourseGeometryEditor {
             )
             featurePoint.holeGeometry = hole
             hole.featurePoints.append(featurePoint)
+        }
+    }
+
+    @MainActor
+    private func replaceImportedAreaFeatures(
+        from holeImport: HoleGeometryImport,
+        source: CourseGeometrySource,
+        in hole: HoleGeometry,
+        modelContext: ModelContext
+    ) {
+        let existingImportedAreas = hole.areaFeatures.filter { $0.source == source }
+        for areaFeature in existingImportedAreas {
+            modelContext.delete(areaFeature)
+        }
+        hole.areaFeatures.removeAll { $0.source == source }
+
+        for areaImport in holeImport.areaFeatures {
+            let coordinates = areaImport.coordinates.map {
+                CourseMapAreaCoordinate(latitude: $0.latitude, longitude: $0.longitude)
+            }
+            let areaFeature = CourseMapAreaFeature(
+                kind: areaImport.kind,
+                label: areaImport.label,
+                coordinates: coordinates,
+                source: source,
+                sortOrder: areaImport.sortOrder
+            )
+            areaFeature.holeGeometry = hole
+            hole.areaFeatures.append(areaFeature)
         }
     }
 }

@@ -74,6 +74,10 @@ final class OpenStreetMapGolfGeometryClient: OpenStreetMapGolfGeometryProviding 
           node(around:\(radius),\(latitude),\(longitude))["golf"];
           way(around:\(radius),\(latitude),\(longitude))["golf"];
           relation(around:\(radius),\(latitude),\(longitude))["golf"];
+          way(around:\(radius),\(latitude),\(longitude))["natural"~"water|wood"];
+          relation(around:\(radius),\(latitude),\(longitude))["natural"~"water|wood"];
+          way(around:\(radius),\(latitude),\(longitude))["landuse"="forest"];
+          relation(around:\(radius),\(latitude),\(longitude))["landuse"="forest"];
         );
         out body geom;
         """

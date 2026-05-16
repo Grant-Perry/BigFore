@@ -728,7 +728,7 @@ struct BigForeTests {
     }
 
     @Test func courseMapViewModelPersistsStickyTeeAndPinFromMapTaps() throws {
-        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, CourseMapAreaFeature.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -840,7 +840,7 @@ struct BigForeTests {
         #expect(viewModel.shotMarkers.first?.ballCoordinate.latitude == correctedBall.latitude)
     }
 
-    @Test func courseMapViewModelBallTapMovesFirstExistingShotWhenNoStartSelected() throws {
+    @Test func courseMapViewModelBallTapAddsNextShotWhenNoStartOrSelectionExists() throws {
         let course = CourseMapPoint(
             id: 42,
             courseName: "Example Course",
@@ -851,7 +851,7 @@ struct BigForeTests {
         let viewModel = CourseMapViewModel(course: course)
         let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let firstBall = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
-        let correctedBall = CLLocationCoordinate2D(latitude: 33.0015, longitude: -84.0)
+        let secondBall = CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0)
 
         viewModel.selectionMode = .teeBox
         viewModel.selectMapLocation(at: tee)
@@ -859,12 +859,13 @@ struct BigForeTests {
         viewModel.selectMapLocation(at: firstBall)
         viewModel.clearShotMeasurement()
         viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: correctedBall)
+        viewModel.selectMapLocation(at: secondBall)
 
-        #expect(viewModel.shotMarkers.count == 1)
+        #expect(viewModel.shotMarkers.count == 2)
         #expect(viewModel.shotMarkers.first?.shotNumber == 1)
-        #expect(viewModel.shotMarkers.first?.ballCoordinate.latitude == correctedBall.latitude)
-        #expect(viewModel.selectedShotMarkerID == viewModel.shotMarkers.first?.id)
+        #expect(viewModel.shotMarkers.last?.shotNumber == 2)
+        #expect(viewModel.shotMarkers.last?.startCoordinate.latitude == firstBall.latitude)
+        #expect(viewModel.shotMarkers.last?.ballCoordinate.latitude == secondBall.latitude)
     }
 
     @Test func courseMapViewModelNextShotBallTapUpdatesExistingSubsequentShot() throws {
@@ -935,7 +936,7 @@ struct BigForeTests {
     }
 
     @Test func courseGeometryEditorDeletesUserMappedAnchorsButKeepsImportedFallback() throws {
-        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, CourseMapAreaFeature.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -1386,6 +1387,32 @@ struct BigForeTests {
         #expect(recommendation.detail.contains("Selected shot club: Driver"))
     }
 
+    @Test func courseMapViewModelDoesNotRecommendShortClubWhenReachableClubExists() throws {
+        let sevenIron = GolfClub(template: GolfClubTemplate.defaultBag[6])
+        let pitchingWedge = GolfClub(template: GolfClubTemplate.defaultBag[9])
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male"
+        )
+        let course = try #require(CourseMapPoint(round: round))
+        let viewModel = CourseMapViewModel(course: course, round: round)
+
+        viewModel.selectedClubID = pitchingWedge.id
+        viewModel.selectionMode = .shotStart
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        viewModel.selectionMode = .holePin
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.00125, longitude: -84.0))
+
+        let recommendation = try #require(viewModel.clubRecommendation(from: [sevenIron, pitchingWedge]))
+
+        #expect(recommendation.title == "Woody says 7 Iron")
+    }
+
     @Test func courseMapViewModelSelectsWoodyBestFitClub() throws {
         let driver = GolfClub(template: GolfClubTemplate.defaultBag[0])
         let pitchingWedge = GolfClub(template: GolfClubTemplate.defaultBag[9])
@@ -1451,6 +1478,11 @@ struct BigForeTests {
 
         #expect(shorterTarget.title == "PW target 120 yds")
         #expect((115...125).contains(shorterTargetDistance))
+
+        viewModel.selectionMode = .shotBall
+        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0005, longitude: -84.0))
+
+        #expect(viewModel.clubLandingTarget(from: [driver, pitchingWedge]) == nil)
     }
 
     @Test func courseMapViewModelBuildsWoodyRecommendationFromSavedClubAverage() throws {
@@ -1487,10 +1519,20 @@ struct BigForeTests {
             endCoordinate: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0),
             distanceYards: 124
         )
+        let thirdShot = ShotRecord(
+            round: round,
+            player: player,
+            club: club,
+            holeNumber: 3,
+            shotNumber: 1,
+            startCoordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0),
+            endCoordinate: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0),
+            distanceYards: 122
+        )
         let course = try #require(CourseMapPoint(round: round))
         let viewModel = CourseMapViewModel(course: course, round: round)
 
-        round.shotRecords = [firstShot, secondShot]
+        round.shotRecords = [firstShot, secondShot, thirdShot]
         viewModel.selectedClubID = club.id
         viewModel.selectionMode = .shotStart
         viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
@@ -1500,7 +1542,7 @@ struct BigForeTests {
         let recommendation = try #require(viewModel.clubRecommendation(from: [club]))
 
         #expect(recommendation.detail.contains("122 yds"))
-        #expect(recommendation.detail.contains("2-shot average"))
+        #expect(recommendation.detail.contains("3-shot average"))
         #expect(recommendation.confidenceText == "Best fit from your saved shots")
     }
 
@@ -1805,7 +1847,7 @@ struct BigForeTests {
     }
 
     @Test func courseGeometryEditorPersistsUserMappedFeaturePoint() throws {
-        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, CourseMapAreaFeature.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -1837,7 +1879,7 @@ struct BigForeTests {
     }
 
     @Test func courseGeometryEditorDeletesOnlyUserMappedFeaturePoints() throws {
-        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, CourseMapAreaFeature.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -1909,6 +1951,30 @@ struct BigForeTests {
               "lat": 33.0100,
               "lon": -84.0003,
               "tags": { "golf": "bunker", "name": "Right bunker" }
+            },
+            {
+              "type": "way",
+              "id": 104,
+              "tags": { "golf": "fairway", "ref": "1" },
+              "geometry": [
+                { "lat": 33.0020, "lon": -84.0010 },
+                { "lat": 33.0180, "lon": -84.0010 },
+                { "lat": 33.0180, "lon": -83.9990 },
+                { "lat": 33.0020, "lon": -83.9990 },
+                { "lat": 33.0020, "lon": -84.0010 }
+              ]
+            },
+            {
+              "type": "way",
+              "id": 105,
+              "tags": { "natural": "water" },
+              "geometry": [
+                { "lat": 33.0100, "lon": -84.0020 },
+                { "lat": 33.0110, "lon": -84.0020 },
+                { "lat": 33.0110, "lon": -84.0010 },
+                { "lat": 33.0100, "lon": -84.0010 },
+                { "lat": 33.0100, "lon": -84.0020 }
+              ]
             }
           ]
         }
@@ -1918,6 +1984,8 @@ struct BigForeTests {
         let hole = try #require(geometryImport.holes.first)
         let teePoint = try #require(hole.featurePoints.first { $0.kind == .teeBox && $0.label == "Blue Tee" })
         let hazardPoint = try #require(hole.featurePoints.first { $0.kind == .hazard })
+        let fairway = try #require(hole.areaFeatures.first { $0.kind == .fairway })
+        let water = try #require(hole.areaFeatures.first { $0.kind == .water })
 
         #expect(geometryImport.source == .openStreetMap)
         #expect(geometryImport.attribution == "© OpenStreetMap contributors, ODbL")
@@ -1929,10 +1997,12 @@ struct BigForeTests {
         #expect(hole.greenBackCoordinate != nil)
         #expect(abs(teePoint.coordinate.latitude - 33.0001) < 0.000001)
         #expect(hazardPoint.label == "Right bunker")
+        #expect(fairway.coordinates.count == 5)
+        #expect(water.coordinates.count == 5)
     }
 
     @Test func courseGeometryEditorImportsOpenStreetMapWithoutOverwritingUserAnchors() throws {
-        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, CourseMapAreaFeature.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -2257,7 +2327,7 @@ struct BigForeTests {
         )
         let apiClient = StubGolfCourseAPIClient(coursesByID: [42: apiCourse])
         let geometryProvider = StubOpenStreetMapGolfGeometryProvider()
-        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, CourseMapAreaFeature.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -2289,7 +2359,7 @@ struct BigForeTests {
         )
         let apiClient = StubGolfCourseAPIClient(coursesByID: [42: apiCourse])
         let geometryProvider = StubOpenStreetMapGolfGeometryProvider()
-        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, CourseMapAreaFeature.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
@@ -2377,7 +2447,7 @@ struct BigForeTests {
     }
 
     @Test func courseGeometryPersistsHoleGeometryAndFeaturePoints() throws {
-        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self])
+        let schema = Schema([CourseGeometry.self, HoleGeometry.self, CourseMapFeaturePoint.self, CourseMapAreaFeature.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext

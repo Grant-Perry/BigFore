@@ -273,7 +273,7 @@ struct CourseMapControlPanel: View {
 
     @ViewBuilder
     private var woodyRecommendationCard: some View {
-        if let recommendation = viewModel.clubRecommendation(from: activeGolfClubs) {
+        if let recommendation = viewModel.clubRecommendation(from: activeGolfClubs, geometries: courseGeometries) {
             VStack(alignment: .leading, spacing: BigForeDesign.Spacing.xSmall) {
                 Label(recommendation.title, systemImage: "figure.golf")
                     .font(.callout.weight(.bold))
@@ -368,6 +368,16 @@ struct CourseMapControlPanel: View {
 
     private var mapAdjustmentButtons: some View {
         HStack(spacing: BigForeDesign.Spacing.small) {
+            Button("Zoom in", systemImage: "plus.magnifyingglass") {
+                viewModel.zoomIn()
+            }
+            .labelStyle(.iconOnly)
+
+            Button("Zoom out", systemImage: "minus.magnifyingglass") {
+                viewModel.zoomOut()
+            }
+            .labelStyle(.iconOnly)
+
             Button("Rotate left", systemImage: "rotate.left") {
                 viewModel.rotateLeft()
             }

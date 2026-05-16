@@ -219,12 +219,17 @@ struct CourseMapView: View {
                             .stroke(BigForeDesign.Palette.shot.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
                     }
 
-                    if let landingTarget = viewModel.clubLandingTarget(from: activeGolfClubs) {
+                    ForEach(Array(viewModel.savedShotLineSegments.enumerated()), id: \.offset) { _, segment in
+                        MapPolyline(coordinates: segment)
+                            .stroke(BigForeDesign.Palette.shotLine.opacity(0.82), style: StrokeStyle(lineWidth: 3, dash: [5, 5]))
+                    }
+
+                    if let landingTarget = viewModel.clubLandingTarget(from: activeGolfClubs, geometries: courseGeometries) {
                         MapPolyline(coordinates: landingTarget.lineCoordinates)
                             .stroke(BigForeDesign.Palette.hazard, style: StrokeStyle(lineWidth: 3, dash: [3, 6]))
 
                         Annotation(landingTarget.title, coordinate: landingTarget.coordinate, anchor: .center) {
-                            CourseMapSymbolMarker(systemImage: "xmark.circle.fill", tint: .red, size: 34)
+                            CourseMapSymbolMarker(systemImage: "scope", tint: .red, size: 34)
                                 .accessibilityLabel(landingTarget.title)
                         }
                     }
@@ -269,9 +274,7 @@ struct CourseMapView: View {
                     }
                 }
                 .mapStyle(.hybrid(elevation: .realistic))
-                .mapControls {
-                    MapCompass()
-                }
+                .mapControlVisibility(.hidden)
                 .onMapCameraChange(frequency: .onEnd) { context in
                     viewModel.updateCameraState(context.camera)
                 }
@@ -290,8 +293,13 @@ struct CourseMapView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .allowsHitTesting(false)
 
-            CourseMapDistanceMetricStack(viewModel: viewModel, modelContext: modelContext, activeGolfClubs: activeGolfClubs)
-                .padding(.top, 108)
+            CourseMapTopTrailingControls(viewModel: viewModel)
+                .padding(.top, 16)
+                .padding(.trailing, BigForeDesign.Spacing.medium)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+
+            CourseMapDistanceMetricStack(viewModel: viewModel, modelContext: modelContext, activeGolfClubs: activeGolfClubs, courseGeometries: courseGeometries)
+                .padding(.top, 96)
                 .padding(.trailing, BigForeDesign.Spacing.medium)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
 
@@ -340,7 +348,7 @@ struct CourseMapView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
             viewModel.applyStoredHoleSetup(from: courseGeometries)
             viewModel.applyPersistedShotRecords()
             focusInitialRoundHoleIfNeeded()
@@ -348,40 +356,40 @@ struct CourseMapView: View {
         }
         .onChange(of: courseGeometries.map(\.updatedAt)) {
             viewModel.applyStoredHoleSetup(from: courseGeometries)
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
             focusInitialRoundHoleIfNeeded()
         }
         .onChange(of: viewModel.targetHoleNumber) {
             viewModel.applyStoredHoleSetup(from: courseGeometries)
             viewModel.applyPersistedShotRecords()
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
         .onChange(of: activeGolfClubs.map(\.id)) {
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
         .onChange(of: viewModel.shotStartCoordinate?.latitude) {
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
         .onChange(of: viewModel.shotStartCoordinate?.longitude) {
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
         .onChange(of: viewModel.shotEndCoordinate?.latitude) {
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
         .onChange(of: viewModel.shotEndCoordinate?.longitude) {
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
         .onChange(of: viewModel.teeBoxCoordinate?.latitude) {
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
         .onChange(of: viewModel.teeBoxCoordinate?.longitude) {
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
         .onChange(of: viewModel.holePinCoordinate?.latitude) {
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
         .onChange(of: viewModel.holePinCoordinate?.longitude) {
-            viewModel.selectWoodyClub(from: activeGolfClubs)
+            viewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
     }
 

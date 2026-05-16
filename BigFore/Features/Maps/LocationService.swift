@@ -37,6 +37,13 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         }
     }
 
+    func stopLocationUpdates() {
+        manager.stopUpdatingLocation()
+        currentLocation = nil
+        currentLocationUpdatedAt = nil
+        errorMessage = nil
+    }
+
     var currentAccuracyText: String? {
         guard let horizontalAccuracy = currentLocation?.horizontalAccuracy, horizontalAccuracy >= 0 else {
             return nil

@@ -24,6 +24,7 @@ struct CourseMapDistanceMetricStack: View {
     let viewModel: CourseMapViewModel
     let modelContext: ModelContext
     let activeGolfClubs: [GolfClub]
+    let courseGeometries: [CourseGeometry]
     @State private var isScoreSheetPresented = false
     @State private var isWoodyExpanded = false
 
@@ -53,7 +54,7 @@ struct CourseMapDistanceMetricStack: View {
                 )
             }
 
-            if let recommendation = viewModel.clubRecommendation(from: activeGolfClubs) {
+            if let recommendation = viewModel.clubRecommendation(from: activeGolfClubs, geometries: courseGeometries) {
                 woodyCard(recommendation)
             }
         }
@@ -150,29 +151,36 @@ struct CourseMapDistanceMetricStack: View {
     }
 
     private func woodyCard(_ recommendation: CourseMapClubRecommendation) -> some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text("Woody thinks")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            Text(recommendation.title.replacingOccurrences(of: "Woody says ", with: ""))
-                .font(.headline.weight(.black))
-                .lineLimit(1)
-                .minimumScaleFactor(0.68)
-
-            Text(recommendation.distanceText)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            if isWoodyExpanded {
-                Text(recommendation.detail)
-                    .font(.caption2)
+        ZStack(alignment: .bottomLeading) {
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("Woody thinks")
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.trailing)
-                    .lineLimit(3)
+                    .lineLimit(1)
+
+                Text(recommendation.title.replacingOccurrences(of: "Woody says ", with: ""))
+                    .font(.headline.weight(.black))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+
+                Text(recommendation.distanceText)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                if isWoodyExpanded {
+                    Text(recommendation.detail)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(3)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+
+            Image(systemName: isWoodyExpanded ? "chevron.down" : "chevron.up")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, BigForeDesign.Spacing.medium)
         .padding(.vertical, BigForeDesign.Spacing.small)

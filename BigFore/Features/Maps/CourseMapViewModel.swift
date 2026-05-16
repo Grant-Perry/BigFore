@@ -139,6 +139,7 @@ final class CourseMapViewModel {
     var featureLabel = ""
     var statusMessage: String?
     var errorMessage: String?
+    var isGPSCentered = false
     private(set) var cameraCenter: CLLocationCoordinate2D
     private(set) var cameraDistance: CLLocationDistance
     private(set) var cameraHeading: CLLocationDirection
@@ -156,6 +157,8 @@ final class CourseMapViewModel {
     private static let holeFlyoverDistanceScale: CLLocationDistance = 0.5
     private static let holeFlyoverPitch: CGFloat = 55
     private static let rotationStep: CLLocationDirection = 15
+    private static let minimumTrustedClubShotCount = 3
+    private static let acceptableShortMissYards = 7
 
     init(
         course: CourseMapPoint,
@@ -313,7 +316,7 @@ final class CourseMapViewModel {
     }
 
     var shotSummaries: [CourseMapShotSummary] {
-        shotMarkers.map { marker in
+        displayedShotMarkers.map { marker in
             CourseMapShotSummary(
                 id: marker.id,
                 shotNumber: marker.shotNumber,
@@ -328,6 +331,16 @@ final class CourseMapViewModel {
                 isSelected: marker.id == selectedShotMarkerID
             )
         }
+    }
+
+    var savedShotLineSegments: [[CLLocationCoordinate2D]] {
+        displayedShotMarkers
+            .sorted { $0.shotNumber < $1.shotNumber }
+            .map { [$0.startCoordinate, $0.ballCoordinate] }
+    }
+
+    var hasAnyShotForCurrentHole: Bool {
+        displayedShotMarkers.isEmpty == false
     }
 
     var canStartNextShotFromBall: Bool {
@@ -372,8 +385,8 @@ final class CourseMapViewModel {
             return "Pick a club so Woody can learn your distances."
         }
 
-        let matchingShots = persistedShots(for: club)
-        guard matchingShots.isEmpty == false else {
+        let matchingShots = trustedShots(for: club)
+        guard matchingShots.count >= Self.minimumTrustedClubShotCount else {
             return "Woody will use \(club.name)'s \(club.carryYards)-yard default until you have shot history."
         }
 
@@ -391,6 +404,10 @@ final class CourseMapViewModel {
     }
 
     func selectWoodyClub(from clubs: [GolfClub]) {
+        selectWoodyClub(from: clubs, geometries: [])
+    }
+
+    func selectWoodyClub(from clubs: [GolfClub], geometries: [CourseGeometry]) {
         let activeClubs = clubs.filter(\.isActive).sorted { $0.displayOrder < $1.displayOrder }
         guard activeClubs.isEmpty == false else {
             selectedClubID = nil
@@ -403,10 +420,16 @@ final class CourseMapViewModel {
         }
 
         let targetYards = distanceCalculator.yards(from: shotPlanningCoordinate, to: holePinCoordinate)
-        selectedClubID = bestClub(forTargetYards: targetYards, from: activeClubs).id
+        selectedClubID = bestClub(
+            forTargetYards: targetYards,
+            from: activeClubs,
+            origin: shotPlanningCoordinate,
+            target: holePinCoordinate,
+            geometries: geometries
+        ).id
     }
 
-    func clubRecommendation(from clubs: [GolfClub]) -> CourseMapClubRecommendation? {
+    func clubRecommendation(from clubs: [GolfClub], geometries: [CourseGeometry] = []) -> CourseMapClubRecommendation? {
         let activeClubs = clubs.filter(\.isActive).sorted { $0.displayOrder < $1.displayOrder }
         guard activeClubs.isEmpty == false else {
             return CourseMapClubRecommendation(
@@ -430,11 +453,11 @@ final class CourseMapViewModel {
         }
 
         let targetYards = distanceCalculator.yards(from: shotPlanningCoordinate, to: holePinCoordinate)
-        let bestClub = bestClub(forTargetYards: targetYards, from: activeClubs)
+        let bestClub = bestClub(forTargetYards: targetYards, from: activeClubs, origin: shotPlanningCoordinate, target: holePinCoordinate, geometries: geometries)
         let selectedClub = selectedClub(from: activeClubs)
-        let history = persistedShots(for: bestClub)
+        let history = trustedShots(for: bestClub)
         let expectedYards = expectedDistance(for: bestClub)
-        let sourceText = history.isEmpty ? "default" : "\(history.count)-shot average"
+        let sourceText = history.count < Self.minimumTrustedClubShotCount ? "default" : "\(history.count)-shot average"
         let gap = targetYards - expectedYards
         let detail: String
 
@@ -450,12 +473,16 @@ final class CourseMapViewModel {
             title: "Woody says \(bestClub.name)",
             detail: selectedClub?.id == bestClub.id ? detail : "\(detail) Selected shot club: \(selectedClub?.name ?? "none").",
             distanceText: "\(targetYards) yds to pin",
-            confidenceText: history.isEmpty ? "Best fit from starter bag" : "Best fit from your saved shots",
+            confidenceText: history.count < Self.minimumTrustedClubShotCount ? "Best fit from starter bag" : "Best fit from your saved shots",
             weatherText: latestWeatherText
         )
     }
 
-    func clubLandingTarget(from clubs: [GolfClub]) -> CourseMapClubLandingTarget? {
+    func clubLandingTarget(from clubs: [GolfClub], geometries: [CourseGeometry] = []) -> CourseMapClubLandingTarget? {
+        guard !hasAnyShotForCurrentHole else {
+            return nil
+        }
+
         let activeClubs = clubs.filter(\.isActive).sorted { $0.displayOrder < $1.displayOrder }
         guard activeClubs.isEmpty == false,
               let origin = shotPlanningCoordinate,
@@ -464,7 +491,7 @@ final class CourseMapViewModel {
         }
 
         let targetYards = distanceCalculator.yards(from: origin, to: holePinCoordinate)
-        let club = bestClub(forTargetYards: targetYards, from: activeClubs)
+        let club = bestClub(forTargetYards: targetYards, from: activeClubs, origin: origin, target: holePinCoordinate, geometries: geometries)
         let expectedYards = expectedDistance(for: club)
         guard expectedYards > 0 else {
             return nil
@@ -520,6 +547,10 @@ final class CourseMapViewModel {
     }
 
     var teeToHolePinCoordinates: [CLLocationCoordinate2D]? {
+        guard !hasAnyShotForCurrentHole else {
+            return nil
+        }
+
         guard let teeBoxCoordinate, let holePinCoordinate else {
             return nil
         }
@@ -750,6 +781,18 @@ final class CourseMapViewModel {
         locationService.requestLocationAccess()
     }
 
+    func toggleGPS() {
+        isGPSCentered.toggle()
+        if isGPSCentered {
+            requestLocationAccess()
+            showUser()
+            statusMessage = "Centered on GPS."
+        } else {
+            showTeeBox()
+            statusMessage = "Centered on tee."
+        }
+    }
+
     func selectMapInfo(
         title: String,
         coordinate: CLLocationCoordinate2D,
@@ -848,6 +891,11 @@ final class CourseMapViewModel {
     func focusSelectedHole(from geometries: [CourseGeometry]) {
         let anchors = Self.preferredHoleSetup(from: geometries, holeNumber: targetHoleNumber)
 
+        if let lastShotBallCoordinate, let holePinCoordinate = anchors.holePinCoordinate ?? holePinCoordinate {
+            focusCamera(containing: [lastShotBallCoordinate, holePinCoordinate])
+            return
+        }
+
         if let teeBoxCoordinate = anchors.teeBoxCoordinate, let holePinCoordinate = anchors.holePinCoordinate {
             focusHoleLine(from: teeBoxCoordinate, to: holePinCoordinate)
             return
@@ -874,6 +922,19 @@ final class CourseMapViewModel {
         }
 
         focusCamera(on: course.coordinate)
+    }
+
+    func focusHoleOverview(from geometries: [CourseGeometry]) {
+        let anchors = Self.preferredHoleSetup(from: geometries, holeNumber: targetHoleNumber)
+        let tee = teeBoxCoordinate ?? anchors.teeBoxCoordinate
+        let pin = holePinCoordinate ?? anchors.holePinCoordinate
+
+        guard let tee, let pin else {
+            focusSelectedHole(from: geometries)
+            return
+        }
+
+        focusHoleLine(from: tee, to: pin)
     }
 
     func zoomIn() {
@@ -1135,6 +1196,7 @@ final class CourseMapViewModel {
         shotStartCoordinate = nil
         shotEndCoordinate = nil
         selectedMapInfo = nil
+        selectedShotMarkerID = nil
         currentShotMarkerID = nil
     }
 
@@ -1382,7 +1444,7 @@ final class CourseMapViewModel {
         }
 
         applyStoredHoleSetup(from: geometries)
-        focusSelectedHole(from: geometries)
+        focusHoleOverview(from: geometries)
     }
 
     func selectTeeBoxMarker(holeNumber: Int, geometries: [CourseGeometry], modelContext: ModelContext? = nil) {
@@ -1471,12 +1533,16 @@ final class CourseMapViewModel {
         }
 
         if shotStartCoordinate == nil, shotMarkers.isEmpty == false {
-            let fallbackID = selectedShotMarkerID ?? currentShotMarkerID ?? shotMarkers.first?.id
+            let fallbackID = selectedShotMarkerID ?? currentShotMarkerID
             if let fallbackID,
                let index = shotMarkers.firstIndex(where: { $0.id == fallbackID }) {
                 updateShotMarker(at: index, ballCoordinate: coordinate, source: source, club: club)
                 syncManualShotCountToScore(modelContext: modelContext)
                 return
+            }
+
+            if let lastBall = shotMarkers.sorted(by: { $0.shotNumber < $1.shotNumber }).last?.ballCoordinate {
+                shotStartCoordinate = lastBall
             }
         }
 
@@ -1528,11 +1594,26 @@ final class CourseMapViewModel {
     }
 
     private var shotLocationCoordinate: CLLocationCoordinate2D? {
-        shotEndCoordinate ?? locationService.currentLocation?.coordinate ?? shotStartCoordinate ?? teeBoxCoordinate
+        shotEndCoordinate
+            ?? lastShotBallCoordinate
+            ?? locationService.currentLocation?.coordinate
+            ?? shotStartCoordinate
+            ?? teeBoxCoordinate
     }
 
     private var shotPlanningCoordinate: CLLocationCoordinate2D? {
-        shotEndCoordinate ?? shotStartCoordinate ?? teeBoxCoordinate ?? locationService.currentLocation?.coordinate
+        shotEndCoordinate
+            ?? lastShotBallCoordinate
+            ?? shotStartCoordinate
+            ?? teeBoxCoordinate
+            ?? locationService.currentLocation?.coordinate
+    }
+
+    private var lastShotBallCoordinate: CLLocationCoordinate2D? {
+        shotMarkers
+            .sorted { $0.shotNumber < $1.shotNumber }
+            .last?
+            .ballCoordinate
     }
 
     private var selectedMapReference: (label: String, coordinate: CLLocationCoordinate2D)? {
@@ -1869,6 +1950,31 @@ final class CourseMapViewModel {
         return parts.isEmpty ? snapshot.conditionText : parts.joined(separator: " · ")
     }
 
+    private var displayedShotMarkers: [CourseMapShotMarker] {
+        if shotMarkers.isEmpty == false {
+            return shotMarkers
+        }
+
+        guard let round, let selectedScoringPlayer else {
+            return []
+        }
+
+        return round.shotRecords
+            .filter { $0.player?.id == selectedScoringPlayer.id && $0.holeNumber == targetHoleNumber }
+            .sorted { $0.shotNumber < $1.shotNumber }
+            .map { record in
+                CourseMapShotMarker(
+                    id: record.id,
+                    shotNumber: record.shotNumber,
+                    startCoordinate: record.startCoordinate,
+                    ballCoordinate: record.endCoordinate,
+                    source: record.source,
+                    clubID: record.club?.id,
+                    clubName: record.clubNameSnapshot
+                )
+            }
+    }
+
     private func selectedClub(from clubs: [GolfClub]) -> GolfClub? {
         guard let selectedClubID else {
             return nil
@@ -1877,19 +1983,63 @@ final class CourseMapViewModel {
         return clubs.first { $0.id == selectedClubID }
     }
 
-    private func bestClub(forTargetYards targetYards: Int, from clubs: [GolfClub]) -> GolfClub {
-        clubs.min { lhs, rhs in
-            abs(expectedDistance(for: lhs) - targetYards) < abs(expectedDistance(for: rhs) - targetYards)
-        } ?? clubs[0]
+    private func bestClub(
+        forTargetYards targetYards: Int,
+        from clubs: [GolfClub],
+        origin: CLLocationCoordinate2D? = nil,
+        target: CLLocationCoordinate2D? = nil,
+        geometries: [CourseGeometry] = []
+    ) -> GolfClub {
+        let reachableClubs = clubs.filter { expectedDistance(for: $0) >= targetYards - Self.acceptableShortMissYards }
+        let candidates = reachableClubs.isEmpty ? clubs : reachableClubs
+
+        return candidates.min { lhs, rhs in
+            strategyScore(for: lhs, targetYards: targetYards, origin: origin, target: target, geometries: geometries)
+                < strategyScore(for: rhs, targetYards: targetYards, origin: origin, target: target, geometries: geometries)
+        } ?? candidates[0]
+    }
+
+    private func strategyScore(
+        for club: GolfClub,
+        targetYards: Int,
+        origin: CLLocationCoordinate2D?,
+        target: CLLocationCoordinate2D?,
+        geometries: [CourseGeometry]
+    ) -> Int {
+        let delta = expectedDistance(for: club) - targetYards
+        var score = delta >= 0 ? delta : abs(delta) * 2
+        guard let origin, let target else {
+            return score
+        }
+
+        let landing = Self.coordinate(from: origin, bearing: Self.bearing(from: origin, to: target), distanceYards: expectedDistance(for: club))
+        let penaltyAreas = areaFeatures(from: geometries).filter { $0.kind.isPenaltyArea }
+        for area in penaltyAreas {
+            let coordinates = area.clLocationCoordinates
+            if Self.point(landing, isInside: coordinates) {
+                score += 1_000
+            } else if Self.segment(from: origin, to: landing, intersects: coordinates) {
+                score += 500
+            }
+        }
+
+        return score
     }
 
     private func expectedDistance(for club: GolfClub) -> Int {
-        let history = persistedShots(for: club)
-        guard history.isEmpty == false else {
+        let history = trustedShots(for: club)
+        guard history.count >= Self.minimumTrustedClubShotCount else {
             return club.carryYards
         }
 
         return history.map(\.distanceYards).reduce(0, +) / history.count
+    }
+
+    private func areaFeatures(from geometries: [CourseGeometry]) -> [CourseMapAreaFeature] {
+        geometries
+            .flatMap(\.holes)
+            .filter { $0.number == targetHoleNumber }
+            .flatMap(\.areaFeatures)
     }
 
     private func selectedClub(modelContext: ModelContext?) -> GolfClub? {
@@ -1924,6 +2074,33 @@ final class CourseMapViewModel {
             .shotRecords
             .filter { $0.club?.id == club.id && $0.distanceYards > 0 }
             ?? []
+    }
+
+    private func trustedShots(for club: GolfClub) -> [ShotRecord] {
+        persistedShots(for: club).filter { shot in
+            plausibleDistance(shot.distanceYards, for: club)
+        }
+    }
+
+    private func plausibleDistance(_ distanceYards: Int, for club: GolfClub) -> Bool {
+        guard distanceYards > 0 else {
+            return false
+        }
+
+        switch club.kind {
+        case .driver:
+            return distanceYards >= 180
+        case .fairwayWood:
+            return distanceYards >= 140
+        case .hybrid, .iron:
+            return distanceYards >= 60
+        case .wedge:
+            return distanceYards <= 150
+        case .putter:
+            return distanceYards <= 80
+        case .other:
+            return true
+        }
     }
 
     private static func sortedPlayers(for round: GolfRound?) -> [RoundPlayer] {
@@ -2143,6 +2320,57 @@ final class CourseMapViewModel {
             latitude: targetLatitude * 180 / .pi,
             longitude: targetLongitude * 180 / .pi
         )
+    }
+
+    private static func point(_ point: CLLocationCoordinate2D, isInside polygon: [CLLocationCoordinate2D]) -> Bool {
+        guard polygon.count >= 3 else {
+            return false
+        }
+
+        var isInside = false
+        var previousIndex = polygon.count - 1
+        for index in polygon.indices {
+            let current = polygon[index]
+            let previous = polygon[previousIndex]
+            let intersects = ((current.latitude > point.latitude) != (previous.latitude > point.latitude)) &&
+                (point.longitude < (previous.longitude - current.longitude) * (point.latitude - current.latitude) / (previous.latitude - current.latitude) + current.longitude)
+            if intersects {
+                isInside.toggle()
+            }
+            previousIndex = index
+        }
+        return isInside
+    }
+
+    private static func segment(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D, intersects polygon: [CLLocationCoordinate2D]) -> Bool {
+        guard polygon.count >= 2 else {
+            return false
+        }
+
+        for (first, second) in zip(polygon, polygon.dropFirst() + [polygon[0]]) {
+            if segmentsIntersect(start, end, first, second) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private static func segmentsIntersect(
+        _ firstStart: CLLocationCoordinate2D,
+        _ firstEnd: CLLocationCoordinate2D,
+        _ secondStart: CLLocationCoordinate2D,
+        _ secondEnd: CLLocationCoordinate2D
+    ) -> Bool {
+        func orientation(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D, _ c: CLLocationCoordinate2D) -> Double {
+            (b.longitude - a.longitude) * (c.latitude - a.latitude) - (b.latitude - a.latitude) * (c.longitude - a.longitude)
+        }
+
+        let first = orientation(firstStart, firstEnd, secondStart)
+        let second = orientation(firstStart, firstEnd, secondEnd)
+        let third = orientation(secondStart, secondEnd, firstStart)
+        let fourth = orientation(secondStart, secondEnd, firstEnd)
+        return first * second < 0 && third * fourth < 0
     }
 
     private static func distance(for region: MKCoordinateRegion) -> CLLocationDistance {
