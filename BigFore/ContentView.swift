@@ -37,7 +37,7 @@ struct ContentView: View {
                 }
                 .tag(BigForeTab.rounds)
 
-            BagView()
+            BagView(onDismiss: { selectedTab = .play })
                 .tabItem {
                     Label("Bag", systemImage: "bag")
                 }

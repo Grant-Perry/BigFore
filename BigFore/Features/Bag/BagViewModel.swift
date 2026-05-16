@@ -20,19 +20,14 @@ final class BagViewModel {
         save(modelContext: modelContext, successMessage: "Loaded Woody's starter bag.")
     }
 
-    func nextDisplayOrder(existingClubs: [GolfClub]) -> Int {
-        (existingClubs.map(\.displayOrder).max() ?? -1) + 1
-    }
-
-    func addClub(from template: GolfClubTemplate, existingClubs: [GolfClub], modelContext: ModelContext) {
+    func addClub(from template: GolfClubTemplate, modelContext: ModelContext) {
         let club = GolfClub(template: template)
-        club.displayOrder = nextDisplayOrder(existingClubs: existingClubs)
         club.updatedAt = .now
         modelContext.insert(club)
         save(modelContext: modelContext, successMessage: "Added \(template.name). Woody will use it when it is active.")
     }
 
-    func addSpecialClub(name: String, carryYards: Int, existingClubs: [GolfClub], modelContext: ModelContext) -> Bool {
+    func addSpecialClub(name: String, carryYards: Int, modelContext: ModelContext) -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false else {
             errorMessage = "Enter a club name before saving."
@@ -44,7 +39,7 @@ final class BagViewModel {
             name: trimmed,
             carryYards: carryYards,
             totalYards: carryYards + GolfClub.rolloutBeyondCarry(for: .other),
-            displayOrder: nextDisplayOrder(existingClubs: existingClubs),
+            displayOrder: 0,
             isActive: true
         )
         modelContext.insert(club)

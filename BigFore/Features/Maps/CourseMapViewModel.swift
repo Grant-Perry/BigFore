@@ -395,7 +395,7 @@ final class CourseMapViewModel {
     }
 
     func selectDefaultClubIfNeeded(from clubs: [GolfClub]) {
-        let activeClubs = clubs.filter(\.isActive).sorted { $0.displayOrder < $1.displayOrder }
+        let activeClubs = clubs.filter(\.isActive).sorted(by: GolfClub.bagCarrySort)
         guard selectedClubID == nil || activeClubs.contains(where: { $0.id == selectedClubID }) == false else {
             return
         }
@@ -408,7 +408,7 @@ final class CourseMapViewModel {
     }
 
     func selectWoodyClub(from clubs: [GolfClub], geometries: [CourseGeometry]) {
-        let activeClubs = clubs.filter(\.isActive).sorted { $0.displayOrder < $1.displayOrder }
+        let activeClubs = clubs.filter(\.isActive).sorted(by: GolfClub.bagCarrySort)
         guard activeClubs.isEmpty == false else {
             selectedClubID = nil
             return
@@ -430,7 +430,7 @@ final class CourseMapViewModel {
     }
 
     func clubRecommendation(from clubs: [GolfClub], geometries: [CourseGeometry] = []) -> CourseMapClubRecommendation? {
-        let activeClubs = clubs.filter(\.isActive).sorted { $0.displayOrder < $1.displayOrder }
+        let activeClubs = clubs.filter(\.isActive).sorted(by: GolfClub.bagCarrySort)
         guard activeClubs.isEmpty == false else {
             return CourseMapClubRecommendation(
                 title: "Woody needs a club",
@@ -483,7 +483,7 @@ final class CourseMapViewModel {
             return nil
         }
 
-        let activeClubs = clubs.filter(\.isActive).sorted { $0.displayOrder < $1.displayOrder }
+        let activeClubs = clubs.filter(\.isActive).sorted(by: GolfClub.bagCarrySort)
         guard activeClubs.isEmpty == false,
               let origin = shotPlanningCoordinate,
               let holePinCoordinate else {

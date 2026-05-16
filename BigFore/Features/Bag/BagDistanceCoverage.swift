@@ -13,14 +13,61 @@ enum BagDistanceCoverage {
         let detail: String
     }
 
-    private static let largeGapYards = 30
+    /// Carry drop from the longer club to the next shorter club that counts as a “hole” in the bag ladder.
+    static let carryGapHighlightThresholdYards = 30
     private static let tightClusterYards = 8
 
-    static func summary(for clubs: [GolfClub]) -> Summary {
-        let ladder = clubs
+    private static func carryLadder(from clubs: [GolfClub]) -> [GolfClub] {
+        clubs
             .filter(\.isActive)
             .filter { $0.kind != .putter && $0.carryYards > 0 }
-            .sorted { $0.carryYards > $1.carryYards }
+            .sorted(by: GolfClub.bagCarrySort)
+    }
+
+    /// A wide step in the active carry ladder (long club above, shorter club below in the bag list).
+    struct CarryGapCallout: Equatable, Identifiable {
+        /// The shorter club in the pair (same id used for row highlight).
+        var id: UUID { shorterClubID }
+        let longerClubID: UUID
+        let longerClubName: String
+        let longerCarryYards: Int
+        let shorterClubID: UUID
+        let shorterClubName: String
+        let shorterCarryYards: Int
+        let gapYards: Int
+    }
+
+    /// IDs of the **shorter** club in each adjacent pair where carry drops by at least `carryGapHighlightThresholdYards`.
+    static func clubIDsFollowingCarryGap(in clubs: [GolfClub]) -> Set<UUID> {
+        Set(carryGapCallouts(in: clubs).map(\.shorterClubID))
+    }
+
+    /// One entry per wide gap: the club **below** the jump (e.g. 4 iron under 3 wood).
+    static func carryGapCallouts(in clubs: [GolfClub]) -> [CarryGapCallout] {
+        let ladder = carryLadder(from: clubs)
+        var out: [CarryGapCallout] = []
+        for pair in zip(ladder, ladder.dropFirst()) {
+            let gap = pair.0.carryYards - pair.1.carryYards
+            guard gap > Self.carryGapHighlightThresholdYards else {
+                continue
+            }
+            out.append(
+                CarryGapCallout(
+                    longerClubID: pair.0.id,
+                    longerClubName: pair.0.name,
+                    longerCarryYards: pair.0.carryYards,
+                    shorterClubID: pair.1.id,
+                    shorterClubName: pair.1.name,
+                    shorterCarryYards: pair.1.carryYards,
+                    gapYards: gap
+                )
+            )
+        }
+        return out
+    }
+
+    static func summary(for clubs: [GolfClub]) -> Summary {
+        let ladder = carryLadder(from: clubs)
 
         guard ladder.count >= 2 else {
             return Summary(
@@ -49,7 +96,7 @@ enum BagDistanceCoverage {
             }
         }
 
-        if largestGap > Self.largeGapYards {
+        if largestGap > Self.carryGapHighlightThresholdYards {
             return Summary(
                 level: .caution,
                 title: "Wide gap in your bag",

@@ -2,8 +2,16 @@ import SwiftData
 import SwiftUI
 
 struct BagView: View {
+    /// When set (e.g. root tab), leading chevron returns here—typically Play—so the screen isn’t a dead end with the keyboard up.
+    var onDismiss: (() -> Void)? = nil
+
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \GolfClub.displayOrder) private var clubs: [GolfClub]
+    @Query(
+        sort: [
+            SortDescriptor(\GolfClub.carryYards, order: .reverse),
+            SortDescriptor(\GolfClub.name)
+        ]
+    ) private var clubs: [GolfClub]
     @State private var viewModel = BagViewModel()
     @State private var isPresentingSpecialClubSheet = false
 
@@ -17,6 +25,14 @@ struct BagView: View {
 
     private var coverageSummary: BagDistanceCoverage.Summary {
         BagDistanceCoverage.summary(for: clubs)
+    }
+
+    private var carryGapHighlightIDs: Set<UUID> {
+        BagDistanceCoverage.clubIDsFollowingCarryGap(in: clubs)
+    }
+
+    private var carryGapCalloutByShorterID: [UUID: BagDistanceCoverage.CarryGapCallout] {
+        Dictionary(uniqueKeysWithValues: BagDistanceCoverage.carryGapCallouts(in: clubs).map { ($0.shorterClubID, $0) })
     }
 
     var body: some View {
@@ -38,9 +54,32 @@ struct BagView: View {
                 } else {
                     Section("Clubs") {
                         ForEach(clubs) { club in
+                            if let callout = carryGapCalloutByShorterID[club.id] {
+                                BagCarryGapExplainerCard(
+                                    callout: callout,
+                                    gapFillTemplates: GolfClubTemplate.templatesSuggestedForCarryGap(
+                                        longerCarryYards: callout.longerCarryYards,
+                                        shorterCarryYards: callout.shorterCarryYards,
+                                        existingClubs: clubs
+                                    ),
+                                    onAddTemplate: { template in
+                                        viewModel.addClub(from: template, modelContext: modelContext)
+                                    },
+                                    onAddSpecial: { isPresentingSpecialClubSheet = true }
+                                )
+                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 2, trailing: 16))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                            }
+
                             BagClubRow(club: club) {
                                 viewModel.save(modelContext: modelContext)
                             }
+                            .listRowBackground(
+                                BagCarryGapRowBackground(
+                                    isHighlighted: carryGapHighlightIDs.contains(club.id)
+                                )
+                            )
                         }
                         .onDelete(perform: deleteClubs)
                     }
@@ -61,14 +100,26 @@ struct BagView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("Bag")
             .listStyle(.insetGrouped)
             .toolbar {
+                if let onDismiss {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            onDismiss()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .fontWeight(.semibold)
+                        }
+                        .accessibilityLabel("Back to Play")
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         ForEach(addableTemplates) { template in
                             Button(template.name) {
-                                viewModel.addClub(from: template, existingClubs: clubs, modelContext: modelContext)
+                                viewModel.addClub(from: template, modelContext: modelContext)
                             }
                         }
                         if addableTemplates.isEmpty == false {
@@ -85,7 +136,7 @@ struct BagView: View {
             }
             .sheet(isPresented: $isPresentingSpecialClubSheet) {
                 AddSpecialClubSheet { name, carry in
-                    viewModel.addSpecialClub(name: name, carryYards: carry, existingClubs: clubs, modelContext: modelContext)
+                    viewModel.addSpecialClub(name: name, carryYards: carry, modelContext: modelContext)
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -111,6 +162,65 @@ struct BagView: View {
     }
 }
 
+private struct BagCarryGapExplainerCard: View {
+    let callout: BagDistanceCoverage.CarryGapCallout
+    let gapFillTemplates: [GolfClubTemplate]
+    let onAddTemplate: (GolfClubTemplate) -> Void
+    let onAddSpecial: () -> Void
+
+    private var midpointCarry: Int {
+        let raw = (callout.longerCarryYards + callout.shorterCarryYards) / 2
+        return ((raw + 2) / 5) * 5
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
+            Label("Carry gap before \(callout.shorterClubName)", systemImage: "arrow.down.to.line.compact")
+                .font(.subheadline.weight(.semibold))
+            Text(
+                "After \(callout.longerClubName) (\(callout.longerCarryYards) yd carry), the next club down is \(callout.shorterClubName) (\(callout.shorterCarryYards) yd)—a \(callout.gapYards) yd jump. Add a club near \(midpointCarry) yd carry (or tune these numbers) so Woody has an answer between them."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            if gapFillTemplates.isEmpty {
+                Text("No preset catalog club sits strictly between those carries—use Special or adjust carries.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Menu {
+                ForEach(gapFillTemplates) { template in
+                    Button("\(template.name) (~\(template.carryYards) yd)") {
+                        onAddTemplate(template)
+                    }
+                }
+                if gapFillTemplates.isEmpty == false {
+                    Divider()
+                }
+                Button("Special club…", action: onAddSpecial)
+            } label: {
+                Label("Fill gap", systemImage: "plus.circle.fill")
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(BigForeDesign.Gradients.cardFill, in: RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.gpRedPink.opacity(0.55), Color.gpPink.opacity(0.3)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
+        }
+    }
+}
+
 private struct BagSummaryCard: View {
     let activeCount: Int
     let totalCount: Int
@@ -129,6 +239,25 @@ private struct BagSummaryCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(BigForeDesign.Gradients.cardFill, in: RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous))
+    }
+}
+
+private struct BagCarryGapRowBackground: View {
+    let isHighlighted: Bool
+
+    var body: some View {
+        if isHighlighted {
+            LinearGradient(
+                colors: [
+                    Color.gpRedPink.opacity(0.4),
+                    Color.gpPink.opacity(0.22)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        } else {
+            Color.clear
+        }
     }
 }
 

@@ -82,6 +82,19 @@ extension GolfClubTemplate {
                 return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
             }
     }
+
+    /// Catalog clubs not in the bag whose default carry falls strictly between the two carries (for gap-fill suggestions).
+    static func templatesSuggestedForCarryGap(longerCarryYards: Int, shorterCarryYards: Int, existingClubs: [GolfClub]) -> [GolfClubTemplate] {
+        templatesAvailableToAdd(to: existingClubs).filter { template in
+            template.carryYards < longerCarryYards && template.carryYards > shorterCarryYards
+        }
+        .sorted { lhs, rhs in
+            if lhs.carryYards != rhs.carryYards {
+                return lhs.carryYards > rhs.carryYards
+            }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+    }
 }
 
 private extension String {

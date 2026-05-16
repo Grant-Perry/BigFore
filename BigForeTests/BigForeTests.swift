@@ -2832,6 +2832,18 @@ struct BigForeTests {
         #expect(available.contains { $0.name == "4 Iron" })
     }
 
+    @Test func bagCatalogSuggestsTemplatesStrictlyBetweenCarryGap() {
+        let long = GolfClub(kind: .fairwayWood, name: "3 Wood", carryYards: 220, totalYards: 235, displayOrder: 0)
+        let short = GolfClub(kind: .iron, name: "4 Iron", carryYards: 180, totalYards: 195, displayOrder: 1)
+        let suggested = GolfClubTemplate.templatesSuggestedForCarryGap(
+            longerCarryYards: 220,
+            shorterCarryYards: 180,
+            existingClubs: [long, short]
+        )
+        #expect(suggested.contains { $0.name == "3 Hybrid" })
+        #expect(suggested.allSatisfy { $0.carryYards < 220 && $0.carryYards > 180 })
+    }
+
     @Test func bagDistanceCoverageFlagsLargeCarryGap() {
         let long = GolfClub(kind: .driver, name: "Driver", carryYards: 300, totalYards: 315, displayOrder: 0)
         let short = GolfClub(kind: .wedge, name: "SW", carryYards: 80, totalYards: 95, displayOrder: 1)
@@ -2846,6 +2858,20 @@ struct BigForeTests {
         #expect(summary.level == .ok)
     }
 
+    @Test func bagCarryGapHighlightMarksShorterClubAfterWideDrop() {
+        let w3 = GolfClub(kind: .fairwayWood, name: "3 Wood", carryYards: 220, totalYards: 235, displayOrder: 0)
+        let i4 = GolfClub(kind: .iron, name: "4 Iron", carryYards: 180, totalYards: 195, displayOrder: 1)
+        let ids = BagDistanceCoverage.clubIDsFollowingCarryGap(in: [w3, i4])
+        #expect(ids == Set([i4.id]))
+    }
+
+    @Test func bagCarryGapHighlightIgnoresDropJustBelowThreshold() {
+        let a = GolfClub(kind: .iron, name: "Long", carryYards: 200, totalYards: 215, displayOrder: 0)
+        let b = GolfClub(kind: .iron, name: "Short", carryYards: 175, totalYards: 190, displayOrder: 1)
+        let ids = BagDistanceCoverage.clubIDsFollowingCarryGap(in: [a, b])
+        #expect(ids.isEmpty)
+    }
+
     @Test func bagViewModelSeedsDefaultBagOnlyOnce() throws {
         let schema = Schema([GolfClub.self, ShotRecord.self, GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, RoundWeatherSnapshot.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -2854,7 +2880,14 @@ struct BigForeTests {
         let viewModel = BagViewModel()
 
         viewModel.seedDefaultBagIfNeeded(existingClubs: [], modelContext: modelContext)
-        var clubs = try modelContext.fetch(FetchDescriptor<GolfClub>(sortBy: [SortDescriptor(\.displayOrder)]))
+        var clubs = try modelContext.fetch(
+            FetchDescriptor<GolfClub>(
+                sortBy: [
+                    SortDescriptor(\.carryYards, order: .reverse),
+                    SortDescriptor(\.name)
+                ]
+            )
+        )
 
         #expect(clubs.count == 14)
         #expect(clubs.first?.name == "Driver")

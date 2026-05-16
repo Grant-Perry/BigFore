@@ -81,4 +81,12 @@ extension GolfClub {
             displayOrder: template.displayOrder
         )
     }
+
+    /// Longest carry first, then name (bag list, Woody, and gap checks stay aligned).
+    static func bagCarrySort(lhs: GolfClub, rhs: GolfClub) -> Bool {
+        if lhs.carryYards != rhs.carryYards {
+            return lhs.carryYards > rhs.carryYards
+        }
+        return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+    }
 }

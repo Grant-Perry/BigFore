@@ -22,7 +22,12 @@ struct CourseMapPoint: Identifiable, Hashable {
 struct CourseMapView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var courseGeometries: [CourseGeometry]
-    @Query(sort: \GolfClub.displayOrder) private var golfClubs: [GolfClub]
+    @Query(
+        sort: [
+            SortDescriptor(\GolfClub.carryYards, order: .reverse),
+            SortDescriptor(\GolfClub.name)
+        ]
+    ) private var golfClubs: [GolfClub]
     @State private var viewModel: CourseMapViewModel
     @State private var isMeasuredPointDeleteVisible = false
     @State private var hasFocusedInitialRoundHole = false
