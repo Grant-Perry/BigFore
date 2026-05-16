@@ -17,6 +17,29 @@ struct RoundScoring {
         player.scores.reduce(0) { $0 + max($1.strokes, 0) }
     }
 
+    func totalPutts(for player: RoundPlayer) -> Int? {
+        let putts = player.scores.compactMap(\.putts)
+        guard !putts.isEmpty else {
+            return nil
+        }
+
+        return putts.reduce(0, +)
+    }
+
+    func fairwaySummary(for player: RoundPlayer) -> (hits: Int, tracked: Int) {
+        let tracked = player.scores
+            .filter { $0.isFairwayTrackingAvailable }
+            .compactMap(\.teeShotAccuracy)
+            .filter { $0 != .notApplicable }
+
+        return (tracked.filter { $0 == .fairway }.count, tracked.count)
+    }
+
+    func girSummary(for player: RoundPlayer) -> (hits: Int, tracked: Int) {
+        let tracked = player.scores.compactMap(\.girEstimate)
+        return (tracked.filter { $0 }.count, tracked.count)
+    }
+
     func scoreRelativeToPar(for player: RoundPlayer) -> Int {
         player.scores.reduce(0) { total, score in
             guard score.strokes > 0 else { return total }

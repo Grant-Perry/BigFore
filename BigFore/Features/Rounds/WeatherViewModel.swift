@@ -5,6 +5,8 @@ import SwiftData
 @MainActor
 @Observable
 final class WeatherViewModel {
+    private static let unavailableMessage = "Weather unavailable."
+
     private(set) var summaries: [UUID: WeatherSummary] = [:]
     private(set) var errors: [UUID: String] = [:]
     @ObservationIgnored private var loadingRoundIDs: Set<UUID> = []
@@ -50,7 +52,7 @@ final class WeatherViewModel {
             errors[round.id] = nil
         } catch {
             summaries[round.id] = nil
-            errors[round.id] = error.localizedDescription
+            errors[round.id] = Self.unavailableMessage
         }
     }
 

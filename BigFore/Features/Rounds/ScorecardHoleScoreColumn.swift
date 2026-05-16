@@ -6,40 +6,44 @@ struct ScorecardHoleScoreColumn: View {
     let result: ScorecardScoreResult?
     let relativeText: String?
     let isSelected: Bool
+    let isStackSelected: Bool
     let accessibilityText: String
+    let showQuickScore: () -> Void
     let selectHole: () -> Void
 
     var body: some View {
-        Button(action: selectHole) {
-            VStack(spacing: ScorecardGridMetrics.rowSpacing) {
-                Text("\(holeNumber)")
-                    .font(.caption.weight(isSelected ? .bold : .semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(isSelected ? BigForeDesign.Palette.primaryAction : .primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .frame(height: ScorecardGridMetrics.holeHeaderHeight)
+        VStack(spacing: ScorecardGridMetrics.rowSpacing) {
+            Text("\(holeNumber)")
+                .font(.caption.weight(isSelected ? .bold : .semibold))
+                .monospacedDigit()
+                .foregroundStyle(isSelected ? BigForeDesign.Palette.primaryAction : .primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .frame(height: ScorecardGridMetrics.holeHeaderHeight)
 
-                ScorecardScoreSquare(
-                    text: scoreText,
-                    result: result,
-                    isSelected: isSelected
-                )
+            ScorecardScoreSquare(
+                text: scoreText,
+                result: result,
+                isSelected: isSelected
+            )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                showQuickScore()
+            }
 
-                ScorecardGridMetricText(text: parText)
-                ScorecardGridMetricText(text: yardsText)
-                ScorecardGridMetricText(text: handicapText)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, BigForeDesign.Spacing.xSmall)
-            .background(selectionFill, in: RoundedRectangle(cornerRadius: BigForeDesign.Spacing.medium, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: BigForeDesign.Spacing.medium, style: .continuous)
-                    .stroke(selectionStroke, lineWidth: isSelected ? 1.5 : 0)
-            }
-            .contentShape(RoundedRectangle(cornerRadius: BigForeDesign.Spacing.medium, style: .continuous))
+            ScorecardGridMetricText(text: parText)
+            ScorecardGridMetricText(text: yardsText)
+            ScorecardGridMetricText(text: handicapText)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, BigForeDesign.Spacing.xSmall)
+        .background(selectionFill, in: RoundedRectangle(cornerRadius: BigForeDesign.Spacing.medium, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: BigForeDesign.Spacing.medium, style: .continuous)
+                .stroke(selectionStroke, lineWidth: (isSelected || isStackSelected) ? 1.5 : 0)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: BigForeDesign.Spacing.medium, style: .continuous))
+        .onTapGesture(perform: selectHole)
         .accessibilityLabel(accessibilityText)
         .accessibilityValue(relativeText ?? "Not scored")
         .accessibilityHint("Selects hole \(holeNumber).")
@@ -68,11 +72,11 @@ struct ScorecardHoleScoreColumn: View {
     }
 
     private var selectionFill: LinearGradient {
-        isSelected ? BigForeDesign.Gradients.softFill(for: BigForeDesign.Palette.primaryAction) : BigForeDesign.Gradients.softFill(for: .clear)
+        (isSelected || isStackSelected) ? BigForeDesign.Gradients.softFill(for: BigForeDesign.Palette.primaryAction) : BigForeDesign.Gradients.softFill(for: .clear)
     }
 
     private var selectionStroke: Color {
-        isSelected ? BigForeDesign.Palette.primaryAction.opacity(0.6) : .clear
+        (isSelected || isStackSelected) ? BigForeDesign.Palette.primaryAction.opacity(0.6) : .clear
     }
 
 }

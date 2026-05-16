@@ -5,6 +5,7 @@ struct RoundsListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \GolfRound.startedAt, order: .reverse) private var rounds: [GolfRound]
     @State private var viewModel = RoundsListViewModel()
+    @State private var playHomeViewModel = PlayHomeViewModel()
     @State private var weatherViewModel = WeatherViewModel()
     @State private var roundPendingDeletion: GolfRound?
 
@@ -14,6 +15,23 @@ struct RoundsListView: View {
 
         NavigationStack {
             List {
+                if let activeRound = activeRounds.first {
+                    Section {
+                        PlayActiveRoundCard(
+                            round: activeRound,
+                            viewModel: playHomeViewModel,
+                            weatherSummary: weatherViewModel.summary(for: activeRound),
+                            weatherErrorText: weatherViewModel.errorText(for: activeRound)
+                        )
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .task(id: activeRound.id) {
+                            await weatherViewModel.loadWeather(for: activeRound, modelContext: modelContext)
+                        }
+                    }
+                }
+
                 Section("Active") {
                     if activeRounds.isEmpty {
                         Text("Start a round from the Courses tab.")
@@ -77,6 +95,9 @@ struct RoundsListView: View {
                 }
             }
             .navigationTitle("Rounds")
+            .onAppear {
+                playHomeViewModel.requestLocationAccess()
+            }
             .confirmationDialog(
                 "Delete this round?",
                 isPresented: Binding(

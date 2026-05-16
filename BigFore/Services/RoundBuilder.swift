@@ -59,6 +59,7 @@ struct RoundBuilder {
         tee: RoundSetupTee,
         scoringMode: ScoringMode,
         playerNames: [String],
+        primaryPlayerProfile: PlayerProfile? = nil,
         startedAt: Date = .now
     ) -> GolfRound {
         let players = playerNames
@@ -68,6 +69,7 @@ struct RoundBuilder {
             .enumerated()
             .map { index, name in
                 RoundPlayer(
+                    playerProfile: index == 0 ? primaryPlayerProfile : nil,
                     name: name,
                     displayOrder: index,
                     scores: tee.holes.map { hole in
@@ -75,7 +77,8 @@ struct RoundBuilder {
                             holeNumber: hole.number,
                             par: hole.par ?? 4,
                             yardage: hole.yardage,
-                            handicap: hole.handicap
+                            handicap: hole.handicap,
+                            teeShotAccuracy: (hole.par ?? 4) >= 4 ? nil : .notApplicable
                         )
                     }
                 )

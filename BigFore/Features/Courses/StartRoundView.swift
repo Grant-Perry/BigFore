@@ -3,6 +3,7 @@ import SwiftUI
 
 struct StartRoundView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query(filter: #Predicate<PlayerProfile> { $0.isPrimaryUser }) private var primaryProfiles: [PlayerProfile]
     @State private var viewModel: StartRoundViewModel
 
     init(course: GolfCourseAPICourse, tee: GolfCourseAPITeeBox) {
@@ -77,6 +78,12 @@ struct StartRoundView: View {
         .navigationTitle("Start Round")
         .navigationDestination(item: $viewModel.createdRound) { round in
             ScorecardView(round: round)
+        }
+        .onAppear {
+            viewModel.configurePrimaryPlayer(primaryProfiles.first)
+        }
+        .onChange(of: primaryProfiles.first?.id) { _, _ in
+            viewModel.configurePrimaryPlayer(primaryProfiles.first)
         }
     }
 }

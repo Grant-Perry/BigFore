@@ -16,7 +16,9 @@ struct ContentView: View {
         TabView(selection: $selectedTab) {
             PlayHomeView(
                 openCourseSearch: { selectedTab = .find },
-                openSavedCourses: { selectedTab = .saved }
+                openSavedCourses: { selectedTab = .saved },
+                openRounds: { selectedTab = .rounds },
+                openBag: { selectedTab = .bag }
             )
             .tabItem {
                 Label("Play", systemImage: "figure.golf")

@@ -1334,6 +1334,18 @@ final class CourseMapViewModel {
         return "\(strokes)"
     }
 
+    func puttsValueText(for player: RoundPlayer) -> String {
+        guard let score = score(for: player), let putts = score.putts else {
+            return "-"
+        }
+
+        return "\(putts)"
+    }
+
+    func teeShotAccuracy(for player: RoundPlayer) -> TeeShotAccuracy? {
+        score(for: player)?.teeShotAccuracy
+    }
+
     func scoreResult(for player: RoundPlayer?) -> ScorecardScoreResult? {
         guard let player,
               let score = score(for: player),
@@ -1362,6 +1374,80 @@ final class CourseMapViewModel {
 
     func decrementScore(for player: RoundPlayer, modelContext: ModelContext? = nil) {
         adjustScore(for: player, by: -1, modelContext: modelContext)
+    }
+
+    func setScoreRelativeToPar(_ relativeToPar: Int, for player: RoundPlayer, modelContext: ModelContext? = nil) {
+        guard let score = score(for: player) else {
+            statusMessage = "No score slot for \(player.name) on Hole \(targetHoleNumber)."
+            errorMessage = nil
+            return
+        }
+
+        updateScore(score, strokes: score.par + relativeToPar)
+        saveScoreContext(modelContext)
+        statusMessage = "Set \(player.name) on Hole \(targetHoleNumber) to \(scoreValueText(for: player))."
+        errorMessage = nil
+    }
+
+    func deleteScoringPlayer(_ player: RoundPlayer, modelContext: ModelContext) {
+        guard let round else {
+            statusMessage = "Open from a round to delete players."
+            errorMessage = nil
+            return
+        }
+
+        let orderedPlayers = Self.sortedPlayers(for: round)
+        guard orderedPlayers.count > 1 else {
+            errorMessage = "A round needs at least one player."
+            return
+        }
+
+        round.players.removeAll { $0.id == player.id }
+        modelContext.delete(player)
+
+        let remainingPlayers = Self.sortedPlayers(for: round)
+        for (index, player) in remainingPlayers.enumerated() {
+            player.displayOrder = index
+        }
+
+        if selectedScoringPlayerID == player.id {
+            selectedScoringPlayerID = remainingPlayers.first?.id
+        }
+
+        saveScoreContext(modelContext)
+        statusMessage = "Deleted \(player.name) from the round."
+        errorMessage = nil
+    }
+
+    func canDecreasePutts(for player: RoundPlayer) -> Bool {
+        (score(for: player)?.putts ?? 0) > 0
+    }
+
+    func canIncreasePutts(for player: RoundPlayer) -> Bool {
+        guard let score = score(for: player), score.strokes > 0 else {
+            return false
+        }
+
+        return (score.putts ?? 0) < score.strokes
+    }
+
+    func incrementPutts(for player: RoundPlayer, modelContext: ModelContext? = nil) {
+        adjustPutts(for: player, by: 1, modelContext: modelContext)
+    }
+
+    func decrementPutts(for player: RoundPlayer, modelContext: ModelContext? = nil) {
+        adjustPutts(for: player, by: -1, modelContext: modelContext)
+    }
+
+    func setTeeShotAccuracy(_ accuracy: TeeShotAccuracy?, for player: RoundPlayer, modelContext: ModelContext? = nil) {
+        guard let score = score(for: player) else {
+            return
+        }
+
+        score.teeShotAccuracy = accuracy
+        saveScoreContext(modelContext)
+        statusMessage = accuracy.map { "Set \(player.name)'s tee result to \($0.title)." } ?? "Cleared \(player.name)'s tee result."
+        errorMessage = nil
     }
 
     func syncManualShotCountToScore(modelContext: ModelContext? = nil) {
@@ -1840,7 +1926,7 @@ final class CourseMapViewModel {
             return
         }
 
-        selectedHoleScore.strokes = min(max(selectedHoleScore.strokes + delta, 0), 12)
+        updateScore(selectedHoleScore, strokes: selectedHoleScore.strokes + delta)
         saveScoreContext(modelContext)
         statusMessage = "Updated Hole \(targetHoleNumber) score to \(selectedHoleScoreValueText)."
         errorMessage = nil
@@ -1853,10 +1939,38 @@ final class CourseMapViewModel {
             return
         }
 
-        score.strokes = min(max(score.strokes + delta, 0), 12)
+        updateScore(score, strokes: score.strokes + delta)
         saveScoreContext(modelContext)
         statusMessage = "Updated \(player.name) on Hole \(targetHoleNumber) to \(scoreValueText(for: player))."
         errorMessage = nil
+    }
+
+    private func adjustPutts(for player: RoundPlayer, by delta: Int, modelContext: ModelContext?) {
+        guard let score = score(for: player), score.strokes > 0 else {
+            statusMessage = "Enter a score before putts."
+            errorMessage = nil
+            return
+        }
+
+        score.putts = min(max((score.putts ?? 0) + delta, 0), score.strokes)
+        saveScoreContext(modelContext)
+        statusMessage = "Updated \(player.name)'s putts to \(puttsValueText(for: player))."
+        errorMessage = nil
+    }
+
+    private func updateScore(_ score: HoleScore, strokes: Int) {
+        score.strokes = min(max(strokes, 0), 12)
+        if score.strokes == 0 {
+            score.putts = nil
+            score.teeShotAccuracy = score.isFairwayTrackingAvailable ? nil : .notApplicable
+            return
+        }
+
+        if score.putts == nil {
+            score.putts = min(2, score.strokes)
+        } else if let putts = score.putts, putts > score.strokes {
+            score.putts = score.strokes
+        }
     }
 
     private func score(for player: RoundPlayer) -> HoleScore? {

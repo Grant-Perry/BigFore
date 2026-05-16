@@ -288,7 +288,7 @@ struct CourseMapView: View {
             }
             .ignoresSafeArea(edges: .bottom)
 
-            CourseMapVenueChip(viewModel: viewModel)
+            CourseMapVenueChip(courseMapViewModel: viewModel)
                 .padding(.top, -54)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .allowsHitTesting(false)

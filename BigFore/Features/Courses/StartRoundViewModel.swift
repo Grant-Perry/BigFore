@@ -8,11 +8,12 @@ final class StartRoundViewModel {
     let course: RoundSetupCourse
     let tee: RoundSetupTee
     var scoringMode = ScoringMode.strokePlay
-    var playerNames = ["Gp."]
+    var playerNames = ["Player"]
     var newPlayerName = ""
     var createdRound: GolfRound?
     var errorMessage: String?
     private let roundBuilder: RoundBuilder
+    private var primaryPlayerProfile: PlayerProfile?
 
     init(course: RoundSetupCourse, tee: RoundSetupTee, roundBuilder: RoundBuilder = RoundBuilder()) {
         self.course = course
@@ -30,6 +31,20 @@ final class StartRoundViewModel {
 
     var trimmedPlayerNames: [String] {
         playerNames.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+    }
+
+    func configurePrimaryPlayer(_ profile: PlayerProfile?) {
+        primaryPlayerProfile = profile
+        guard let profile else {
+            if trimmedPlayerNames.isEmpty {
+                playerNames = ["Player"]
+            }
+            return
+        }
+
+        if playerNames.count == 1 && ["Player", "Gp."].contains(playerNames[0]) {
+            playerNames[0] = profile.displayName
+        }
     }
 
     var canAddPlayer: Bool {
@@ -52,7 +67,7 @@ final class StartRoundViewModel {
         }
 
         if playerNames.isEmpty {
-            playerNames = ["Gp."]
+            playerNames = [primaryPlayerProfile?.displayName ?? "Player"]
         }
     }
 
@@ -63,7 +78,8 @@ final class StartRoundViewModel {
             course: course,
             tee: tee,
             scoringMode: scoringMode,
-            playerNames: trimmedPlayerNames
+            playerNames: trimmedPlayerNames,
+            primaryPlayerProfile: primaryPlayerProfile
         )
 
         modelContext.insert(round)

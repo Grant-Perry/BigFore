@@ -29,9 +29,31 @@ struct ScorecardPlayerTotalRow: View {
                     Text(scoring.relativeText(scoring.scoreRelativeToPar(for: player)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Text(detailText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var detailText: String {
+        var parts: [String] = []
+        if let putts = scoring.totalPutts(for: player) {
+            parts.append("\(putts) putts")
+        }
+
+        let fairways = scoring.fairwaySummary(for: player)
+        if fairways.tracked > 0 {
+            parts.append("\(fairways.hits)/\(fairways.tracked) fairways")
+        }
+
+        let gir = scoring.girSummary(for: player)
+        if gir.tracked > 0 {
+            parts.append("\(gir.hits)/\(gir.tracked) GIR")
+        }
+
+        return parts.isEmpty ? "Stats pending" : parts.joined(separator: " · ")
     }
 }

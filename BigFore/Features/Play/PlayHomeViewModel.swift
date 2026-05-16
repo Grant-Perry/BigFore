@@ -1,6 +1,7 @@
 import CoreLocation
 import Foundation
 import Observation
+import SwiftData
 
 struct PlayPlayerScoreSummary: Identifiable, Equatable {
     let id: UUID
@@ -48,6 +49,21 @@ final class PlayHomeViewModel {
 
     func requestLocationAccess() {
         locationService.requestLocationAccess()
+    }
+
+    func ensurePrimaryProfile(existingProfiles: [PlayerProfile], modelContext: ModelContext) {
+        guard existingProfiles.isEmpty else {
+            return
+        }
+
+        let profile = PlayerProfile(displayName: "Player", isPrimaryUser: true)
+        modelContext.insert(profile)
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+        }
     }
 
     func distanceText(for round: GolfRound) -> String {

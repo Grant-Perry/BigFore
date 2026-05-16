@@ -9,6 +9,10 @@ final class PlayerProfile {
     @Attribute(.externalStorage) var avatarImageData: Data?
     var avatarSourceRawValue: String
     var handicapIndex: Double?
+    var isPrimaryUser: Bool = false
+    var phoneNumber: String?
+    var emailAddress: String?
+    var homeCourseName: String?
     var notes: String
     var createdAt: Date
     var updatedAt: Date
@@ -21,6 +25,10 @@ final class PlayerProfile {
         avatarImageData: Data? = nil,
         avatarSource: PlayerProfileAvatarSource = .none,
         handicapIndex: Double? = nil,
+        isPrimaryUser: Bool = false,
+        phoneNumber: String? = nil,
+        emailAddress: String? = nil,
+        homeCourseName: String? = nil,
         notes: String = "",
         createdAt: Date = .now,
         updatedAt: Date = .now,
@@ -32,6 +40,10 @@ final class PlayerProfile {
         self.avatarImageData = avatarImageData
         self.avatarSourceRawValue = avatarSource.rawValue
         self.handicapIndex = handicapIndex
+        self.isPrimaryUser = isPrimaryUser
+        self.phoneNumber = phoneNumber
+        self.emailAddress = emailAddress
+        self.homeCourseName = homeCourseName
         self.notes = notes
         self.createdAt = createdAt
         self.updatedAt = updatedAt

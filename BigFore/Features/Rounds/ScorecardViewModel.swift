@@ -74,7 +74,8 @@ final class ScorecardViewModel {
                     holeNumber: score.holeNumber,
                     par: score.par,
                     yardage: score.yardage,
-                    handicap: score.handicap
+                    handicap: score.handicap,
+                    teeShotAccuracy: score.isFairwayTrackingAvailable ? nil : .notApplicable
                 )
             }
         )
@@ -224,6 +225,27 @@ final class ScorecardViewModel {
         return scoreResult(for: score)
     }
 
+    func setPrimaryScoreRelativeToPar(_ relativeToPar: Int, forHoleNumber holeNumber: Int, modelContext: ModelContext) {
+        guard let score = primaryScore(forHoleNumber: holeNumber) else {
+            return
+        }
+
+        updateScore(score, strokes: score.par + relativeToPar)
+        save(modelContext: modelContext)
+    }
+
+    func setPrimaryScoreRelativeToPar(_ relativeToPar: Int, forHoleNumbers holeNumbers: [Int], modelContext: ModelContext) {
+        for holeNumber in holeNumbers {
+            guard let score = primaryScore(forHoleNumber: holeNumber) else {
+                continue
+            }
+
+            updateScore(score, strokes: score.par + relativeToPar)
+        }
+
+        save(modelContext: modelContext)
+    }
+
     func primaryScore(forHoleNumber holeNumber: Int) -> HoleScore? {
         primaryPlayer?.scores.first { $0.holeNumber == holeNumber }
     }
@@ -322,6 +344,20 @@ final class ScorecardViewModel {
     private func reindexPlayers(_ orderedPlayers: [RoundPlayer]) {
         for (index, player) in orderedPlayers.enumerated() {
             player.displayOrder = index
+        }
+    }
+
+    private func updateScore(_ score: HoleScore, strokes: Int) {
+        score.strokes = min(max(strokes, 0), 12)
+        if score.strokes == 0 {
+            score.putts = nil
+            return
+        }
+
+        if score.putts == nil {
+            score.putts = min(2, score.strokes)
+        } else if let putts = score.putts, putts > score.strokes {
+            score.putts = score.strokes
         }
     }
 

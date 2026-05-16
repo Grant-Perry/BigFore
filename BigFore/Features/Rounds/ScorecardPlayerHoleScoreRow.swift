@@ -11,6 +11,7 @@ struct ScorecardPlayerHoleScoreRow: View {
     private let scoring = RoundScoring()
     @State private var isEditingName = false
     @State private var isManualScoreEntryPresented = false
+    @State private var isQuickScorePopoverPresented = false
     @State private var manualScoreText = ""
     @FocusState private var isNameFieldFocused: Bool
     @FocusState private var isManualScoreFieldFocused: Bool
@@ -35,20 +36,90 @@ struct ScorecardPlayerHoleScoreRow: View {
 
             Spacer(minLength: BigForeDesign.Spacing.medium)
 
-            Stepper(value: $score.strokes, in: 0...12) {
-                Text(score.strokes == 0 ? "—" : "\(score.strokes)")
-                    .font(.title2.bold())
-                    .monospacedDigit()
-                    .frame(minWidth: 34, alignment: .trailing)
-                    .accessibilityLabel("Strokes")
-                    .accessibilityValue(score.strokes == 0 ? "Not scored" : "\(score.strokes)")
+            VStack(alignment: .trailing, spacing: BigForeDesign.Spacing.small) {
+                HStack(spacing: BigForeDesign.Spacing.small) {
+                    Button("Decrease \(player.name)", systemImage: "minus") {
+                        adjustScore(by: -1)
+                    }
+                    .labelStyle(.iconOnly)
+                    .disabled(score.strokes <= 0)
+
+                    Button {
+                        selectPlayer()
+                        isQuickScorePopoverPresented = true
+                    } label: {
+                        Text(score.strokes == 0 ? "—" : "\(score.strokes)")
+                            .font(.title2.bold())
+                            .monospacedDigit()
+                            .frame(minWidth: 38)
+                            .accessibilityLabel("Strokes")
+                            .accessibilityValue(score.strokes == 0 ? "Not scored" : "\(score.strokes)")
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $isQuickScorePopoverPresented) {
+                        quickScorePopover
+                            .presentationCompactAdaptation(.popover)
+                    }
+
+                    Button("Increase \(player.name)", systemImage: "plus") {
+                        adjustScore(by: 1)
+                    }
+                    .labelStyle(.iconOnly)
+                    .disabled(score.strokes >= 12)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+
+                HStack(spacing: BigForeDesign.Spacing.small) {
+                    Text("Putts")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Button("Decrease \(player.name) putts", systemImage: "minus") {
+                        adjustPutts(by: -1)
+                    }
+                    .labelStyle(.iconOnly)
+                    .disabled((score.putts ?? 0) <= 0)
+
+                    Text(score.putts.map(String.init) ?? "—")
+                        .font(.caption.weight(.bold))
+                        .monospacedDigit()
+                        .frame(minWidth: 24)
+
+                    Button("Increase \(player.name) putts", systemImage: "plus") {
+                        adjustPutts(by: 1)
+                    }
+                    .labelStyle(.iconOnly)
+                    .disabled(score.strokes <= 0 || (score.putts ?? 0) >= score.strokes)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                VStack(alignment: .leading, spacing: BigForeDesign.Spacing.xSmall) {
+                    Text("Tee result")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Picker("Tee result", selection: teeShotAccuracyBinding) {
+                        Text("Not set").tag(TeeShotAccuracy?.none)
+                        Text("Fairway").tag(Optional(TeeShotAccuracy.fairway))
+                        Text("Left").tag(Optional(TeeShotAccuracy.left))
+                        Text("Right").tag(Optional(TeeShotAccuracy.right))
+                        Text("Bunker").tag(Optional(TeeShotAccuracy.bunker))
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: score.teeShotAccuracy) { _, _ in
+                        selectPlayer()
+                        saveScore()
+                    }
+                }
             }
-            .frame(maxWidth: 176)
-            .padding(.horizontal, isSelected ? BigForeDesign.Spacing.small : 0)
-            .padding(.vertical, isSelected ? BigForeDesign.Spacing.xSmall : 0)
+            .frame(width: 210)
+            .padding(.horizontal, BigForeDesign.Spacing.medium)
+            .padding(.vertical, BigForeDesign.Spacing.small)
             .background {
                 if isSelected {
-                    Capsule()
+                    RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous)
                         .fill(BigForeDesign.Palette.primaryAction.opacity(0.22))
                 }
             }
@@ -57,10 +128,6 @@ struct ScorecardPlayerHoleScoreRow: View {
                 selectPlayer()
                 manualScoreText = score.strokes == 0 ? "" : "\(score.strokes)"
                 isManualScoreEntryPresented = true
-            }
-            .onChange(of: score.strokes) { _, _ in
-                selectPlayer()
-                saveScore()
             }
         }
         .contentShape(Rectangle())
@@ -137,7 +204,7 @@ struct ScorecardPlayerHoleScoreRow: View {
         }
 
         selectPlayer()
-        score.strokes = min(max(strokes, 0), 12)
+        updateScore(strokes)
         saveScore()
     }
 
@@ -152,4 +219,82 @@ struct ScorecardPlayerHoleScoreRow: View {
 
         return scoring.relativeText(relative)
     }
+
+    private var teeShotAccuracyBinding: Binding<TeeShotAccuracy?> {
+        Binding(
+            get: { score.teeShotAccuracy },
+            set: { score.teeShotAccuracy = $0 }
+        )
+    }
+
+    private var quickScorePopover: some View {
+        VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
+            Text("Hole \(score.holeNumber) Quick Score - Par \(score.par)")
+                .font(.headline)
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: BigForeDesign.Spacing.small) {
+                ForEach(ScorecardQuickScoreOption.allCases) { option in
+                    Button {
+                        updateScore(score.par + option.relativeToPar)
+                        saveScore()
+                        isQuickScorePopoverPresented = false
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 4) {
+                                Image(systemName: option.systemImage)
+                                    .font(.caption.bold())
+                                Text(option.title)
+                                    .font(.caption.weight(.bold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                            }
+
+                            Text("\(max(score.par + option.relativeToPar, 1))")
+                                .font(.title3.weight(.black))
+                                .monospacedDigit()
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, BigForeDesign.Spacing.small)
+                        .padding(.vertical, BigForeDesign.Spacing.small)
+                        .background(option.color.gradient, in: RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(BigForeDesign.Spacing.medium)
+        .frame(width: 320)
+    }
+
+    private func adjustScore(by delta: Int) {
+        selectPlayer()
+        updateScore(score.strokes + delta)
+        saveScore()
+    }
+
+    private func adjustPutts(by delta: Int) {
+        selectPlayer()
+        guard score.strokes > 0 else {
+            return
+        }
+
+        score.putts = min(max((score.putts ?? 0) + delta, 0), score.strokes)
+        saveScore()
+    }
+
+    private func updateScore(_ strokes: Int) {
+        score.strokes = min(max(strokes, 0), 12)
+        if score.strokes == 0 {
+            score.putts = nil
+            return
+        }
+
+        if score.putts == nil {
+            score.putts = min(2, score.strokes)
+        } else if let putts = score.putts, putts > score.strokes {
+            score.putts = score.strokes
+        }
+    }
 }
+

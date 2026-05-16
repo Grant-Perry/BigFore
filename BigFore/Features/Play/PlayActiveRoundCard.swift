@@ -63,7 +63,7 @@ struct PlayActiveRoundCard: View {
 
                 Spacer()
 
-                Text(viewModel.roundDateText(for: round))
+                Text("Started: \(viewModel.roundDateText(for: round))")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, BigForeDesign.Spacing.medium)

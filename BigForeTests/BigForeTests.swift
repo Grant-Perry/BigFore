@@ -10,8 +10,8 @@ struct BigForeTests {
             name: "Grant",
             displayOrder: 0,
             scores: [
-                HoleScore(holeNumber: 1, par: 4, strokes: 4),
-                HoleScore(holeNumber: 2, par: 5, strokes: 4),
+                HoleScore(holeNumber: 1, par: 4, strokes: 4, putts: 2, teeShotAccuracy: .fairway),
+                HoleScore(holeNumber: 2, par: 5, strokes: 4, putts: 1, teeShotAccuracy: .left),
                 HoleScore(holeNumber: 3, par: 3, strokes: 0)
             ]
         )
@@ -22,9 +22,123 @@ struct BigForeTests {
         #expect(scoring.totalStrokes(for: player) == 8)
         #expect(scoring.scoreRelativeToPar(for: player) == -1)
         #expect(scoring.stablefordPoints(for: player) == 5)
+        #expect(scoring.totalPutts(for: player) == 3)
+        #expect(scoring.fairwaySummary(for: player).hits == 1)
+        #expect(scoring.fairwaySummary(for: player).tracked == 2)
+        #expect(scoring.girSummary(for: player).hits == 2)
+        #expect(scoring.girSummary(for: player).tracked == 2)
         #expect(scoring.relativeText(-1) == "-1")
         #expect(scoring.relativeText(0) == "E")
         #expect(scoring.relativeText(2) == "+2")
+    }
+
+    @Test func courseMapViewModelMapScoringDefaultsAndGuardsPutts() throws {
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let player = RoundPlayer(
+            name: "Grant",
+            displayOrder: 0,
+            scores: [HoleScore(holeNumber: 1, par: 4, strokes: 0)]
+        )
+        let secondPlayer = RoundPlayer(
+            name: "Alex",
+            displayOrder: 1,
+            scores: [HoleScore(holeNumber: 1, par: 4, strokes: 0)]
+        )
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            teeName: "Blue",
+            teeGender: "male",
+            players: [player, secondPlayer]
+        )
+        modelContext.insert(round)
+        try modelContext.save()
+        let course = CourseMapPoint(
+            id: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 1, round: round)
+
+        viewModel.incrementScore(for: player)
+
+        let score = try #require(player.scores.first)
+        #expect(score.strokes == 1)
+        #expect(score.putts == 1)
+        #expect(!viewModel.canIncreasePutts(for: player))
+
+        viewModel.incrementScore(for: player)
+        #expect(score.strokes == 2)
+        #expect(score.putts == 1)
+        #expect(viewModel.canIncreasePutts(for: player))
+
+        viewModel.incrementPutts(for: player)
+        viewModel.incrementPutts(for: player)
+        #expect(score.putts == 2)
+
+        viewModel.decrementScore(for: player)
+        #expect(score.strokes == 1)
+        #expect(score.putts == 1)
+
+        viewModel.setTeeShotAccuracy(.bunker, for: player)
+        #expect(score.teeShotAccuracy == .bunker)
+
+        viewModel.setScoreRelativeToPar(-1, for: player)
+        #expect(score.strokes == 3)
+        #expect(score.putts == 1)
+
+        viewModel.setScoreRelativeToPar(2, for: player)
+        #expect(score.strokes == 6)
+        #expect(score.putts == 1)
+
+        viewModel.selectedScoringPlayerID = secondPlayer.id
+        viewModel.deleteScoringPlayer(secondPlayer, modelContext: modelContext)
+        #expect(viewModel.scoringPlayers.map(\.name) == ["Grant"])
+        #expect(viewModel.selectedScoringPlayerID == player.id)
+
+        viewModel.deleteScoringPlayer(player, modelContext: modelContext)
+        #expect(viewModel.scoringPlayers.map(\.name) == ["Grant"])
+        #expect(viewModel.errorMessage == "A round needs at least one player.")
+    }
+
+    @Test func roundBuilderLinksPrimaryProfileToFirstPlayer() {
+        let profile = PlayerProfile(displayName: "Grant", isPrimaryUser: true)
+        let course = RoundSetupCourse(
+            externalID: 1,
+            clubName: "Example Club",
+            courseName: "Example Course",
+            latitude: nil,
+            longitude: nil
+        )
+        let tee = RoundSetupTee(
+            gender: "male",
+            name: "Blue",
+            totalYards: 6_200,
+            parTotal: 72,
+            holes: [
+                RoundSetupHole(number: 1, par: 4, yardage: 410, handicap: 1),
+                RoundSetupHole(number: 2, par: 3, yardage: 160, handicap: 17)
+            ]
+        )
+
+        let round = RoundBuilder().makeRound(
+            course: course,
+            tee: tee,
+            scoringMode: .strokePlay,
+            playerNames: ["Grant", "Toehead"],
+            primaryPlayerProfile: profile
+        )
+
+        #expect(round.players.first?.playerProfile?.id == profile.id)
+        #expect(round.players.first?.scores.first?.teeShotAccuracy == nil)
+        #expect(round.players.first?.scores.last?.teeShotAccuracy == .notApplicable)
+        #expect(round.players.last?.playerProfile == nil)
     }
 
     @Test func scorecardScoreResultCategorizesRelativeScores() {
@@ -643,7 +757,7 @@ struct BigForeTests {
         #expect(viewModel.cameraCenter.longitude == course.longitude)
     }
 
-    @Test func startRoundViewModelDefaultsFirstPlayerToGp() {
+    @Test func startRoundViewModelDefaultsFirstPlayerToPrimaryProfile() {
         let course = RoundSetupCourse(
             externalID: 42,
             clubName: "Example Club",
@@ -660,16 +774,21 @@ struct BigForeTests {
         )
         let viewModel = StartRoundViewModel(course: course, tee: tee)
 
-        #expect(viewModel.playerNames == ["Gp."])
+        #expect(viewModel.playerNames == ["Player"])
+
+        let profile = PlayerProfile(displayName: "Grant", isPrimaryUser: true)
+        viewModel.configurePrimaryPlayer(profile)
+
+        #expect(viewModel.playerNames == ["Grant"])
 
         viewModel.removePlayers(at: IndexSet(integer: 0))
 
-        #expect(viewModel.playerNames == ["Gp."])
+        #expect(viewModel.playerNames == ["Grant"])
 
         viewModel.newPlayerName = "Alex"
         viewModel.addPlayer()
 
-        #expect(viewModel.playerNames == ["Gp.", "Alex"])
+        #expect(viewModel.playerNames == ["Grant", "Alex"])
     }
 
     @Test func courseMapViewModelReportsTeeToHolePinDistance() throws {
@@ -2869,6 +2988,25 @@ struct BigForeTests {
         #expect(viewModel.summary(for: round) == nil)
         #expect(viewModel.errorText(for: round) == "Weather unavailable.")
     }
+
+    @Test func weatherViewModelHidesSystemWeatherErrors() async throws {
+        let round = GolfRound(
+            courseExternalID: 42,
+            courseName: "Example Course",
+            clubName: "Example Club",
+            courseLatitude: 33.0,
+            courseLongitude: -84.0,
+            teeName: "Blue",
+            teeGender: "male"
+        )
+        let provider = StubWeatherProvider(error: StubWeatherProviderError.systemDaemon)
+        let viewModel = WeatherViewModel(provider: provider)
+
+        await viewModel.loadWeather(for: round)
+
+        #expect(viewModel.summary(for: round) == nil)
+        #expect(viewModel.errorText(for: round) == "Weather unavailable.")
+    }
 }
 
 @MainActor
@@ -2972,9 +3110,15 @@ private final class StubWeatherProvider: WeatherProviding {
 
 private enum StubWeatherProviderError: LocalizedError {
     case unavailable
+    case systemDaemon
 
     var errorDescription: String? {
-        "Weather unavailable."
+        switch self {
+        case .unavailable:
+            "Weather unavailable."
+        case .systemDaemon:
+            "The operation couldn't be completed. (WeatherDaemon.WDS.JWTAuthenticator-ServiceListener.Errors error 2.)"
+        }
     }
 }
 

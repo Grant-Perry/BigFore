@@ -3,10 +3,10 @@ import SwiftData
 import SwiftUI
 
 struct CourseMapVenueChip: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
 
     var body: some View {
-        Text(viewModel.course.courseName)
+        Text(courseMapViewModel.course.courseName)
             .font(.headline.weight(.bold))
             .foregroundStyle(.primary)
             .lineLimit(1)
@@ -16,7 +16,7 @@ struct CourseMapVenueChip: View {
             .frame(maxWidth: 320)
             .bigForePanelBackground(cornerRadius: BigForeDesign.Radius.capsulePanel)
             .accessibilityLabel("Course")
-            .accessibilityValue(viewModel.course.courseName)
+            .accessibilityValue(courseMapViewModel.course.courseName)
     }
 }
 
@@ -60,7 +60,7 @@ struct CourseMapDistanceMetricStack: View {
         }
         .accessibilityElement(children: .combine)
         .sheet(isPresented: $isScoreSheetPresented) {
-            CourseMapAllPlayersScoreSheet(viewModel: viewModel, modelContext: modelContext)
+            CourseMapAllPlayersScoreSheet(courseMapViewModel: viewModel, modelContext: modelContext)
                 .presentationDetents([.fraction(0.78), .large])
                 .presentationContentInteraction(.scrolls)
                 .presentationDragIndicator(.visible)
@@ -215,39 +215,69 @@ struct CourseMapDistanceMetricStack: View {
 }
 
 private struct CourseMapAllPlayersScoreSheet: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
     let modelContext: ModelContext
     @Environment(\.dismiss) private var dismiss
+    @State private var playerForQuickScore: RoundPlayer?
+    @State private var playerPendingDeletion: RoundPlayer?
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Text("Ball tracking stays with \(viewModel.selectedScoringPlayerName ?? "the selected player"). This sheet only edits scores.")
+                    Text("Ball tracking stays with \(courseMapViewModel.selectedScoringPlayerName ?? "the selected player"). This sheet only edits scores.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Hole \(viewModel.targetHoleNumber) Scores") {
-                    ForEach(viewModel.scoringPlayers) { player in
-                        HStack(spacing: BigForeDesign.Spacing.medium) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(player.name)
-                                    .font(.headline)
-                                if let result = viewModel.scoreResult(for: player) {
-                                    Text(result.title)
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(result.tint)
-                                } else {
-                                    Text("Not scored")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                Section("Hole \(courseMapViewModel.targetHoleNumber) Scores - \(holeParText)") {
+                    ForEach(courseMapViewModel.scoringPlayers) { player in
+                        VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
+                            HStack(spacing: BigForeDesign.Spacing.medium) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(player.name)
+                                        .font(.headline)
+                                    if let result = courseMapViewModel.scoreResult(for: player) {
+                                        Text(result.title)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(result.tint)
+                                    } else {
+                                        Text("Not scored")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
+
+                                Spacer()
+
+                                scoreStepper(for: player)
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                playerForQuickScore = player
+                            }
+                            .popover(item: quickScoreBinding(for: player)) { player in
+                                quickScorePopover(for: player)
+                                    .presentationCompactAdaptation(.popover)
                             }
 
-                            Spacer()
+                            HStack {
+                                Text("Putts")
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                puttsStepper(for: player)
+                            }
 
-                            scoreStepper(for: player)
+                            teeResultPicker(for: player)
+                        }
+                        .padding(.vertical, BigForeDesign.Spacing.xSmall)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                playerPendingDeletion = player
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                            .disabled(courseMapViewModel.scoringPlayers.count <= 1)
                         }
                     }
                 }
@@ -262,29 +292,226 @@ private struct CourseMapAllPlayersScoreSheet: View {
                 }
             }
         }
+        .confirmationDialog(
+            "Delete \(playerPendingDeletion?.name ?? "player")?",
+            isPresented: Binding(
+                get: { playerPendingDeletion != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        playerPendingDeletion = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let playerPendingDeletion {
+                Button("Delete Player", role: .destructive) {
+                    courseMapViewModel.deleteScoringPlayer(playerPendingDeletion, modelContext: modelContext)
+                    self.playerPendingDeletion = nil
+                }
+            }
+
+            Button("Cancel", role: .cancel) {
+                playerPendingDeletion = nil
+            }
+        } message: {
+            Text("This removes the player and all of their scores from this round. This can't be undone.")
+        }
     }
 
     private func scoreStepper(for player: RoundPlayer) -> some View {
         HStack(spacing: BigForeDesign.Spacing.small) {
             Button("Decrease \(player.name)", systemImage: "minus") {
-                viewModel.decrementScore(for: player, modelContext: modelContext)
+                courseMapViewModel.decrementScore(for: player, modelContext: modelContext)
             }
             .labelStyle(.iconOnly)
-            .disabled(!viewModel.canDecreaseScore(for: player))
+            .disabled(!courseMapViewModel.canDecreaseScore(for: player))
 
-            Text(viewModel.scoreValueText(for: player))
+            Text(courseMapViewModel.scoreValueText(for: player))
                 .font(.title3.weight(.bold))
                 .monospacedDigit()
-                .foregroundStyle(viewModel.scoreResult(for: player)?.tint ?? .primary)
+                .foregroundStyle(courseMapViewModel.scoreResult(for: player)?.tint ?? .primary)
                 .frame(minWidth: 30)
 
             Button("Increase \(player.name)", systemImage: "plus") {
-                viewModel.incrementScore(for: player, modelContext: modelContext)
+                courseMapViewModel.incrementScore(for: player, modelContext: modelContext)
             }
             .labelStyle(.iconOnly)
-            .disabled(!viewModel.canIncreaseScore(for: player))
+            .disabled(!courseMapViewModel.canIncreaseScore(for: player))
         }
         .buttonStyle(.bordered)
         .controlSize(.regular)
+    }
+
+    private func puttsStepper(for player: RoundPlayer) -> some View {
+        HStack(spacing: BigForeDesign.Spacing.small) {
+            Button("Decrease \(player.name) putts", systemImage: "minus") {
+                courseMapViewModel.decrementPutts(for: player, modelContext: modelContext)
+            }
+            .labelStyle(.iconOnly)
+            .disabled(!courseMapViewModel.canDecreasePutts(for: player))
+
+            Text(courseMapViewModel.puttsValueText(for: player))
+                .font(.headline.weight(.bold))
+                .monospacedDigit()
+                .frame(minWidth: 30)
+                .accessibilityLabel("Putts")
+
+            Button("Increase \(player.name) putts", systemImage: "plus") {
+                courseMapViewModel.incrementPutts(for: player, modelContext: modelContext)
+            }
+            .labelStyle(.iconOnly)
+            .disabled(!courseMapViewModel.canIncreasePutts(for: player))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+    }
+
+    private func teeResultPicker(for player: RoundPlayer) -> some View {
+        VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
+            Text("Tee result")
+                .font(.subheadline.weight(.semibold))
+
+            Picker("Tee result", selection: Binding(
+                get: { courseMapViewModel.teeShotAccuracy(for: player) },
+                set: { courseMapViewModel.setTeeShotAccuracy($0, for: player, modelContext: modelContext) }
+            )) {
+                Text("Not set").tag(TeeShotAccuracy?.none)
+                Text("Fairway").tag(Optional(TeeShotAccuracy.fairway))
+                Text("Left").tag(Optional(TeeShotAccuracy.left))
+                Text("Right").tag(Optional(TeeShotAccuracy.right))
+                Text("Bunker").tag(Optional(TeeShotAccuracy.bunker))
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
+    private var holeParText: String {
+        guard let par = courseMapViewModel.selectedHoleScore?.par else {
+            return "Par --"
+        }
+
+        return "Par \(par)"
+    }
+
+    private func quickScoreBinding(for player: RoundPlayer) -> Binding<RoundPlayer?> {
+        Binding(
+            get: {
+                playerForQuickScore?.id == player.id ? playerForQuickScore : nil
+            },
+            set: { newValue in
+                playerForQuickScore = newValue
+            }
+        )
+    }
+
+    private func quickScorePopover(for player: RoundPlayer) -> some View {
+        VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Hole \(courseMapViewModel.targetHoleNumber) Quick Score - \(holeParText)")
+                        .font(.headline)
+                }
+
+                Spacer()
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: BigForeDesign.Spacing.small) {
+                ForEach(CourseMapQuickScoreOption.allCases) { option in
+                    Button {
+                        courseMapViewModel.setScoreRelativeToPar(option.relativeToPar, for: player, modelContext: modelContext)
+                        playerForQuickScore = nil
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 4) {
+                                Image(systemName: option.systemImage)
+                                    .font(.caption.bold())
+                                Text(option.title)
+                                    .font(.caption.weight(.bold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                            }
+
+                            Text(option.scoreText(for: player, holeNumber: courseMapViewModel.targetHoleNumber))
+                                .font(.title3.weight(.black))
+                                .monospacedDigit()
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, BigForeDesign.Spacing.small)
+                        .padding(.vertical, BigForeDesign.Spacing.small)
+                        .background(option.color.gradient, in: RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(BigForeDesign.Spacing.medium)
+        .frame(width: 320)
+    }
+}
+private enum CourseMapQuickScoreOption: CaseIterable, Identifiable {
+    case tripleBogey
+    case doubleBogey
+    case bogey
+    case par
+    case birdie
+    case eagle
+    case albatross
+
+    var id: String { title }
+
+    var title: String {
+        switch self {
+        case .tripleBogey:
+            "Triple"
+        case .doubleBogey:
+            "Double"
+        case .bogey:
+            "Bogey"
+        case .par:
+            "Par"
+        case .birdie:
+            "Birdie"
+        case .eagle:
+            "Eagle"
+        case .albatross:
+            "Albatross"
+        }
+    }
+
+    var relativeToPar: Int {
+        switch self {
+        case .tripleBogey:
+            3
+        case .doubleBogey:
+            2
+        case .bogey:
+            1
+        case .par:
+            0
+        case .birdie:
+            -1
+        case .eagle:
+            -2
+        case .albatross:
+            -3
+        }
+    }
+
+    var color: Color {
+        ScorecardScoreResult(relativeToPar: relativeToPar).tint
+    }
+
+    var systemImage: String {
+        ScorecardScoreResult(relativeToPar: relativeToPar).systemImage
+    }
+
+    func scoreText(for player: RoundPlayer, holeNumber: Int) -> String {
+        guard let score = player.scores.first(where: { $0.holeNumber == holeNumber }) else {
+            return "--"
+        }
+
+        return "\(max(score.par + relativeToPar, 1))"
     }
 }

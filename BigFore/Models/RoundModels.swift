@@ -63,13 +63,17 @@ final class HoleScore {
     var yardage: Int?
     var handicap: Int?
     var strokes: Int
+    var putts: Int?
+    var teeShotAccuracyRawValue: String?
 
-    init(holeNumber: Int, par: Int, yardage: Int? = nil, handicap: Int? = nil, strokes: Int = 0) {
+    init(holeNumber: Int, par: Int, yardage: Int? = nil, handicap: Int? = nil, strokes: Int = 0, putts: Int? = nil, teeShotAccuracy: TeeShotAccuracy? = nil) {
         self.holeNumber = holeNumber
         self.par = par
         self.yardage = yardage
         self.handicap = handicap
         self.strokes = strokes
+        self.putts = putts
+        self.teeShotAccuracyRawValue = teeShotAccuracy?.rawValue
     }
 }
 
@@ -97,5 +101,32 @@ extension GolfRound {
 
     var isComplete: Bool {
         completedAt != nil
+    }
+}
+
+extension HoleScore {
+    var teeShotAccuracy: TeeShotAccuracy? {
+        get {
+            guard let teeShotAccuracyRawValue else {
+                return nil
+            }
+
+            return TeeShotAccuracy(rawValue: teeShotAccuracyRawValue)
+        }
+        set {
+            teeShotAccuracyRawValue = newValue?.rawValue
+        }
+    }
+
+    var isFairwayTrackingAvailable: Bool {
+        par >= 4
+    }
+
+    var girEstimate: Bool? {
+        guard strokes > 0, let putts else {
+            return nil
+        }
+
+        return strokes - putts <= par - 2
     }
 }
