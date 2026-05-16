@@ -14,10 +14,6 @@ struct ScorecardRoundHeaderCard: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
-
-            Text(round.scoringMode.title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(BigForeDesign.Spacing.large)

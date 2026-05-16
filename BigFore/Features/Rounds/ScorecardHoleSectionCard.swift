@@ -12,10 +12,18 @@ struct ScorecardHoleSectionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Scorecard - \(viewModel.primaryPlayerName)")
-                    .font(.headline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                HStack(alignment: .firstTextBaseline, spacing: BigForeDesign.Spacing.small) {
+                    Text("Scorecard - \(viewModel.primaryPlayerName)")
+                        .font(.headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+
+                    Text(viewModel.round.scoringMode.title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
 
                 Spacer(minLength: BigForeDesign.Spacing.medium)
 

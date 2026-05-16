@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct ScorecardView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @State private var scorecardViewModel: ScorecardViewModel
     @State private var isShareSheetPresented = false
@@ -24,31 +25,49 @@ struct ScorecardView: View {
                     isShareSheetPresented = true
                 }
             } else {
-                VStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
-                        ScorecardRoundHeaderCard(round: scorecardViewModel.round)
-
-                        if let mapPoint = CourseMapPoint(round: scorecardViewModel.round) {
-                            ScorecardGPSMapActionCard(
-                                mapPoint: mapPoint,
-                                round: scorecardViewModel.round,
-                                focusedPlayerID: scorecardViewModel.focusedPlayerID
-                            )
+                VStack(spacing: BigForeDesign.Spacing.medium) {
+                    VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
+                        HStack {
+                            Spacer(minLength: 0)
+                            if let mapPoint = CourseMapPoint(round: scorecardViewModel.round) {
+                                NavigationLink {
+                                    CourseMapView(
+                                        course: mapPoint,
+                                        currentHoleNumber: scorecardViewModel.round.currentHole,
+                                        round: scorecardViewModel.round,
+                                        focusedPlayerID: scorecardViewModel.focusedPlayerID
+                                    )
+                                } label: {
+                                    Label("GPS Map", systemImage: "location.viewfinder")
+                                        .font(.caption2.weight(.semibold))
+                                        .labelStyle(.titleAndIcon)
+                                        .imageScale(.medium)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.65)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                                .accessibilityLabel("Open GPS map")
+                                .accessibilityValue("Hole \(scorecardViewModel.round.currentHole)")
+                                .accessibilityHint("Opens the GPS map for the current round.")
+                            }
                         }
 
-                        ScorecardHoleSectionCard(
-                            viewModel: scorecardViewModel,
-                            selectHole: { holeNumber in
-                                scorecardViewModel.selectHole(holeNumber, modelContext: modelContext)
-                            },
-                            setQuickScore: { holeNumbers, relativeToPar in
-                                scorecardViewModel.setPrimaryScoreRelativeToPar(relativeToPar, forHoleNumbers: holeNumbers, modelContext: modelContext)
-                            }
-                        )
+                        ScorecardRoundHeaderCard(round: scorecardViewModel.round)
                     }
                     .padding(.horizontal, BigForeDesign.Spacing.large)
-                    .padding(.top, BigForeDesign.Spacing.large)
-                    .padding(.bottom, BigForeDesign.Spacing.medium)
+                    .padding(.top, BigForeDesign.Spacing.medium)
+
+                    ScorecardHoleSectionCard(
+                        viewModel: scorecardViewModel,
+                        selectHole: { holeNumber in
+                            scorecardViewModel.selectHole(holeNumber, modelContext: modelContext)
+                        },
+                        setQuickScore: { holeNumbers, relativeToPar in
+                            scorecardViewModel.setPrimaryScoreRelativeToPar(relativeToPar, forHoleNumbers: holeNumbers, modelContext: modelContext)
+                        }
+                    )
+                    .padding(.horizontal, BigForeDesign.Spacing.large)
 
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
@@ -76,12 +95,13 @@ struct ScorecardView: View {
                             )
                         }
                         .padding(.horizontal, BigForeDesign.Spacing.large)
-                        .padding(.bottom, BigForeDesign.Spacing.large)
+                        .padding(.top, BigForeDesign.Spacing.small)
+                        .padding(.bottom, BigForeDesign.Spacing.large + 52)
                     }
                 }
             }
         }
-        .background(Color(.systemGroupedBackground))
+        .scorecardScreenBackground(colorScheme: colorScheme)
         .navigationTitle("Scorecard")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -108,6 +128,8 @@ struct ScorecardView: View {
 }
 
 private struct ScorecardLandscapeView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let round: GolfRound
     @Binding var showsAllPlayers: Bool
     @Binding var showsMetrics: Bool
@@ -136,7 +158,7 @@ private struct ScorecardLandscapeView: View {
                     .padding()
             }
         }
-        .background(Color(.systemGroupedBackground))
+        .scorecardScreenBackground(colorScheme: colorScheme)
     }
 }
 

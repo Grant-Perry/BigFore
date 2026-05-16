@@ -376,11 +376,21 @@ private struct CourseMapAllPlayersScoreSheet: View {
                 get: { courseMapViewModel.teeShotAccuracy(for: player) },
                 set: { courseMapViewModel.setTeeShotAccuracy($0, for: player, modelContext: modelContext) }
             )) {
-                Text("Not set").tag(TeeShotAccuracy?.none)
-                Text("Fairway").tag(Optional(TeeShotAccuracy.fairway))
-                Text("Left").tag(Optional(TeeShotAccuracy.left))
-                Text("Right").tag(Optional(TeeShotAccuracy.right))
-                Text("Bunker").tag(Optional(TeeShotAccuracy.bunker))
+                Text("None")
+                    .tag(nil as TeeShotAccuracy?)
+                    .accessibilityLabel("Tee result, not set")
+                Text("Fair")
+                    .tag(Optional(TeeShotAccuracy.fairway))
+                    .accessibilityLabel("Fairway")
+                Text("Left")
+                    .tag(Optional(TeeShotAccuracy.left))
+                    .accessibilityLabel("Left of fairway")
+                Text("Right")
+                    .tag(Optional(TeeShotAccuracy.right))
+                    .accessibilityLabel("Right of fairway")
+                Text("Bunk")
+                    .tag(Optional(TeeShotAccuracy.bunker))
+                    .accessibilityLabel("Bunker")
             }
             .pickerStyle(.segmented)
         }

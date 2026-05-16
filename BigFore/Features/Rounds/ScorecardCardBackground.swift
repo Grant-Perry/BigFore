@@ -1,6 +1,17 @@
 import SwiftUI
 
 extension View {
+    /// Canvas behind scorecard cards — slightly lifted from plain grouped so panels read more clearly.
+    func scorecardScreenBackground(colorScheme: ColorScheme) -> some View {
+        background {
+            ZStack {
+                Color(.systemGroupedBackground)
+                Color.secondary.opacity(colorScheme == .dark ? 0.08 : 0.045)
+            }
+            .ignoresSafeArea()
+        }
+    }
+
     func scorecardCardBackground() -> some View {
         background {
             RoundedRectangle(cornerRadius: BigForeDesign.Radius.panel)

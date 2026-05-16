@@ -463,8 +463,9 @@ private struct ScorecardScoreSummaryCard: View {
                 Text("Total")
                     .font(.headline.bold())
                     .foregroundStyle(.black)
-                Spacer()
+                Spacer(minLength: 4)
                 totalStrokesRelativeLabel
+                    .frame(minWidth: 0, alignment: .trailing)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -488,19 +489,29 @@ private struct ScorecardScoreSummaryCard: View {
                     .font(.title3.weight(.black))
                     .monospacedDigit()
                     .foregroundStyle(.black)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 Text("/")
                     .font(.title3.weight(.black))
                     .foregroundStyle(.black)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 Text(relativeToParText(strokes: total.strokes, par: total.par))
                     .font(.title3.weight(.black))
                     .monospacedDigit()
                     .foregroundStyle(relativeToParColor(strokes: total.strokes, par: total.par))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             }
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
         } else {
             Text("--")
                 .font(.title3.weight(.black))
                 .monospacedDigit()
                 .foregroundStyle(.black)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
     }
 

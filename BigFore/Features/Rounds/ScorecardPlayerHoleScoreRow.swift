@@ -17,26 +17,58 @@ struct ScorecardPlayerHoleScoreRow: View {
     @FocusState private var isManualScoreFieldFocused: Bool
 
     var body: some View {
-        HStack(alignment: .center, spacing: BigForeDesign.Spacing.medium) {
-            VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
+        VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
+            HStack(alignment: .firstTextBaseline, spacing: BigForeDesign.Spacing.small) {
                 playerNameEditor
 
-                ScorecardScoreResultPill(
-                    result: result,
-                    fallbackText: score.strokes == 0 ? "Not scored" : secondaryScoreText
-                )
+                holeResultCaption
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
 
                 if score.strokes > 0 {
+                    Spacer(minLength: BigForeDesign.Spacing.small)
+
                     Text(secondaryScoreText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
             }
 
-            Spacer(minLength: BigForeDesign.Spacing.medium)
+            scoreBugCard
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectPlayer()
+        }
+        .alert("Enter Score", isPresented: $isManualScoreEntryPresented) {
+            TextField("Strokes", text: $manualScoreText)
+                .keyboardType(.numberPad)
+                .focused($isManualScoreFieldFocused)
+            Button("Save", action: saveManualScore)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enter strokes for \(player.name).")
+        }
+        .onChange(of: isManualScoreEntryPresented) { _, isPresented in
+            if isPresented {
+                Task { @MainActor in
+                    await Task.yield()
+                    isManualScoreFieldFocused = true
+                }
+            } else {
+                isManualScoreFieldFocused = false
+            }
+        }
+        .frame(minHeight: 60)
+    }
 
-            VStack(alignment: .trailing, spacing: BigForeDesign.Spacing.small) {
+    private var scoreBugCard: some View {
+        VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
+            HStack {
+                Spacer(minLength: 0)
                 HStack(spacing: BigForeDesign.Spacing.small) {
                     Button("Decrease \(player.name)", systemImage: "minus") {
                         adjustScore(by: -1)
@@ -69,7 +101,11 @@ struct ScorecardPlayerHoleScoreRow: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.regular)
+                Spacer(minLength: 0)
+            }
 
+            HStack {
+                Spacer(minLength: 0)
                 HStack(spacing: BigForeDesign.Spacing.small) {
                     Text("Putts")
                         .font(.caption.weight(.semibold))
@@ -94,66 +130,55 @@ struct ScorecardPlayerHoleScoreRow: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                Spacer(minLength: 0)
+            }
 
-                VStack(alignment: .leading, spacing: BigForeDesign.Spacing.xSmall) {
-                    Text("Tee result")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: BigForeDesign.Spacing.xSmall) {
+                Text("Tee result")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
 
-                    Picker("Tee result", selection: teeShotAccuracyBinding) {
-                        Text("Not set").tag(TeeShotAccuracy?.none)
-                        Text("Fairway").tag(Optional(TeeShotAccuracy.fairway))
-                        Text("Left").tag(Optional(TeeShotAccuracy.left))
-                        Text("Right").tag(Optional(TeeShotAccuracy.right))
-                        Text("Bunker").tag(Optional(TeeShotAccuracy.bunker))
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: score.teeShotAccuracy) { _, _ in
-                        selectPlayer()
-                        saveScore()
-                    }
+                Picker("Tee result", selection: teeShotAccuracyBinding) {
+                    Text("None")
+                        .tag(nil as TeeShotAccuracy?)
+                        .accessibilityLabel("Tee result, not set")
+                    Text("Fair")
+                        .tag(Optional(TeeShotAccuracy.fairway))
+                        .accessibilityLabel("Fairway")
+                    Text("Left")
+                        .tag(Optional(TeeShotAccuracy.left))
+                        .accessibilityLabel("Left of fairway")
+                    Text("Right")
+                        .tag(Optional(TeeShotAccuracy.right))
+                        .accessibilityLabel("Right of fairway")
+                    Text("Bunk")
+                        .tag(Optional(TeeShotAccuracy.bunker))
+                        .accessibilityLabel("Bunker")
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: .infinity)
+                .onChange(of: score.teeShotAccuracy) { _, _ in
+                    selectPlayer()
+                    saveScore()
                 }
             }
-            .frame(width: 210)
-            .padding(.horizontal, BigForeDesign.Spacing.medium)
-            .padding(.vertical, BigForeDesign.Spacing.small)
-            .background {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous)
-                        .fill(BigForeDesign.Palette.primaryAction.opacity(0.22))
-                }
-            }
-            .tint(isSelected ? BigForeDesign.Palette.primaryAction : nil)
-            .onTapGesture(count: 2) {
-                selectPlayer()
-                manualScoreText = score.strokes == 0 ? "" : "\(score.strokes)"
-                isManualScoreEntryPresented = true
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.horizontal, BigForeDesign.Spacing.medium)
+        .padding(.vertical, BigForeDesign.Spacing.small)
+        .background {
+            if isSelected {
+                RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous)
+                    .fill(BigForeDesign.Palette.primaryAction.opacity(0.22))
             }
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
+        .tint(isSelected ? BigForeDesign.Palette.primaryAction : nil)
+        .onTapGesture(count: 2) {
             selectPlayer()
+            manualScoreText = score.strokes == 0 ? "" : "\(score.strokes)"
+            isManualScoreEntryPresented = true
         }
-        .alert("Enter Score", isPresented: $isManualScoreEntryPresented) {
-            TextField("Strokes", text: $manualScoreText)
-                .keyboardType(.numberPad)
-                .focused($isManualScoreFieldFocused)
-            Button("Save", action: saveManualScore)
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Enter strokes for \(player.name).")
-        }
-        .onChange(of: isManualScoreEntryPresented) { _, isPresented in
-            if isPresented {
-                Task { @MainActor in
-                    await Task.yield()
-                    isManualScoreFieldFocused = true
-                }
-            } else {
-                isManualScoreFieldFocused = false
-            }
-        }
-        .frame(minHeight: 60)
     }
 
     @ViewBuilder
@@ -218,6 +243,35 @@ struct ScorecardPlayerHoleScoreRow: View {
         }
 
         return scoring.relativeText(relative)
+    }
+
+    private var holeScoreDescriptor: String {
+        if score.strokes == 0 {
+            return "Not scored"
+        }
+        if let result {
+            return result.title
+        }
+        return secondaryScoreText
+    }
+
+    private var holeScoreDescriptorColor: Color {
+        if score.strokes == 0 {
+            return .secondary
+        }
+        return result?.tint ?? .secondary
+    }
+
+    @ViewBuilder
+    private var holeResultCaption: some View {
+        HStack(spacing: 0) {
+            Text("Hole \(score.holeNumber) - ")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(holeScoreDescriptor)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(holeScoreDescriptorColor)
+        }
     }
 
     private var teeShotAccuracyBinding: Binding<TeeShotAccuracy?> {
