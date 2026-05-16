@@ -148,8 +148,9 @@ struct BigForeTests {
         #expect(ScorecardScoreResult(relativeToPar: -1) == .birdie)
         #expect(ScorecardScoreResult(relativeToPar: 0) == .par)
         #expect(ScorecardScoreResult(relativeToPar: 1) == .bogey)
-        #expect(ScorecardScoreResult(relativeToPar: 2) == .doubleBogeyOrWorse)
-        #expect(ScorecardScoreResult(relativeToPar: 4) == .doubleBogeyOrWorse)
+        #expect(ScorecardScoreResult(relativeToPar: 2) == .doubleBogey)
+        #expect(ScorecardScoreResult(relativeToPar: 3) == .triple)
+        #expect(ScorecardScoreResult(relativeToPar: 4) == nil)
     }
 
     @Test func distanceCalculatorConvertsCoordinatesToRoundedYards() {
@@ -2817,10 +2818,32 @@ struct BigForeTests {
         #expect(clubs.count == 14)
         #expect(clubs.first?.name == "Driver")
         #expect(clubs.first?.carryYards == 245)
+        #expect(clubs.first?.totalYards == 245 + GolfClub.rolloutBeyondCarryYards)
         #expect(clubs.last?.kind == .putter)
         #expect(clubs.last?.totalYards == 0)
         #expect(clubs.map(\.displayOrder) == Array(0..<14))
         #expect(activeValues == Array(repeating: true, count: clubs.count))
+    }
+
+    @Test func bagCatalogListsMissingLongIronsAgainstStarterBag() {
+        let starter = GolfClubTemplate.defaultBag.map(GolfClub.init(template:))
+        let available = GolfClubTemplate.templatesAvailableToAdd(to: starter)
+        #expect(available.contains { $0.name == "3 Iron" })
+        #expect(available.contains { $0.name == "4 Iron" })
+    }
+
+    @Test func bagDistanceCoverageFlagsLargeCarryGap() {
+        let long = GolfClub(kind: .driver, name: "Driver", carryYards: 300, totalYards: 315, displayOrder: 0)
+        let short = GolfClub(kind: .wedge, name: "SW", carryYards: 80, totalYards: 95, displayOrder: 1)
+        let summary = BagDistanceCoverage.summary(for: [long, short])
+        #expect(summary.level == .caution)
+        #expect(summary.title == "Wide gap in your bag")
+    }
+
+    @Test func bagDistanceCoverageOkForReasonableStarterSpacing() {
+        let clubs = GolfClubTemplate.defaultBag.map(GolfClub.init(template:))
+        let summary = BagDistanceCoverage.summary(for: clubs)
+        #expect(summary.level == .ok)
     }
 
     @Test func bagViewModelSeedsDefaultBagOnlyOnce() throws {

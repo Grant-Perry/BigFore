@@ -153,8 +153,8 @@ struct CourseMapDistanceMetricStack: View {
     private func woodyCard(_ recommendation: CourseMapClubRecommendation) -> some View {
         ZStack(alignment: .bottomLeading) {
             VStack(alignment: .trailing, spacing: 2) {
-                Text("Woody thinks")
-                    .font(.caption2.weight(.semibold))
+                Text("Woody thinks...")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
@@ -510,11 +510,11 @@ private enum CourseMapQuickScoreOption: CaseIterable, Identifiable {
     }
 
     var color: Color {
-        ScorecardScoreResult(relativeToPar: relativeToPar).tint
+        ScorecardScoreResult(relativeToPar: relativeToPar)?.tint ?? .secondary
     }
 
     var systemImage: String {
-        ScorecardScoreResult(relativeToPar: relativeToPar).systemImage
+        ScorecardScoreResult(relativeToPar: relativeToPar)?.systemImage ?? "minus.circle"
     }
 
     func scoreText(for player: RoundPlayer, holeNumber: Int) -> String {

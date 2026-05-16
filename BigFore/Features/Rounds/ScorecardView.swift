@@ -16,14 +16,11 @@ struct ScorecardView: View {
     var body: some View {
         GeometryReader { proxy in
             if proxy.size.width > proxy.size.height {
-                ScorecardLandscapeView(
+                ScorecardLandscapeScorecardView(
                     round: scorecardViewModel.round,
                     showsAllPlayers: $landscapeShowsAllPlayers,
                     showsMetrics: $landscapeShowsMetrics
-                ) {
-                    scorecardViewModel.save(modelContext: modelContext)
-                    isShareSheetPresented = true
-                }
+                )
             } else {
                 VStack(spacing: BigForeDesign.Spacing.medium) {
                     VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
@@ -124,41 +121,6 @@ struct ScorecardView: View {
         .onChange(of: scorecardViewModel.round.currentHole) { _, _ in
             scorecardViewModel.save(modelContext: modelContext)
         }
-    }
-}
-
-private struct ScorecardLandscapeView: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    let round: GolfRound
-    @Binding var showsAllPlayers: Bool
-    @Binding var showsMetrics: Bool
-    let share: () -> Void
-
-    var body: some View {
-        VStack(spacing: BigForeDesign.Spacing.small) {
-            HStack(spacing: BigForeDesign.Spacing.medium) {
-                Picker("Scorecard Players", selection: $showsAllPlayers) {
-                    Text("Me").tag(false)
-                    Text("All Players").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 260)
-
-                Toggle("Metrics", isOn: $showsMetrics)
-                    .font(.subheadline.weight(.semibold))
-                    .toggleStyle(.switch)
-                    .fixedSize()
-            }
-            .padding(.horizontal)
-
-            ScrollView([.horizontal, .vertical]) {
-                FullScorecardShareView(round: round, showsAllPlayers: showsAllPlayers, showsMetrics: showsMetrics)
-                    .frame(minWidth: 1_120)
-                    .padding()
-            }
-        }
-        .scorecardScreenBackground(colorScheme: colorScheme)
     }
 }
 

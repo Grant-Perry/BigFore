@@ -245,32 +245,28 @@ struct ScorecardPlayerHoleScoreRow: View {
         return scoring.relativeText(relative)
     }
 
-    private var holeScoreDescriptor: String {
-        if score.strokes == 0 {
-            return "Not scored"
-        }
-        if let result {
-            return result.title
-        }
-        return secondaryScoreText
-    }
-
-    private var holeScoreDescriptorColor: Color {
-        if score.strokes == 0 {
-            return .secondary
-        }
-        return result?.tint ?? .secondary
-    }
-
     @ViewBuilder
     private var holeResultCaption: some View {
-        HStack(spacing: 0) {
-            Text("Hole \(score.holeNumber) - ")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(holeScoreDescriptor)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(holeScoreDescriptorColor)
+        if score.strokes == 0 {
+            HStack(spacing: 0) {
+                Text("Hole \(score.holeNumber) - ")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Not scored")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        } else if let result {
+            HStack(spacing: 0) {
+                Text("Hole \(score.holeNumber) - ")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(result.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(result.tint)
+            }
+        } else {
+            EmptyView()
         }
     }
 

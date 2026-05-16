@@ -277,9 +277,16 @@ final class ScorecardViewModel {
     }
 
     func scoreStatusAccessibilityText(forHoleNumber holeNumber: Int) -> String {
-        guard let score = primaryScore(forHoleNumber: holeNumber),
-              let result = scoreResult(for: score) else {
+        guard let score = primaryScore(forHoleNumber: holeNumber) else {
             return "Hole \(holeNumber), not scored"
+        }
+
+        if score.strokes == 0 {
+            return "Hole \(holeNumber), not scored"
+        }
+
+        guard let result = scoreResult(for: score) else {
+            return "Hole \(holeNumber), \(score.strokes) strokes"
         }
 
         let playerPrefix = players.first.map { "\($0.name), " } ?? ""

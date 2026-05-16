@@ -20,6 +20,43 @@ final class BagViewModel {
         save(modelContext: modelContext, successMessage: "Loaded Woody's starter bag.")
     }
 
+    func nextDisplayOrder(existingClubs: [GolfClub]) -> Int {
+        (existingClubs.map(\.displayOrder).max() ?? -1) + 1
+    }
+
+    func addClub(from template: GolfClubTemplate, existingClubs: [GolfClub], modelContext: ModelContext) {
+        let club = GolfClub(template: template)
+        club.displayOrder = nextDisplayOrder(existingClubs: existingClubs)
+        club.updatedAt = .now
+        modelContext.insert(club)
+        save(modelContext: modelContext, successMessage: "Added \(template.name). Woody will use it when it is active.")
+    }
+
+    func addSpecialClub(name: String, carryYards: Int, existingClubs: [GolfClub], modelContext: ModelContext) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else {
+            errorMessage = "Enter a club name before saving."
+            return false
+        }
+
+        let club = GolfClub(
+            kind: .other,
+            name: trimmed,
+            carryYards: carryYards,
+            totalYards: carryYards + GolfClub.rolloutBeyondCarry(for: .other),
+            displayOrder: nextDisplayOrder(existingClubs: existingClubs),
+            isActive: true
+        )
+        modelContext.insert(club)
+        save(modelContext: modelContext, successMessage: "Added \(trimmed). Woody will use it when it is active.")
+        return errorMessage == nil
+    }
+
+    func deleteClub(_ club: GolfClub, modelContext: ModelContext) {
+        modelContext.delete(club)
+        save(modelContext: modelContext, successMessage: "Removed \(club.name).")
+    }
+
     func save(modelContext: ModelContext, successMessage: String? = nil) {
         do {
             try modelContext.save()

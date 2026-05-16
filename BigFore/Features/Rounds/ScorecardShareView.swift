@@ -318,7 +318,7 @@ struct ScorecardSharePreview: View {
         let values = frontBackValues(for: scores) { score in
             ShareScoreCellValue(
                 text: score.strokes > 0 ? "\(score.strokes)" : "--",
-                fill: score.strokes > 0 ? ScorecardScoreResult(relativeToPar: score.strokes - score.par).solidColor : nil,
+                fill: score.strokes > 0 ? ScorecardScoreResult(relativeToPar: score.strokes - score.par)?.solidColor : nil,
                 isTotal: false
             )
         } total: { selectedScores in
@@ -684,11 +684,12 @@ private extension ScorecardScoreResult {
 
     static var legendItems: [ScorecardLegendItem] {
         [
-            ScorecardLegendItem(title: "Eagle+", color: ScorecardScoreResult(relativeToPar: -2).solidColor),
-            ScorecardLegendItem(title: "Birdie", color: ScorecardScoreResult(relativeToPar: -1).solidColor),
-            ScorecardLegendItem(title: "Par", color: ScorecardScoreResult(relativeToPar: 0).solidColor),
-            ScorecardLegendItem(title: "Bogey", color: ScorecardScoreResult(relativeToPar: 1).solidColor),
-            ScorecardLegendItem(title: "Double+", color: ScorecardScoreResult(relativeToPar: 2).solidColor)
+            ScorecardLegendItem(title: "Eagle+", color: ScorecardScoreResult(relativeToPar: -2)!.solidColor),
+            ScorecardLegendItem(title: "Birdie", color: ScorecardScoreResult(relativeToPar: -1)!.solidColor),
+            ScorecardLegendItem(title: "Par", color: ScorecardScoreResult(relativeToPar: 0)!.solidColor),
+            ScorecardLegendItem(title: "Bogey", color: ScorecardScoreResult(relativeToPar: 1)!.solidColor),
+            ScorecardLegendItem(title: "Double", color: ScorecardScoreResult(relativeToPar: 2)!.solidColor),
+            ScorecardLegendItem(title: "Triple", color: ScorecardScoreResult(relativeToPar: 3)!.solidColor)
         ]
     }
 }

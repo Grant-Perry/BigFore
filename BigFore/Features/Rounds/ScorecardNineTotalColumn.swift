@@ -32,7 +32,7 @@ struct ScorecardNineTotalColumn: View {
     }
 
     private var result: ScorecardScoreResult? {
-        summary.relativeToPar.map(ScorecardScoreResult.init(relativeToPar:))
+        summary.relativeToPar.flatMap { ScorecardScoreResult(relativeToPar: $0) }
     }
 
     private var accessibilityLabel: String {

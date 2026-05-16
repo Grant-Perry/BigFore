@@ -43,17 +43,41 @@ final class GolfClub {
 }
 
 extension GolfClub {
+    /// Rollout beyond carry used for an estimated total when we are not tracking measured rollout.
+    static let rolloutBeyondCarryYards = 15
+
+    static func rolloutBeyondCarry(for kind: GolfClubKind) -> Int {
+        kind == .putter ? 0 : Self.rolloutBeyondCarryYards
+    }
+
+    /// Carry plus a fixed rollout estimate (putter stays zero).
+    var estimatedTotalYards: Int {
+        carryYards + Self.rolloutBeyondCarry(for: kind)
+    }
+
+    /// Keeps persisted `totalYards` aligned with the carry + rollout rule.
+    func syncTotalYardsFromCarry() {
+        totalYards = estimatedTotalYards
+    }
+
     var kind: GolfClubKind {
         get { GolfClubKind(rawValue: kindRawValue) ?? .other }
         set { kindRawValue = newValue.rawValue }
     }
 
     convenience init(template: GolfClubTemplate) {
+        let kind = template.kind
+        let total: Int
+        if kind == .putter {
+            total = 0
+        } else {
+            total = template.carryYards + Self.rolloutBeyondCarryYards
+        }
         self.init(
-            kind: template.kind,
+            kind: kind,
             name: template.name,
             carryYards: template.carryYards,
-            totalYards: template.totalYards,
+            totalYards: total,
             displayOrder: template.displayOrder
         )
     }

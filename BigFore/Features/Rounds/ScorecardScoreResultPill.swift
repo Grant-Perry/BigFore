@@ -10,7 +10,7 @@ struct ScorecardScoreResultPill: View {
 
     var body: some View {
         Group {
-            if result == .doubleBogeyOrWorse {
+            if result == .doubleBogey || result == .triple {
                 Text(displayTitle)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)

@@ -6,9 +6,11 @@ enum ScorecardScoreResult: Equatable {
     case birdie
     case par
     case bogey
-    case doubleBogeyOrWorse
+    case doubleBogey
+    case triple
 
-    init(relativeToPar: Int) {
+    /// Returns `nil` when `relativeToPar` is worse than triple bogey (greater than 3 over par).
+    init?(relativeToPar: Int) {
         switch relativeToPar {
         case ...(-3):
             self = .albatross
@@ -20,8 +22,12 @@ enum ScorecardScoreResult: Equatable {
             self = .par
         case 1:
             self = .bogey
+        case 2:
+            self = .doubleBogey
+        case 3:
+            self = .triple
         default:
-            self = .doubleBogeyOrWorse
+            return nil
         }
     }
 
@@ -37,8 +43,10 @@ enum ScorecardScoreResult: Equatable {
             "Par"
         case .bogey:
             "Bogey"
-        case .doubleBogeyOrWorse:
-            "Double bogey+"
+        case .doubleBogey:
+            "Double"
+        case .triple:
+            "Triple"
         }
     }
 
@@ -54,8 +62,10 @@ enum ScorecardScoreResult: Equatable {
             "P"
         case .bogey:
             "BO"
-        case .doubleBogeyOrWorse:
-            "DB+"
+        case .doubleBogey:
+            "DB"
+        case .triple:
+            "TB"
         }
     }
 
@@ -71,25 +81,30 @@ enum ScorecardScoreResult: Equatable {
             "checkmark.circle.fill"
         case .bogey:
             "plus.circle.fill"
-        case .doubleBogeyOrWorse:
+        case .doubleBogey:
             "exclamationmark.circle.fill"
+        case .triple:
+            "exclamationmark.triangle.fill"
         }
     }
 
     var tint: Color {
         switch self {
         case .albatross:
-            .purple
+				 .gpAlbatross
         case .eagle:
-            .blue
+				 .gpEagle
         case .birdie:
-            .teal
+				 .gpBirdie
         case .par:
-            .green
+				 .gpPar
         case .bogey:
-            .orange
-        case .doubleBogeyOrWorse:
-            .red
+				 .gpBogey
+        case .doubleBogey:
+				 .gpDoubleBogey
+		   case .triple:
+				 .gpTripleBogey
+
         }
     }
 

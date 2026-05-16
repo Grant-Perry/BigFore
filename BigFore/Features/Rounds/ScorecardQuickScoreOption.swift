@@ -50,10 +50,10 @@ enum ScorecardQuickScoreOption: CaseIterable, Identifiable {
     }
 
     var color: Color {
-        ScorecardScoreResult(relativeToPar: relativeToPar).tint
+        ScorecardScoreResult(relativeToPar: relativeToPar)?.tint ?? .secondary
     }
 
     var systemImage: String {
-        ScorecardScoreResult(relativeToPar: relativeToPar).systemImage
+        ScorecardScoreResult(relativeToPar: relativeToPar)?.systemImage ?? "minus.circle"
     }
 }

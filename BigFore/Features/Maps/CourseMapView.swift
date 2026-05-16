@@ -28,6 +28,8 @@ struct CourseMapView: View {
     @State private var hasFocusedInitialRoundHole = false
     @AppStorage("courseMap.isControlPanelExpanded") private var isControlPanelExpanded = true
     @AppStorage("courseMap.isDistancesExpanded") private var isDistancesExpanded = true
+    @State private var mapLandscapeShowsAllPlayers = false
+    @State private var mapLandscapeShowsMetrics = true
 
     init(course: CourseMapPoint, currentHoleNumber: Int? = nil, round: GolfRound? = nil, focusedPlayerID: UUID? = nil) {
         _viewModel = State(initialValue: CourseMapViewModel(
@@ -129,7 +131,16 @@ struct CourseMapView: View {
     var body: some View {
         @Bindable var viewModel = viewModel
 
-        ZStack(alignment: .bottomTrailing) {
+        GeometryReader { geometry in
+            Group {
+                if let round = viewModel.round, geometry.size.width > geometry.size.height {
+                    ScorecardLandscapeScorecardView(
+                        round: round,
+                        showsAllPlayers: $mapLandscapeShowsAllPlayers,
+                        showsMetrics: $mapLandscapeShowsMetrics
+                    )
+                } else {
+                    ZStack(alignment: .bottomTrailing) {
             MapReader { proxy in
                 Map(position: $viewModel.position, interactionModes: .all) {
                     Marker(viewModel.course.courseName, coordinate: viewModel.course.coordinate)
@@ -342,6 +353,9 @@ struct CourseMapView: View {
                 .padding(.leading)
                 .padding(.bottom, isControlPanelExpanded ? 456 : 24)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    }
+                }
+            }
         }
         .animation(.snappy, value: isControlPanelExpanded)
         .animation(.snappy, value: isDistancesExpanded)
