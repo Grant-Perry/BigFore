@@ -28,6 +28,7 @@ struct ScorecardLandscapeScorecardView: View {
                     .frame(minWidth: 1_120)
                     .padding()
             }
+            .scrollContentBackground(.hidden)
         }
         .scorecardScreenBackground(colorScheme: colorScheme)
     }

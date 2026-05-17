@@ -17,7 +17,7 @@ struct ScorecardNavigationControlsCard: View {
 
             Button(nextTitle, systemImage: nextTitle == "Finish" ? "checkmark" : "chevron.right", action: advanceOrFinish)
                 .buttonStyle(.borderedProminent)
-                .tint(BigForeDesign.Palette.primaryAction)
+                .tint(.white)
                 .disabled(!canAdvanceHole)
                 .frame(maxWidth: .infinity, minHeight: 44)
         }

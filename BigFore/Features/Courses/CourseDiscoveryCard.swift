@@ -72,15 +72,7 @@ struct CourseDiscoveryCard: View {
         }
         .padding(BigForeDesign.Spacing.large)
         .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous)
-                .fill(.background)
-                .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous)
-                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
-        }
+        .bigForeAerialGlassCardBackground(dropShadow: true)
         .contentShape(RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous))
         .accessibilityElement(children: .combine)
     }

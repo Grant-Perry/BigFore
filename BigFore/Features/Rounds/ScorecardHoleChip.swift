@@ -42,7 +42,7 @@ struct ScorecardHoleChip: View {
 
     private var chipFill: Color {
         if isSelected {
-            return result?.tint ?? BigForeDesign.Palette.primaryAction
+            return Color.white.opacity(0.26)
         }
 
         if let result {
@@ -54,7 +54,7 @@ struct ScorecardHoleChip: View {
 
     private var chipStroke: Color {
         if isSelected {
-            return result?.tint ?? BigForeDesign.Palette.primaryAction
+            return Color.white.opacity(0.85)
         }
 
         return result?.tint ?? Color.secondary.opacity(0.22)

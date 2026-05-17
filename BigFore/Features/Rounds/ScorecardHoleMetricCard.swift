@@ -20,7 +20,10 @@ struct ScorecardHoleMetricCard: View {
         }
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .padding(BigForeDesign.Spacing.medium)
-        .background(.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: BigForeDesign.Radius.card))
+        .background {
+            RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous)
+                .fill(Color(.systemBackground).opacity(BigForeDesign.ScorecardGlass.metricTileFillOpacity))
+        }
         .accessibilityElement(children: .combine)
     }
 }

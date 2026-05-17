@@ -22,16 +22,11 @@ struct PlayHomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: BigForeDesign.Spacing.large) {
-                    PlayProfileHero(profile: primaryProfile, roundsPlayed: rounds.filter(\.isComplete).count)
-
-                    Button(action: openCourseSearch) {
-                        Label("Start Round", systemImage: "play.fill")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .tint(BigForeDesign.Palette.primaryAction)
+                    PlayProfileHero(
+                        profile: primaryProfile,
+                        roundsPlayed: rounds.filter(\.isComplete).count,
+                        onStartRound: openCourseSearch
+                    )
 
                     if rounds.isEmpty {
                         PlayEmptyStateCard(
@@ -52,7 +47,8 @@ struct PlayHomeView: View {
                 }
                 .padding(BigForeDesign.Spacing.large)
             }
-            .background(Color(.systemGroupedBackground))
+            .scrollContentBackground(.hidden)
+            .bigForeAerialScreenBackground()
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
@@ -88,39 +84,108 @@ struct PlayHomeView: View {
 private struct PlayProfileHero: View {
     let profile: PlayerProfile?
     let roundsPlayed: Int
+    let onStartRound: () -> Void
 
     var body: some View {
-        NavigationLink {
-            if let profile {
-                YourProfileView(profile: profile)
-            } else {
-                ContentUnavailableView("Profile Loading", systemImage: "person.crop.circle", description: Text("BigFore is setting up your player profile."))
-            }
-        } label: {
-            VStack(spacing: BigForeDesign.Spacing.medium) {
-                PlayerProfileAvatar(profile: profile, size: 88)
-
-                VStack(spacing: BigForeDesign.Spacing.xSmall) {
-                    Text(profile?.displayName ?? "Player")
-                        .font(.title2.bold())
-                        .foregroundStyle(.primary)
-
-                    Text(profile?.homeCourseName ?? "Set up your home course")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    Text("\(roundsPlayed) \(roundsPlayed == 1 ? "Round" : "Rounds") Played")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        ZStack(alignment: .bottomTrailing) {
+            NavigationLink {
+                if let profile {
+                    YourProfileView(profile: profile)
+                } else {
+                    ContentUnavailableView("Profile Loading", systemImage: "person.crop.circle", description: Text("BigFore is setting up your player profile."))
                 }
+            } label: {
+                VStack(spacing: BigForeDesign.Spacing.medium) {
+                    PlayerProfileAvatar(profile: profile, size: 88)
+
+                    VStack(spacing: BigForeDesign.Spacing.xSmall) {
+                        Text(profile?.displayName ?? "Player")
+                            .font(.title2.bold())
+                            .foregroundStyle(.primary)
+
+                        Text(profile?.homeCourseName ?? "Set up your home course")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        Text("\(roundsPlayed) \(roundsPlayed == 1 ? "Round" : "Rounds") Played")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, BigForeDesign.Spacing.large)
+                .padding(.horizontal, BigForeDesign.Spacing.large)
+                .padding(.bottom, 52)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.top, BigForeDesign.Spacing.large)
-            .padding(.bottom, BigForeDesign.Spacing.large)
-            .background(BigForeDesign.Gradients.cardFill, in: RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous))
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens Your Profile.")
+
+            Button(action: onStartRound) {
+                PlayStartRoundGolfChip()
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Tee off, start round")
+            .accessibilityHint("Opens course search.")
+            .padding(.trailing, BigForeDesign.Spacing.medium)
+            .padding(.bottom, BigForeDesign.Spacing.medium)
         }
-        .buttonStyle(.plain)
-        .accessibilityHint("Opens Your Profile.")
+        .frame(maxWidth: .infinity)
+        .bigForeAerialGlassCardBackground()
+    }
+}
+
+/// Compact tee-box style control: flag + fairway strip, not a full-width capsule.
+private struct PlayStartRoundGolfChip: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(.white.opacity(0.20))
+                    .frame(width: 36, height: 36)
+                Image(systemName: "flag.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .offset(y: 3)
+                Image(systemName: "circle.fill")
+                    .font(.system(size: 7))
+                    .foregroundStyle(Color.white.opacity(0.95))
+                    .offset(x: 10, y: 12)
+            }
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Tee Off")
+                    .font(.caption.weight(.heavy))
+                    .foregroundStyle(.white)
+                Text("Start round")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.88))
+            }
+            .accessibilityHidden(true)
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, 12)
+        .padding(.vertical, 8)
+        .background {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            BigForeDesign.Palette.primaryAction.opacity(0.92),
+                            BigForeDesign.Palette.primaryAction.opacity(0.72)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.28), lineWidth: 0.5)
+                }
+                .shadow(color: .black.opacity(0.35), radius: 5, y: 2)
+        }
+        .frame(minHeight: 44)
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -176,11 +241,7 @@ private struct PlayOptionsSection: View {
                 action: openSavedCourses
             )
         }
-        .background(.background, in: RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous)
-                .stroke(.quaternary, lineWidth: 1)
-        }
+        .bigForeAerialGlassCardBackground()
     }
 }
 

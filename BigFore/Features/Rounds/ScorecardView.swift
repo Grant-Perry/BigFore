@@ -95,12 +95,14 @@ struct ScorecardView: View {
                         .padding(.top, BigForeDesign.Spacing.small)
                         .padding(.bottom, BigForeDesign.Spacing.large + 52)
                     }
+                    .scrollContentBackground(.hidden)
                 }
             }
         }
         .scorecardScreenBackground(colorScheme: colorScheme)
         .navigationTitle("Scorecard")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

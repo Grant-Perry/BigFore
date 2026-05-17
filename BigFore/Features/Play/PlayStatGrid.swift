@@ -122,10 +122,10 @@ private extension View {
     func playStatCardBackground() -> some View {
         background {
             RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous)
-                .fill(BigForeDesign.Palette.primaryAction.opacity(0.16))
+                .fill(Color(.systemBackground).opacity(BigForeDesign.AerialGlass.statTileFillOpacity))
                 .overlay {
                     RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous)
-                        .stroke(BigForeDesign.Palette.primaryAction.opacity(0.32), lineWidth: 1)
+                        .stroke(BigForeDesign.Palette.primaryAction.opacity(0.30), lineWidth: 1)
                 }
         }
     }

@@ -18,22 +18,24 @@ struct ScorecardPlayerHoleScoreRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
-            HStack(alignment: .firstTextBaseline, spacing: BigForeDesign.Spacing.small) {
-                playerNameEditor
+            ZStack(alignment: .bottomTrailing) {
+                HStack(alignment: .firstTextBaseline, spacing: BigForeDesign.Spacing.small) {
+                    playerNameEditor
 
-                holeResultCaption
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.72)
+                    holeResultCaption
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.72)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.trailing, score.strokes > 0 ? 56 : 0)
+                }
 
                 if score.strokes > 0 {
-                    Spacer(minLength: BigForeDesign.Spacing.small)
-
                     Text(secondaryScoreText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.title3.weight(.bold))
                         .monospacedDigit()
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                        .minimumScaleFactor(0.65)
                 }
             }
 
@@ -170,10 +172,10 @@ struct ScorecardPlayerHoleScoreRow: View {
         .background {
             if isSelected {
                 RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous)
-                    .fill(BigForeDesign.Palette.primaryAction.opacity(0.22))
+                    .fill(Color.white.opacity(0.16))
             }
         }
-        .tint(isSelected ? BigForeDesign.Palette.primaryAction : nil)
+        .tint(isSelected ? .white : nil)
         .onTapGesture(count: 2) {
             selectPlayer()
             manualScoreText = score.strokes == 0 ? "" : "\(score.strokes)"
@@ -202,13 +204,13 @@ struct ScorecardPlayerHoleScoreRow: View {
             Text(player.name)
                 .font(.headline)
                 .lineLimit(1)
-                .foregroundStyle(isSelected ? BigForeDesign.Palette.primaryAction : .primary)
+                .foregroundStyle(isSelected ? Color.white : .primary)
                 .padding(.horizontal, isSelected ? BigForeDesign.Spacing.small : 0)
                 .padding(.vertical, isSelected ? BigForeDesign.Spacing.xSmall : 0)
                 .background {
                     if isSelected {
                         Capsule()
-                            .fill(BigForeDesign.Palette.primaryAction.opacity(0.22))
+                            .fill(Color.white.opacity(0.22))
                     }
                 }
                 .onTapGesture(count: 2) {

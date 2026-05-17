@@ -20,11 +20,7 @@ struct PlayActiveRoundCard: View {
             gpsMissingMessage
         }
         .padding(BigForeDesign.Spacing.large)
-        .background {
-            RoundedRectangle(cornerRadius: BigForeDesign.Radius.panel, style: .continuous)
-                .fill(.background)
-                .shadow(color: .black.opacity(0.10), radius: 16, y: 8)
-        }
+        .bigForeAerialGlassCardBackground(cornerRadius: BigForeDesign.Radius.panel, dropShadow: true)
         .overlay {
             RoundedRectangle(cornerRadius: BigForeDesign.Radius.panel, style: .continuous)
                 .stroke(BigForeDesign.Palette.primaryAction.opacity(0.24), lineWidth: 1)

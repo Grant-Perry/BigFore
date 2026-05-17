@@ -258,13 +258,58 @@ final class ScorecardViewModel {
         let par = selectedScores.reduce(0) { $0 + $1.par }
         let yards = selectedScores.compactMap(\.yardage).reduce(0, +)
         let relativeToPar = strokes.map { $0 - scored.reduce(0) { $0 + $1.par } }
+        let stablefordPointsTotal: Int? = {
+            guard round.scoringMode == .stableford, !scored.isEmpty else { return nil }
+            return scored.reduce(0) { $0 + scoring.stablefordPoints(for: $1) }
+        }()
 
         return ScorecardNineSummary(
             strokes: strokes,
             par: par,
             yards: yards > 0 ? yards : nil,
-            relativeToPar: relativeToPar
+            relativeToPar: relativeToPar,
+            stablefordPointsTotal: stablefordPointsTotal
         )
+    }
+
+    /// Square label for the primary player’s hole cell (`#` strokes vs `+` / Stableford points).
+    func primaryHoleSquareDisplay(forHoleNumber holeNumber: Int, showStrokes: Bool) -> (text: String, result: ScorecardScoreResult?) {
+        guard let score = primaryScore(forHoleNumber: holeNumber) else {
+            return ("—", nil)
+        }
+
+        let result = scoreResult(for: score)
+
+        if showStrokes {
+            guard score.strokes > 0 else { return ("—", result) }
+            return ("\(score.strokes)", result)
+        }
+
+        if round.scoringMode == .stableford {
+            guard score.strokes > 0 else { return ("—", result) }
+            return ("\(stablefordPoints(for: score))", result)
+        }
+
+        let text = relativeScoreText(forHoleNumber: holeNumber) ?? "—"
+        return (text, result)
+    }
+
+    /// Square label for the IN/OUT totals row.
+    func nineTotalSquareDisplay(for nine: ScorecardNine, showStrokes: Bool) -> (text: String, result: ScorecardScoreResult?) {
+        let summary = nineSummary(for: nine)
+        let result = summary.relativeToPar.flatMap { ScorecardScoreResult(relativeToPar: $0) }
+
+        if showStrokes {
+            return (summary.scoreText, result)
+        }
+
+        if round.scoringMode == .stableford {
+            let text = summary.stablefordPointsTotal.map(String.init) ?? "—"
+            return (text, result)
+        }
+
+        let text = summary.relativeToPar.map { relativeText($0) } ?? "—"
+        return (text, result)
     }
 
     func relativeScoreText(forHoleNumber holeNumber: Int) -> String? {

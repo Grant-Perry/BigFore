@@ -32,11 +32,15 @@ struct ScorecardNinePageControl: View {
 
     private func fill(for nine: ScorecardNine) -> LinearGradient {
         selectedNine == nine
-            ? BigForeDesign.Gradients.softFill(for: BigForeDesign.Palette.primaryAction)
+            ? LinearGradient(
+                colors: [Color.white.opacity(0.22), Color.white.opacity(0.08)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
             : BigForeDesign.Gradients.softFill(for: .secondary)
     }
 
     private func stroke(for nine: ScorecardNine) -> Color {
-        selectedNine == nine ? BigForeDesign.Palette.primaryAction.opacity(0.54) : .secondary.opacity(0.16)
+        selectedNine == nine ? Color.white.opacity(0.5) : .secondary.opacity(0.16)
     }
 }

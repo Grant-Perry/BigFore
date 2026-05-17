@@ -94,6 +94,9 @@ struct RoundsListView: View {
                     }
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .bigForeAerialScreenBackground()
             .navigationTitle("Rounds")
             .onAppear {
                 playHomeViewModel.requestLocationAccess()
@@ -125,7 +128,6 @@ struct RoundsListView: View {
                 Text("This removes the scorecard and players for this round.")
             }
         }
-        .listStyle(.insetGrouped)
     }
 }
 

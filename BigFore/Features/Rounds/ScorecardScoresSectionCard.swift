@@ -136,11 +136,11 @@ struct ScorecardScoresSectionCard: View {
             if dropTargetIndex == index {
                 HStack(spacing: BigForeDesign.Spacing.small) {
                     Capsule()
-                        .fill(BigForeDesign.Palette.primaryAction)
+                        .fill(Color.white.opacity(0.35))
                         .frame(height: 4)
                     Text("Drop here")
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(BigForeDesign.Palette.primaryAction)
+                        .foregroundStyle(.white.opacity(0.9))
                 }
                 .transition(.opacity)
             } else {

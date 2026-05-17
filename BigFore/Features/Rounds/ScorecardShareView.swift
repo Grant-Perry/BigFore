@@ -529,7 +529,7 @@ private struct ScorecardScoreSummaryCard: View {
     private func relativeToParColor(strokes: Int, par: Int) -> Color {
         let diff = strokes - par
         if diff < 0 {
-            return .gpGreen
+            return .blue
         }
         if diff > 0 {
             return .gpRedPink

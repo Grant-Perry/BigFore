@@ -3,7 +3,9 @@ import SwiftUI
 struct ScorecardNineTotalColumn: View {
     let title: String
     let summary: ScorecardNineSummary
-    let relativeText: String?
+    let squareText: String
+    let squareResult: ScorecardScoreResult?
+    let accessibilityRelativeSummary: String?
 
     var body: some View {
         VStack(spacing: ScorecardGridMetrics.rowSpacing) {
@@ -15,8 +17,8 @@ struct ScorecardNineTotalColumn: View {
                 .frame(height: ScorecardGridMetrics.holeHeaderHeight)
 
             ScorecardScoreSquare(
-                text: summary.scoreText,
-                result: result,
+                text: squareText,
+                result: squareResult,
                 isSelected: false
             )
 
@@ -31,16 +33,12 @@ struct ScorecardNineTotalColumn: View {
         .accessibilityLabel(accessibilityLabel)
     }
 
-    private var result: ScorecardScoreResult? {
-        summary.relativeToPar.flatMap { ScorecardScoreResult(relativeToPar: $0) }
-    }
-
     private var accessibilityLabel: String {
-        let scoreText = summary.strokes.map { "\($0) strokes" } ?? "not scored"
+        let strokesText = summary.strokes.map { "\($0) strokes" } ?? "not scored"
         let yardsText = summary.yards.map { ", \($0) yards" } ?? ""
-        let relativeText = relativeText.map { ", \($0) to par" } ?? ""
+        let relativePhrase = accessibilityRelativeSummary.map { ", \($0) to par for this nine" } ?? ""
 
-        return "\(title) total, \(scoreText), par \(summary.par)\(yardsText)\(relativeText)"
+        return "\(title) total, square shows \(squareText), \(strokesText), par \(summary.par)\(yardsText)\(relativePhrase)"
     }
 
 }

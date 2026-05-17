@@ -8,6 +8,7 @@ struct ScorecardHoleSectionCard: View {
     @State private var quickScoreHoleNumber: Int?
     @State private var isStackScoringEnabled = false
     @State private var stackedHoleNumbers: Set<Int> = []
+    @State private var gridShowsStrokes = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
@@ -29,9 +30,14 @@ struct ScorecardHoleSectionCard: View {
 
                 if let scoreText = viewModel.primaryPlayerScoreText {
                     Text(scoreText)
-                        .font(.headline.weight(.bold))
+                        .font(.system(size: 28, weight: .heavy, design: .rounded))
                         .monospacedDigit()
-                        .foregroundStyle(BigForeDesign.Palette.primaryAction)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .tracking(0.4)
+                        .shadow(color: .black.opacity(0.92), radius: 0, x: 0, y: 2)
+                        .shadow(color: .black.opacity(0.55), radius: 16, x: 0, y: 0)
                 }
             }
 
@@ -47,6 +53,7 @@ struct ScorecardHoleSectionCard: View {
                     ScorecardNineGridPage(
                         nine: nine,
                         viewModel: viewModel,
+                        gridShowsStrokes: $gridShowsStrokes,
                         stackedHoleNumbers: stackedHoleNumbers,
                         selectHole: { holeNumber in
                             if isStackScoringEnabled {
@@ -67,10 +74,10 @@ struct ScorecardHoleSectionCard: View {
                     .tag(nine)
                 }
             }
-            .frame(height: 126)
+            .frame(height: 136)
             .tabViewStyle(.page(indexDisplayMode: .never))
 
-            Text(isStackScoringEnabled ? "Stack scoring: tap holes to select several, then tap any selected score to apply one quick score." : "Swipe between nines. Tap a hole column to edit that hole.")
+            Text(isStackScoringEnabled ? "Stack scoring: tap holes to select several, then tap any selected score to apply one quick score." : "Swipe between nines. Tap a hole column to edit that hole. Use the + / # button next to Stack to switch between stroke counts and \(viewModel.round.scoringMode == .stableford ? "Stableford points" : "scores versus par").")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -100,12 +107,16 @@ struct ScorecardHoleSectionCard: View {
         selectedNine = ScorecardNine.containing(viewModel.round.currentHole)
     }
 
+    private var gridPlusModeAccessibilityLabel: String {
+        viewModel.round.scoringMode == .stableford ? "Stableford points in grid" : "Versus par in grid"
+    }
+
     private var stackControls: some View {
         HStack(spacing: BigForeDesign.Spacing.small) {
             Toggle(isStackScoringEnabled ? "Stack On" : "Stack", isOn: $isStackScoringEnabled)
                 .font(.caption.weight(.semibold))
                 .toggleStyle(.button)
-                .tint(isStackScoringEnabled ? BigForeDesign.Palette.primaryAction : .secondary)
+                .tint(isStackScoringEnabled ? .white : .secondary)
                 .onChange(of: isStackScoringEnabled) { _, isEnabled in
                     if isEnabled {
                         stackedHoleNumbers = [viewModel.round.currentHole]
@@ -113,6 +124,24 @@ struct ScorecardHoleSectionCard: View {
                         stackedHoleNumbers.removeAll()
                     }
                 }
+
+            Button {
+                gridShowsStrokes.toggle()
+            } label: {
+                Text(gridShowsStrokes ? "+" : "#")
+                    .font(.caption.weight(.heavy))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.92))
+                    .frame(minWidth: 34, minHeight: 30)
+                    .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.26), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(gridShowsStrokes ? "Stroke counts in grid" : gridPlusModeAccessibilityLabel)
+            .accessibilityHint("Switches hole squares between stroke counts and \(viewModel.round.scoringMode == .stableford ? "Stableford points" : "score versus par"). IN and OUT totals follow the same mode.")
 
             if isStackScoringEnabled {
                 Text("\(stackedHoleNumbers.count) selected")
@@ -124,7 +153,7 @@ struct ScorecardHoleSectionCard: View {
                 }
                 .font(.caption.weight(.semibold))
                 .buttonStyle(.plain)
-                .foregroundStyle(BigForeDesign.Palette.primaryAction)
+                .foregroundStyle(.white.opacity(0.92))
             }
 
             Spacer()

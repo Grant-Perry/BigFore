@@ -3,6 +3,7 @@ import SwiftUI
 struct ScorecardNineGridPage: View {
     let nine: ScorecardNine
     let viewModel: ScorecardViewModel
+    @Binding var gridShowsStrokes: Bool
     let stackedHoleNumbers: Set<Int>
     let selectHole: (Int) -> Void
     let showQuickScore: (Int) -> Void
@@ -12,10 +13,12 @@ struct ScorecardNineGridPage: View {
             ScorecardGridRowLabelColumn()
 
             ForEach(nine.holeNumbers, id: \.self) { holeNumber in
+                let display = viewModel.primaryHoleSquareDisplay(forHoleNumber: holeNumber, showStrokes: gridShowsStrokes)
                 ScorecardHoleScoreColumn(
                     holeNumber: holeNumber,
                     score: viewModel.primaryScore(forHoleNumber: holeNumber),
-                    result: viewModel.scoreResult(forHoleNumber: holeNumber),
+                    squareText: display.text,
+                    result: display.result,
                     relativeText: viewModel.relativeScoreText(forHoleNumber: holeNumber),
                     isSelected: viewModel.round.currentHole == holeNumber,
                     isStackSelected: stackedHoleNumbers.contains(holeNumber),
@@ -31,7 +34,9 @@ struct ScorecardNineGridPage: View {
             ScorecardNineTotalColumn(
                 title: nine.totalTitle,
                 summary: summary,
-                relativeText: summary.relativeToPar.map { viewModel.relativeText($0) }
+                squareText: totalDisplay.text,
+                squareResult: totalDisplay.result,
+                accessibilityRelativeSummary: summary.relativeToPar.map { viewModel.relativeText($0) }
             )
         }
         .frame(maxWidth: .infinity)
@@ -42,5 +47,9 @@ struct ScorecardNineGridPage: View {
 
     private var summary: ScorecardNineSummary {
         viewModel.nineSummary(for: nine)
+    }
+
+    private var totalDisplay: (text: String, result: ScorecardScoreResult?) {
+        viewModel.nineTotalSquareDisplay(for: nine, showStrokes: gridShowsStrokes)
     }
 }
