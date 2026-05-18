@@ -41,6 +41,11 @@ enum BigForeDesign {
         static let cardFillTrailingOpacity: Double = 0.40
         static let strokePrimaryOpacity: Double = 0.30
         static let metricTileFillOpacity: Double = 0.22
+
+        /// Player rows sit on `scorecardCardBackground()`; lighter fill so the stack reads like one panel, not double-tinted black.
+        static let nestedCardFillLeadingOpacity: Double = 0.30
+        static let nestedCardFillTrailingOpacity: Double = 0.18
+        static let nestedStrokePrimaryOpacity: Double = 0.22
     }
 
     enum Palette {
@@ -104,6 +109,16 @@ enum BigForeDesign {
             endPoint: .bottomTrailing
         )
 
+        /// Inset cards (e.g. per-player rows) on top of `scorecardGlassCardFill` shells.
+        static let nestedScorecardGlassCardFill = LinearGradient(
+            colors: [
+                Color(.systemBackground).opacity(ScorecardGlass.nestedCardFillLeadingOpacity),
+                Color(.systemBackground).opacity(ScorecardGlass.nestedCardFillTrailingOpacity)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+
         static func softFill(for color: Color) -> LinearGradient {
             LinearGradient(
                 colors: [
@@ -124,6 +139,36 @@ enum BigForeDesign {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        }
+    }
+
+    /// Gold “selected” / neutral “unselected” pill chrome shared by scorecard toggles and app bordered buttons.
+    enum PillButton {
+        static let cornerRadius: CGFloat = 8
+        static let selectionGlowOpacity: Double = 0.5
+        static let selectionGlowRadius: CGFloat = 5
+        static let selectionGlowY: CGFloat = 2
+
+        static var selectedGoldGradient: LinearGradient {
+            LinearGradient(
+                colors: [Color.gpGoldHighlight, Color.gpGold],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+
+        /// Matches `ScorecardNinePageControl` chips when off.
+        static var secondaryFill: LinearGradient {
+            Gradients.softFill(for: .secondary)
+        }
+
+        static func strokeColor(isSelected: Bool) -> Color {
+            isSelected ? Color.gpGoldHighlight.opacity(0.95) : Color.secondary.opacity(0.18)
+        }
+
+        static func selectionShadow(isSelected: Bool) -> (color: Color, radius: CGFloat, y: CGFloat) {
+            guard isSelected else { return (color: .clear, radius: 0, y: 0) }
+            return (color: Color.gpGold.opacity(selectionGlowOpacity), radius: selectionGlowRadius, y: selectionGlowY)
         }
     }
 }
@@ -182,21 +227,33 @@ extension View {
     }
 
     /// Darker glass tuned for scorecard panels over `oldScorecard`.
+    /// - Parameter nestedInScorecardShell: Use lighter fill/stroke when this view sits on another scorecard glass panel (e.g. player rows inside the Scores card).
     func bigForeScorecardGlassCardBackground(
         cornerRadius: CGFloat = BigForeDesign.Radius.panel,
-        dropShadow: Bool = true
+        dropShadow: Bool = true,
+        nestedInScorecardShell: Bool = false
     ) -> some View {
-        background {
+        let fill = nestedInScorecardShell
+            ? BigForeDesign.Gradients.nestedScorecardGlassCardFill
+            : BigForeDesign.Gradients.scorecardGlassCardFill
+        let strokeOpacity = nestedInScorecardShell
+            ? BigForeDesign.ScorecardGlass.nestedStrokePrimaryOpacity
+            : BigForeDesign.ScorecardGlass.strokePrimaryOpacity
+        let shadowOpacity = dropShadow ? (nestedInScorecardShell ? 0.10 : 0.22) : 0
+        let shadowRadius: CGFloat = nestedInScorecardShell ? 8 : 14
+        let shadowY: CGFloat = nestedInScorecardShell ? 3 : 6
+
+        return background {
             ZStack {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(BigForeDesign.Gradients.scorecardGlassCardFill)
+                    .fill(fill)
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(BigForeDesign.ScorecardGlass.strokePrimaryOpacity), lineWidth: 1)
+                    .strokeBorder(Color.primary.opacity(strokeOpacity), lineWidth: 1)
             }
             .shadow(
-                color: .black.opacity(dropShadow ? 0.22 : 0),
-                radius: dropShadow ? 14 : 0,
-                y: dropShadow ? 6 : 0
+                color: .black.opacity(shadowOpacity),
+                radius: dropShadow ? shadowRadius : 0,
+                y: dropShadow ? shadowY : 0
             )
         }
     }

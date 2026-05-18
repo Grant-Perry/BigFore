@@ -2,22 +2,38 @@ import SwiftUI
 
 struct ScorecardRoundHeaderCard: View {
     let round: GolfRound
+    var showsCompleteRoundButton: Bool
+    let onCompleteRoundTapped: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
+        HStack(alignment: .center, spacing: BigForeDesign.Spacing.medium) {
             Text(round.courseName)
                 .font(.title3.bold())
                 .foregroundStyle(.primary)
-                .lineLimit(2)
+                .lineLimit(3)
+                .minimumScaleFactor(0.82)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text("\(round.clubName) · \(round.teeName) \(round.teeGender.capitalized)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            if showsCompleteRoundButton {
+                Button(action: onCompleteRoundTapped) {
+                    VStack(spacing: 3) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundStyle(Color.gpGreen)
+                            .shadow(color: .gpGreen.opacity(0.35), radius: 6, y: 0)
+                        Text("Complete")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(minWidth: 48, minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Complete round")
+                .accessibilityHint("Asks you to confirm after checking the scorecard is ready to finish.")
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(BigForeDesign.Spacing.large)
         .scorecardCardBackground()
-        .accessibilityElement(children: .combine)
     }
 }

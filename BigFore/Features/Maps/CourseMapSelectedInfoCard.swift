@@ -29,7 +29,7 @@ struct CourseMapSelectedInfoCard: View {
                     Button("Delete Ball", role: .destructive) {
                         viewModel.deleteSelectedShotMarker(modelContext: modelContext)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(BigForePillButtonStyle.bigForeDestructive)
                     .controlSize(.small)
                 }
             }

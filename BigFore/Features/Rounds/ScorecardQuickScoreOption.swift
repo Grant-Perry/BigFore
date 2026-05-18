@@ -53,7 +53,26 @@ enum ScorecardQuickScoreOption: CaseIterable, Identifiable {
         ScorecardScoreResult(relativeToPar: relativeToPar)?.tint ?? .secondary
     }
 
+    /// Fills quick-score orbs; matches score-result legend gradients.
+    var fillGradient: LinearGradient {
+        guard let result = ScorecardScoreResult(relativeToPar: relativeToPar) else {
+            return BigForeDesign.Gradients.strongFill(for: color)
+        }
+        return result.fill
+    }
+
     var systemImage: String {
         ScorecardScoreResult(relativeToPar: relativeToPar)?.systemImage ?? "minus.circle"
     }
+
+    /// Clockwise from 12 o'clock: Par → Bogey → Double → Triple → Albatross → Eagle → Birdie.
+    static let clockwiseClockOrder: [ScorecardQuickScoreOption] = [
+        .par,
+        .bogey,
+        .doubleBogey,
+        .tripleBogey,
+        .albatross,
+        .eagle,
+        .birdie,
+    ]
 }

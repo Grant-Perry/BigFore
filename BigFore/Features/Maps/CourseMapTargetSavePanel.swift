@@ -26,7 +26,7 @@ struct CourseMapTargetSavePanel: View {
                 Button("Save Target") {
                     viewModel.saveMeasuredPointAsFeature(modelContext: modelContext)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                 .controlSize(.large)
                 .disabled(viewModel.measuredCoordinate == nil)
                 savedFeaturePointList
@@ -63,7 +63,7 @@ struct CourseMapTargetSavePanel: View {
                         viewModel.deleteUserMappedFeaturePoint(featurePoint, modelContext: modelContext)
                     }
                     .labelStyle(.iconOnly)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(BigForePillButtonStyle.bigForeDestructive)
                     .controlSize(.small)
                 }
             }

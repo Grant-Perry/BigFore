@@ -21,8 +21,11 @@ struct ScorecardScoreSquare: View {
                 .monospacedDigit()
                 .foregroundStyle(result == nil ? Color.primary : Color.white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.65)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .minimumScaleFactor(0.55)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(.trailing, 3)
+                .padding(.bottom, 2)
 
             if differentiateWithoutColor, let result {
                 VStack {
@@ -36,6 +39,7 @@ struct ScorecardScoreSquare: View {
                     }
                     Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
         .frame(width: ScorecardGridMetrics.scoreSquareSide, height: ScorecardGridMetrics.scoreSquareSide)

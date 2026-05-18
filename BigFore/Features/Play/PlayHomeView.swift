@@ -202,7 +202,7 @@ private struct PlayOptionsSection: View {
             PlayOptionRow(
                 title: "Rounds",
                 subtitle: "\(roundCount) total",
-                systemImage: "scorecard",
+                systemImage: "list.clipboard",
                 tint: .green,
                 action: openRounds
             )

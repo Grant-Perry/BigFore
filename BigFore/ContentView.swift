@@ -33,7 +33,7 @@ struct ContentView: View {
 
             RoundsListView()
                 .tabItem {
-                    Label("Rounds", systemImage: "scorecard")
+                    Label("Rounds", systemImage: "list.clipboard")
                 }
                 .tag(BigForeTab.rounds)
 

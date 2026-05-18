@@ -42,7 +42,6 @@ struct CourseMapBottomLeadingControls: View {
         .font(.callout.weight(.semibold))
         .lineLimit(1)
         .minimumScaleFactor(0.75)
-        .buttonBorderShape(.capsule)
     }
 
     private var compactHoleActionControls: some View {
@@ -79,7 +78,7 @@ struct CourseMapBottomLeadingControls: View {
             } label: {
                 compactIconLabel("Start next shot", systemImage: "play.circle.fill")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
             .disabled(!viewModel.canStartNextShotFromBall)
             .accessibilityHint("Starts the next shot from the last marked ball.")
 
@@ -90,7 +89,7 @@ struct CourseMapBottomLeadingControls: View {
             } label: {
                 compactIconLabel("Undo last pin", systemImage: "arrow.uturn.backward")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
             .disabled(!viewModel.canUndoLastPin)
             .accessibilityHint("Removes the most recent map pin for this hole.")
         }
@@ -98,7 +97,6 @@ struct CourseMapBottomLeadingControls: View {
         .font(.callout.weight(.semibold))
         .lineLimit(1)
         .minimumScaleFactor(0.75)
-        .buttonBorderShape(.capsule)
         .padding(.horizontal, BigForeDesign.Spacing.medium)
         .padding(.vertical, BigForeDesign.Spacing.small)
         .bigForePanelBackground(cornerRadius: BigForeDesign.Radius.capsulePanel)
@@ -140,13 +138,13 @@ struct CourseMapBottomLeadingControls: View {
             Button(action: action) {
                 compactTapModeLabel(title, systemImage: systemImage)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(BigForePillButtonStyle.bigForePrimary)
             .accessibilityLabel(Text(accessibilityLabel ?? title))
         } else {
             Button(action: action) {
                 compactTapModeLabel(title, systemImage: systemImage)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
             .accessibilityLabel(Text(accessibilityLabel ?? title))
         }
     }

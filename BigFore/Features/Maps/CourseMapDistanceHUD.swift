@@ -115,7 +115,7 @@ struct CourseMapDistanceMetricStack: View {
                 .labelStyle(.iconOnly)
                 .disabled(!viewModel.canIncreaseSelectedHoleScore)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
             .controlSize(.small)
         }
         .padding(.horizontal, BigForeDesign.Spacing.medium)
@@ -339,7 +339,7 @@ private struct CourseMapAllPlayersScoreSheet: View {
             .labelStyle(.iconOnly)
             .disabled(!courseMapViewModel.canIncreaseScore(for: player))
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
         .controlSize(.regular)
     }
 
@@ -363,7 +363,7 @@ private struct CourseMapAllPlayersScoreSheet: View {
             .labelStyle(.iconOnly)
             .disabled(!courseMapViewModel.canIncreasePutts(for: player))
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
         .controlSize(.small)
     }
 

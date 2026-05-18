@@ -1,5 +1,7 @@
 import CoreLocation
 import Foundation
+import SwiftData
+import SwiftUI
 import WeatherKit
 
 struct WeatherSummary: Equatable {
@@ -41,6 +43,18 @@ struct WeatherSummary: Equatable {
     }
 }
 
+extension WeatherSummary {
+    init(snapshot: RoundWeatherSnapshot) {
+        self.init(
+            symbolName: snapshot.symbolName,
+            temperatureFahrenheit: snapshot.temperatureFahrenheit,
+            conditionText: snapshot.conditionText,
+            windSpeedMilesPerHour: snapshot.windSpeedMilesPerHour,
+            windDirectionDegrees: snapshot.windDirectionDegrees
+        )
+    }
+}
+
 struct WeatherRequest: Hashable {
     let latitude: Double
     let longitude: Double
@@ -74,5 +88,20 @@ struct WeatherKitProvider: WeatherProviding {
             windSpeedMilesPerHour: windSpeed.value,
             windDirectionDegrees: currentWeather.wind.direction.converted(to: .degrees).value
         )
+    }
+}
+
+// MARK: - WeatherKit symbol (multicolor SF Symbol)
+
+/// Renders a WeatherKit `symbolName` with Apple’s multicolor treatment when available.
+struct WeatherGlyph: View {
+    let symbolName: String
+    var font: Font = .title3
+
+    var body: some View {
+        Image(systemName: symbolName)
+            .font(font)
+            .symbolRenderingMode(.multicolor)
+            .accessibilityHidden(true)
     }
 }

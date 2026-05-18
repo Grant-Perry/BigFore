@@ -32,6 +32,54 @@ struct BigForeTests {
         #expect(scoring.relativeText(2) == "+2")
     }
 
+    @Test func scoringAggregatesMappedShotsAcrossRounds() {
+        let player = RoundPlayer(name: "Grant", displayOrder: 0, scores: [])
+        let roundA = GolfRound(
+            courseExternalID: 1,
+            courseName: "A",
+            clubName: "Club",
+            teeName: "Blue",
+            teeGender: "M",
+            completedAt: .now,
+            players: [player]
+        )
+        player.round = roundA
+        let shotA = ShotRecord(
+            round: roundA,
+            player: player,
+            holeNumber: 1,
+            shotNumber: 1,
+            startCoordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+            endCoordinate: CLLocationCoordinate2D(latitude: 0.001, longitude: 0.001),
+            distanceYards: 100
+        )
+        let roundB = GolfRound(
+            courseExternalID: 2,
+            courseName: "B",
+            clubName: "Club",
+            teeName: "Blue",
+            teeGender: "M",
+            completedAt: .now,
+            players: []
+        )
+        let shotB = ShotRecord(
+            round: roundB,
+            player: nil,
+            holeNumber: 1,
+            shotNumber: 1,
+            startCoordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+            endCoordinate: CLLocationCoordinate2D(latitude: 0.001, longitude: 0.001),
+            distanceYards: 200
+        )
+        roundA.shotRecords = [shotA]
+        roundB.shotRecords = [shotB]
+
+        let scoring = RoundScoring()
+        let completed = [roundA, roundB]
+        #expect(scoring.mappedShotRecords(in: completed).count == 2)
+        #expect(scoring.averageMappedShotDistanceYards(in: completed) == 150)
+    }
+
     @Test func courseMapViewModelMapScoringDefaultsAndGuardsPutts() throws {
         let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -2391,6 +2439,41 @@ struct BigForeTests {
         #expect(viewModel.hasSearchQuery)
     }
 
+    @Test func golfCourseNearbyRankingOrdersByDistanceAndDropsMissingCoordinates() throws {
+        let user = CLLocation(latitude: 33.0, longitude: -84.0)
+        let far = try makeAPICourse(id: 1, clubName: "Far", courseName: "A", latitude: 33.5, longitude: -84.0)
+        let near = try makeAPICourse(id: 2, clubName: "Near", courseName: "B", latitude: 33.01, longitude: -84.0)
+        let noCoord = try makeAPICourse(id: 3, clubName: "Mystery", courseName: "C")
+        let ranked = GolfCourseNearbyRanking.rankedCourses([far, near, noCoord], userLocation: user)
+        #expect(ranked.map(\.course.id) == [2, 1])
+        #expect(ranked.count == 2)
+    }
+
+    @Test func courseSearchDistanceFormattingUsesYardsWhenVeryClose() {
+        let metersForAboutOneHundredYards = 100.0 / 1.09361
+        let caption = CourseSearchDistanceFormatting.caption(forMeters: metersForAboutOneHundredYards)
+        #expect(caption.hasSuffix(" yds"))
+    }
+
+    @Test func courseSearchEnrichmentFetchesDetailsWhenSearchOmitsCoordinates() async throws {
+        let withoutCoords = try makeAPICourse(id: 901, clubName: "Test Club", courseName: "Test Course")
+        let withCoords = try makeAPICourse(
+            id: 901,
+            clubName: "Test Club",
+            courseName: "Test Course",
+            latitude: 33.0,
+            longitude: -84.0
+        )
+        let client = StubGolfCourseAPIClient(searchResults: [withoutCoords], coursesByID: [901: withCoords])
+        let viewModel = CourseSearchViewModel(apiKey: "test-key", apiClientProvider: { _ in client })
+
+        let enriched = try await viewModel.enrichSearchHitsWithCoordinates([withoutCoords], api: client)
+
+        #expect(enriched.count == 1)
+        #expect(enriched[0].location.latitude == 33.0)
+        #expect(enriched[0].location.longitude == -84.0)
+    }
+
     @Test func courseSearchViewModelDeletesAndClearsRecents() {
         let store = InMemoryCourseRecentsStore(initialRecents: [
             CourseRecent(id: 1, displayName: "First Club"),
@@ -2643,10 +2726,58 @@ struct BigForeTests {
         #expect(round.courseLatitude == 33.75)
         #expect(round.courseLongitude == -84.39)
         #expect(round.teeName == "Blue")
+        #expect(players[0].teeName == "Blue")
+        #expect(players[0].teeGender == "male")
+        #expect(players[1].teeName == "Blue")
+        #expect(players[1].teeGender == "male")
         #expect(players.map(\.name) == ["Grant", "Alex", "Sam", "Jo", "Lee", "Kai", "Ari", "Bea"])
         #expect(firstScores.map(\.holeNumber) == [1, 2])
         #expect(firstScores[0].par == 4)
         #expect(firstScores[1].par == 5)
+    }
+
+    /// Regression guard: large `GolfRound` libraries with per-player `RoundPlayer.teeName` / `teeGender`
+    /// must fetch quickly (isolates SwiftData from SwiftUI tab freezes).
+    @Test func roundsLibraryInMemoryFetchesManyRoundsWithPerPlayerTees() throws {
+        let holes = (1...18).map { n in
+            RoundSetupHole(number: n, par: 4, yardage: 400, handicap: n)
+        }
+        let tee = RoundSetupTee(gender: "male", name: "Blue", totalYards: 7200, parTotal: 72, holes: holes)
+        let course = RoundSetupCourse(
+            externalID: 9901,
+            clubName: "Stress Club",
+            courseName: "Stress Course",
+            latitude: 33.75,
+            longitude: -84.39
+        )
+        let schema = Schema([GolfRound.self, RoundPlayer.self, HoleScore.self, PlayerProfile.self, GolfClub.self, ShotRecord.self, RoundWeatherSnapshot.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let modelContext = container.mainContext
+        let builder = RoundBuilder()
+
+        for i in 0..<45 {
+            let round = builder.makeRound(
+                course: course,
+                tee: tee,
+                scoringMode: .strokePlay,
+                playerNames: ["Alpha", "Bravo"],
+                startedAt: Date().addingTimeInterval(-Double(i) * 3600)
+            )
+            if i % 4 != 0 {
+                round.completedAt = .now
+            }
+            modelContext.insert(round)
+        }
+        try modelContext.save()
+
+        let descriptor = FetchDescriptor<GolfRound>(sortBy: [SortDescriptor(\.startedAt, order: .reverse)])
+        let fetched = try modelContext.fetch(descriptor)
+        #expect(fetched.count == 45)
+        let firstRound = try #require(fetched.first)
+        let firstPlayer = try #require(firstRound.players.first)
+        #expect(firstPlayer.teeName == "Blue")
+        #expect(firstPlayer.resolvedTeeName(in: firstRound) == "Blue")
     }
 
     @Test func roundPersistenceSavesFetchesPlayersScoresAndInverses() throws {

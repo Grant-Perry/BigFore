@@ -29,7 +29,7 @@ struct PlayEmptyStateCard: View {
                     Label("Find a Course", systemImage: "magnifyingglass")
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                 .tint(BigForeDesign.Palette.primaryAction)
 
                 if hasSavedCourses {
@@ -39,7 +39,7 @@ struct PlayEmptyStateCard: View {
                         Label("Open Saved Courses", systemImage: "tray.full")
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                     .tint(BigForeDesign.Palette.primaryAction)
                 }
             }

@@ -5,6 +5,8 @@ struct CourseDiscoveryCard: View {
     let subtitle: String?
     let detail: String?
     let badges: [String]
+    /// When set, shows a multicolor WeatherKit-style glyph before the badge chips.
+    var weatherSymbolName: String?
     let systemImage: String
     let accentColor: Color
     let showsChevron: Bool
@@ -14,6 +16,7 @@ struct CourseDiscoveryCard: View {
         subtitle: String? = nil,
         detail: String? = nil,
         badges: [String] = [],
+        weatherSymbolName: String? = nil,
         systemImage: String = "flag.fill",
         accentColor: Color = BigForeDesign.Palette.primaryAction,
         showsChevron: Bool = false
@@ -22,6 +25,7 @@ struct CourseDiscoveryCard: View {
         self.subtitle = subtitle
         self.detail = detail
         self.badges = badges
+        self.weatherSymbolName = weatherSymbolName
         self.systemImage = systemImage
         self.accentColor = accentColor
         self.showsChevron = showsChevron
@@ -49,7 +53,12 @@ struct CourseDiscoveryCard: View {
                         .lineLimit(2)
                 }
 
-                if !badges.isEmpty {
+                if let weatherSymbolName, !badges.isEmpty {
+                    HStack(alignment: .center, spacing: BigForeDesign.Spacing.small) {
+                        WeatherGlyph(symbolName: weatherSymbolName, font: .body)
+                        CourseDiscoveryBadgeRow(badges: badges, accentColor: accentColor)
+                    }
+                } else if !badges.isEmpty {
                     CourseDiscoveryBadgeRow(badges: badges, accentColor: accentColor)
                 }
 
@@ -83,14 +92,10 @@ private struct CourseDiscoveryBadgeRow: View {
     let accentColor: Color
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: BigForeDesign.Spacing.small) {
-                badgeViews
-            }
-
-            VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
-                badgeViews
-            }
+        // Avoid `ViewThatFits` here: in long `List`s it can trigger repeated multi-pass layout
+        // and wedge the main thread (Rounds tab with dozens of rows).
+        VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
+            badgeViews
         }
     }
 

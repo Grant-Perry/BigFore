@@ -11,6 +11,9 @@ extension Color {
 
    static let gpPastelMint = Color(#colorLiteral(red: 0.816, green: 1, blue: 0.647, alpha: 1)) // Pastel mint
    static let gpGreen = Color(#colorLiteral(red: 0.3911147745, green: 0.8800172018, blue: 0.2343971767, alpha: 1))
+   /// Warm gold for small controls (e.g. selected tee-shot chip).
+   static let gpGold = Color(red: 0.92, green: 0.72, blue: 0.26)
+   static let gpGoldHighlight = Color(red: 1.0, green: 0.93, blue: 0.58)
    static let gpMinty = Color(#colorLiteral(red: 0.5960784314, green: 1, blue: 0.5960784314, alpha: 1))
    static let gpFlatGreen = Color(#colorLiteral(red: 0.03852885208, green: 0.6235294342, blue: 0.3622174664, alpha: 1))
 

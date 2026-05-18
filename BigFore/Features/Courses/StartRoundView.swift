@@ -70,7 +70,7 @@ struct StartRoundView: View {
                     viewModel.startRound(modelContext: modelContext)
                 }
                 .frame(maxWidth: .infinity)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                 .tint(.green)
                 .disabled(!viewModel.canStartRound)
             }

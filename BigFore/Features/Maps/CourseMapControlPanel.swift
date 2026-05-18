@@ -80,7 +80,7 @@ struct CourseMapControlPanel: View {
                     Label(activeGeometry == nil ? "Find OSM Geometry" : "Refresh OSM Geometry", systemImage: "map")
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
             .controlSize(.small)
             .disabled(viewModel.isRefreshingGeometry)
 
@@ -131,7 +131,7 @@ struct CourseMapControlPanel: View {
                     .disabled(!viewModel.canMoveToNextHole)
                     .accessibilityHint("Moves the map and score target to the next hole.")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                 .controlSize(.small)
 
                 Text("Shots and scores target Hole \(viewModel.targetHoleNumber).")
@@ -158,7 +158,7 @@ struct CourseMapControlPanel: View {
                 Button("Clear Setup") {
                     viewModel.clearHoleSetup(modelContext: modelContext)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                 .controlSize(.small)
             }
             deleteStickyAnchorButtons
@@ -173,7 +173,7 @@ struct CourseMapControlPanel: View {
                         Button(mode.title) {
                             viewModel.selectTapMode(mode, geometries: courseGeometries)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                         .controlSize(.small)
                         .font(.callout.weight(.semibold))
                         .lineLimit(1)
@@ -182,7 +182,7 @@ struct CourseMapControlPanel: View {
                         Button(mode.title) {
                             viewModel.selectTapMode(mode, geometries: courseGeometries)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                         .controlSize(.small)
                         .font(.callout.weight(.semibold))
                         .lineLimit(1)
@@ -202,15 +202,16 @@ struct CourseMapControlPanel: View {
                     Button("Delete Tee", role: .destructive) {
                         viewModel.deleteStickyHoleAnchor(kind: .teeBox, modelContext: modelContext, geometries: courseGeometries)
                     }
+                    .buttonStyle(BigForePillButtonStyle.bigForeDestructive)
                 }
 
                 if hasUserMappedPin {
                     Button("Delete Pin", role: .destructive) {
                         viewModel.deleteStickyHoleAnchor(kind: .greenPin, modelContext: modelContext, geometries: courseGeometries)
                     }
+                    .buttonStyle(BigForePillButtonStyle.bigForeDestructive)
                 }
             }
-            .buttonStyle(.bordered)
             .controlSize(.small)
             .font(.callout.weight(.semibold))
             .lineLimit(1)
@@ -359,7 +360,7 @@ struct CourseMapControlPanel: View {
                 }
             }
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
         .controlSize(.small)
         .font(.callout.weight(.semibold))
         .lineLimit(1)
@@ -393,7 +394,7 @@ struct CourseMapControlPanel: View {
             }
             .accessibilityLabel("Reset north")
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
         .controlSize(.small)
         .font(.callout.weight(.semibold))
         .lineLimit(1)

@@ -72,6 +72,8 @@ struct RoundBuilder {
                     playerProfile: index == 0 ? primaryPlayerProfile : nil,
                     name: name,
                     displayOrder: index,
+                    teeName: tee.name,
+                    teeGender: tee.gender,
                     scores: tee.holes.map { hole in
                         HoleScore(
                             holeNumber: hole.number,

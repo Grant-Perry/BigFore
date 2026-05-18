@@ -1,6 +1,7 @@
+import SwiftData
 import SwiftUI
 
-enum ScorecardScoreResult: Equatable {
+enum ScorecardScoreResult: Equatable, Hashable {
     case albatross
     case eagle
     case birdie
@@ -9,26 +10,22 @@ enum ScorecardScoreResult: Equatable {
     case doubleBogey
     case triple
 
+    /// Single source of truth for strokes − par → scorecard bucket (fills, legend, quick score).
+    static func bucket(relativeToPar d: Int) -> ScorecardScoreResult? {
+        if d <= -3 { return .albatross }
+        if d == -2 { return .eagle }
+        if d == -1 { return .birdie }
+        if d == 0 { return .par }
+        if d == 1 { return .bogey }
+        if d == 2 { return .doubleBogey }
+        if d == 3 { return .triple }
+        return nil
+    }
+
     /// Returns `nil` when `relativeToPar` is worse than triple bogey (greater than 3 over par).
     init?(relativeToPar: Int) {
-        switch relativeToPar {
-        case ...(-3):
-            self = .albatross
-        case -2:
-            self = .eagle
-        case -1:
-            self = .birdie
-        case 0:
-            self = .par
-        case 1:
-            self = .bogey
-        case 2:
-            self = .doubleBogey
-        case 3:
-            self = .triple
-        default:
-            return nil
-        }
+        guard let bucket = Self.bucket(relativeToPar: relativeToPar) else { return nil }
+        self = bucket
     }
 
     var title: String {
@@ -91,24 +88,80 @@ enum ScorecardScoreResult: Equatable {
     var tint: Color {
         switch self {
         case .albatross:
-				 .gpAlbatross
+            .gpAlbatross
         case .eagle:
-				 .gpEagle
+            .gpEagle
         case .birdie:
-				 .gpBirdie
+            .gpBirdie
         case .par:
-				 .gpPar
+            .gpPar
         case .bogey:
-				 .gpBogey
+            .gpBogey
         case .doubleBogey:
-				 .gpDoubleBogey
-		   case .triple:
-				 .gpTripleBogey
-
+            .gpDoubleBogey
+        case .triple:
+            .gpTripleBogey
         }
     }
 
+    /// Solid fill used on printed / shared scorecard cells and legend swatches.
+    var solidColor: Color { tint }
+
     var fill: LinearGradient {
         BigForeDesign.Gradients.strongFill(for: tint)
+    }
+
+    /// Display order for legend rows (best → worst among standard buckets).
+    private static let legendDisplayOrder: [ScorecardScoreResult] = [
+        .albatross, .eagle, .birdie, .par, .bogey, .doubleBogey, .triple
+    ]
+
+    /// Per-result counts for scored holes among the visible players (`showsAllPlayers == false` → first player only).
+    private static func resultCounts(for round: GolfRound, showsAllPlayers: Bool) -> [ScorecardScoreResult: Int] {
+        let scoring = RoundScoring()
+        let players = scoring.sortedPlayers(for: round)
+        let visible = showsAllPlayers ? players : Array(players.prefix(1))
+        var counts: [ScorecardScoreResult: Int] = [:]
+        for player in visible {
+            for score in scoring.sortedScores(for: player) {
+                guard score.strokes > 0 else { continue }
+                guard let result = ScorecardScoreResult.bucket(relativeToPar: score.strokes - score.par) else { continue }
+                counts[result, default: 0] += 1
+            }
+        }
+        return counts
+    }
+
+    private static func hasAnyScoredHole(for round: GolfRound, showsAllPlayers: Bool) -> Bool {
+        let scoring = RoundScoring()
+        let players = scoring.sortedPlayers(for: round)
+        let visible = showsAllPlayers ? players : Array(players.prefix(1))
+        for player in visible {
+            for score in scoring.sortedScores(for: player) {
+                if score.strokes > 0 { return true }
+            }
+        }
+        return false
+    }
+
+    /// Legend rows with counts, ordered best → worst; omits categories with zero holes.
+    /// When `includeAlbatrossWhenAbsent` is true and the round has any scored holes for the visible players, **Albatross** is included even at 0 so the key always defines the top bucket (e.g. 3 on a par 5 is still an eagle, not an albatross).
+    static func legendRows(for round: GolfRound, showsAllPlayers: Bool, includeAlbatrossWhenAbsent: Bool = true) -> [(result: ScorecardScoreResult, count: Int)] {
+        let counts = resultCounts(for: round, showsAllPlayers: showsAllPlayers)
+        let padAlbatross = includeAlbatrossWhenAbsent && hasAnyScoredHole(for: round, showsAllPlayers: showsAllPlayers) && (counts[.albatross] ?? 0) == 0
+        return Self.legendDisplayOrder.compactMap { result in
+            if let count = counts[result], count > 0 {
+                return (result, count)
+            }
+            if result == .albatross, padAlbatross {
+                return (result, 0)
+            }
+            return nil
+        }
+    }
+
+    /// Legend entries for score colors that actually appear for the visible players’ scored holes.
+    static func legendResults(for round: GolfRound, showsAllPlayers: Bool) -> [ScorecardScoreResult] {
+        legendRows(for: round, showsAllPlayers: showsAllPlayers).map(\.result)
     }
 }

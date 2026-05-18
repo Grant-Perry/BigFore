@@ -14,10 +14,29 @@ struct StatisticsView: View {
                 StatisticRow(title: "Fairways", value: fairwayText)
                 StatisticRow(title: "GIR", value: girText)
             } footer: {
-                Text("Stats use completed rounds and scorecard fields. Shot tracking will make this sharper over time.")
+                Text(footerCopy)
+            }
+
+            if scoring.mappedShotRecords(in: completedRounds).isEmpty == false {
+                Section {
+                    StatisticRow(title: "Mapped Shots (total)", value: "\(scoring.mappedShotRecords(in: completedRounds).count)")
+                    StatisticRow(title: "Mapped Shots / Round", value: mappedShotsPerRoundText)
+                    StatisticRow(title: "Avg Shot Distance", value: averageShotDistanceText)
+                } header: {
+                    Text("From GPS shots")
+                } footer: {
+                    Text("Distances use saved map shot segments. Rounds without tracked shots are excluded from averages where noted.")
+                }
             }
         }
         .navigationTitle("Statistics")
+    }
+
+    private var footerCopy: String {
+        if scoring.mappedShotRecords(in: completedRounds).isEmpty {
+            return "Stats use completed rounds and scorecard fields. Track shots on the course map to unlock shot-based averages here."
+        }
+        return "Scorecard stats use completed rounds. Shot rows refine mapped-shot averages."
     }
 
     private var completedRounds: [GolfRound] {
@@ -87,6 +106,29 @@ struct StatisticsView: View {
 
         let hits = girValues.filter { $0 }.count
         return "\(hits)/\(girValues.count)"
+    }
+
+    private var mappedShotsPerRoundText: String {
+        let shots = scoring.mappedShotRecords(in: completedRounds)
+        guard !shots.isEmpty, !completedRounds.isEmpty else {
+            return "--"
+        }
+
+        let withShots = completedRounds.filter { !$0.shotRecords.isEmpty }
+        guard !withShots.isEmpty else {
+            return "--"
+        }
+
+        let average = Double(shots.count) / Double(withShots.count)
+        return average.formatted(.number.precision(.fractionLength(1)))
+    }
+
+    private var averageShotDistanceText: String {
+        guard let avg = scoring.averageMappedShotDistanceYards(in: completedRounds) else {
+            return "--"
+        }
+
+        return "\(avg.rounded().formatted(.number.precision(.fractionLength(0)))) yd"
     }
 }
 

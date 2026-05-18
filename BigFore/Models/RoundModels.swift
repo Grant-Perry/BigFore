@@ -43,14 +43,28 @@ final class RoundPlayer {
     var id: UUID
     var name: String
     var displayOrder: Int
+    /// Tee set for this player; empty strings mean "inherit from `GolfRound`" for legacy rounds.
+    /// Defaults are required for SwiftData store migration when adding these properties.
+    var teeName: String = ""
+    var teeGender: String = ""
     @Relationship(deleteRule: .cascade, inverse: \HoleScore.player) var scores: [HoleScore]
     @Relationship(deleteRule: .cascade, inverse: \ShotRecord.player) var shotRecords: [ShotRecord] = []
 
-    init(id: UUID = UUID(), playerProfile: PlayerProfile? = nil, name: String, displayOrder: Int, scores: [HoleScore] = []) {
+    init(
+        id: UUID = UUID(),
+        playerProfile: PlayerProfile? = nil,
+        name: String,
+        displayOrder: Int,
+        teeName: String = "",
+        teeGender: String = "",
+        scores: [HoleScore] = []
+    ) {
         self.id = id
         self.playerProfile = playerProfile
         self.name = name
         self.displayOrder = displayOrder
+        self.teeName = teeName
+        self.teeGender = teeGender
         self.scores = scores
     }
 }
@@ -101,6 +115,18 @@ extension GolfRound {
 
     var isComplete: Bool {
         completedAt != nil
+    }
+}
+
+extension RoundPlayer {
+    func resolvedTeeName(in round: GolfRound) -> String {
+        let trimmed = teeName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? round.teeName : teeName
+    }
+
+    func resolvedTeeGender(in round: GolfRound) -> String {
+        let trimmed = teeGender.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? round.teeGender : teeGender
     }
 }
 

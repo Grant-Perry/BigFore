@@ -1,6 +1,63 @@
 import SwiftUI
 import UIKit
 
+// MARK: - Shared scorecard share / landscape helpers
+
+private func latestRoundWeatherSnapshot(for round: GolfRound) -> RoundWeatherSnapshot? {
+    round.weatherSnapshots.max { $0.observedAt < $1.observedAt }
+}
+
+private func roundWeatherDetailLine(from snapshot: RoundWeatherSnapshot) -> String? {
+    var parts: [String] = []
+    if let conditionText = snapshot.conditionText {
+        parts.append(conditionText)
+    }
+    if let temperatureText = snapshot.temperatureText {
+        parts.append(temperatureText)
+    }
+    if let windSpeed = snapshot.windSpeedMilesPerHour {
+        parts.append("Wind \(windSpeed.rounded().formatted(.number.precision(.fractionLength(0)))) mph")
+    }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+}
+
+/// Single style for scorecard KEY rows: `Title: ` in regular black, count in bold black (same size).
+private struct ScorecardKeyLegendLabel: View {
+    let title: String
+    let count: Int
+    var fontSize: CGFloat = 11
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text("\(title): ")
+                .font(.system(size: fontSize, weight: .regular, design: .rounded))
+                .foregroundStyle(.black)
+            Text("\(count)")
+                .font(.system(size: fontSize, weight: .bold, design: .rounded))
+                .foregroundStyle(.black)
+                .monospacedDigit()
+        }
+        .lineLimit(1)
+    }
+}
+
+@ViewBuilder
+private func roundWeatherHeadline(for round: GolfRound, glyphFont: Font = .title2, textFont: Font = .subheadline) -> some View {
+    if let snapshot = latestRoundWeatherSnapshot(for: round),
+       let line = roundWeatherDetailLine(from: snapshot) {
+        HStack(alignment: .center, spacing: 8) {
+            WeatherGlyph(symbolName: snapshot.symbolName, font: glyphFont)
+            Text(line)
+                .font(textFont)
+                .foregroundStyle(.secondary)
+        }
+    } else {
+        Text("Weather not captured")
+            .font(textFont)
+            .foregroundStyle(.secondary)
+    }
+}
+
 struct ScorecardShareSheet: View {
     let round: GolfRound
     let showsAllPlayers: Bool
@@ -21,7 +78,7 @@ struct ScorecardShareSheet: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                     .controlSize(.large)
                     .padding(.horizontal)
                 } else if let errorText {
@@ -100,9 +157,7 @@ struct ScorecardSharePreview: View {
                     .font(.title.bold())
                 Text("\(nine.title) · \(headerDetailText)")
                     .font(.subheadline.weight(.semibold))
-                Text(weatherText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                roundWeatherHeadline(for: round, glyphFont: .title2, textFont: .subheadline)
 
                 Divider()
                     .padding(.vertical, 2)
@@ -131,25 +186,6 @@ struct ScorecardSharePreview: View {
     private var parTotalText: String {
         let parTotal = primaryScores.reduce(0) { $0 + $1.par }
         return parTotal > 0 ? "Par \(parTotal)" : "Par --"
-    }
-
-    private var weatherText: String {
-        guard let snapshot = round.weatherSnapshots.sorted(by: { $0.observedAt > $1.observedAt }).first else {
-            return "Weather: Not captured"
-        }
-
-        var parts: [String] = []
-        if let conditionText = snapshot.conditionText {
-            parts.append(conditionText)
-        }
-        if let temperatureText = snapshot.temperatureText {
-            parts.append(temperatureText)
-        }
-        if let windSpeed = snapshot.windSpeedMilesPerHour {
-            parts.append("Wind \(windSpeed.rounded().formatted(.number.precision(.fractionLength(0)))) mph")
-        }
-
-        return parts.isEmpty ? "Weather: Not captured" : "Weather: \(parts.joined(separator: " · "))"
     }
 
     private var scoreGrid: some View {
@@ -277,18 +313,26 @@ struct ScorecardSharePreview: View {
         return isHeader ? Color.black.opacity(0.84) : Color.white
     }
 
+    @ViewBuilder
     var scorecardLegend: some View {
-        HStack(spacing: 10) {
-            ForEach(ScorecardScoreResult.legendItems) { item in
-                HStack(spacing: 4) {
-                    Rectangle()
-                        .fill(item.color)
-                        .frame(width: 10, height: 10)
-                    Text(item.title)
+        let rows = ScorecardScoreResult.legendRows(for: round, showsAllPlayers: showsAllPlayers)
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("KEY:")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.black)
+                HStack(spacing: 10) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                        HStack(spacing: 4) {
+                            Rectangle()
+                                .fill(row.result.solidColor)
+                                .frame(width: 10, height: 10)
+                            ScorecardKeyLegendLabel(title: row.result.title, count: row.count, fontSize: 11)
+                        }
+                    }
                 }
             }
         }
-        .font(.system(size: 8, weight: .medium))
     }
 
     private func totalText(for title: String, values: [String]) -> String {
@@ -318,7 +362,7 @@ struct ScorecardSharePreview: View {
         let values = frontBackValues(for: scores) { score in
             ShareScoreCellValue(
                 text: score.strokes > 0 ? "\(score.strokes)" : "--",
-                fill: score.strokes > 0 ? ScorecardScoreResult(relativeToPar: score.strokes - score.par)?.solidColor : nil,
+                fill: score.strokes > 0 ? ScorecardScoreResult.bucket(relativeToPar: score.strokes - score.par)?.solidColor : nil,
                 isTotal: false
             )
         } total: { selectedScores in
@@ -368,7 +412,7 @@ struct FullScorecardShareView: View {
             }
             .fixedSize(horizontal: true, vertical: false)
 
-            ScorecardColorKey()
+            ScorecardColorKey(round: round, showsAllPlayers: showsAllPlayers)
         }
         .padding(18)
         .background(.white)
@@ -392,9 +436,7 @@ private struct FullScorecardHeader: View {
                     .font(.title.bold())
                 Text("\(parTotalText) · \(round.startedAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.subheadline.weight(.semibold))
-                Text(weatherText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                roundWeatherHeadline(for: round, glyphFont: .title2, textFont: .subheadline)
                 Text(round.players.sorted { $0.displayOrder < $1.displayOrder }.first?.name ?? "Player")
                     .font(.headline.bold())
             }
@@ -412,25 +454,6 @@ private struct FullScorecardHeader: View {
     private var parTotalText: String {
         let parTotal = primaryScores.reduce(0) { $0 + $1.par }
         return parTotal > 0 ? "Par \(parTotal)" : "Par --"
-    }
-
-    private var weatherText: String {
-        guard let snapshot = round.weatherSnapshots.sorted(by: { $0.observedAt > $1.observedAt }).first else {
-            return "Weather: Not captured"
-        }
-
-        var parts: [String] = []
-        if let conditionText = snapshot.conditionText {
-            parts.append(conditionText)
-        }
-        if let temperatureText = snapshot.temperatureText {
-            parts.append(temperatureText)
-        }
-        if let windSpeed = snapshot.windSpeedMilesPerHour {
-            parts.append("Wind \(windSpeed.rounded().formatted(.number.precision(.fractionLength(0)))) mph")
-        }
-
-        return parts.isEmpty ? "Weather: Not captured" : "Weather: \(parts.joined(separator: " · "))"
     }
 
     private func scoreStrokesAndPar(for holes: ClosedRange<Int>) -> (strokes: Int, par: Int)? {
@@ -554,18 +577,33 @@ private struct ScorecardScoreSummaryCard: View {
 }
 
 private struct ScorecardColorKey: View {
+    let round: GolfRound
+    let showsAllPlayers: Bool
+
+    private var rows: [(result: ScorecardScoreResult, count: Int)] {
+        ScorecardScoreResult.legendRows(for: round, showsAllPlayers: showsAllPlayers)
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
-            ForEach(ScorecardScoreResult.legendItems) { item in
-                HStack(spacing: 5) {
-                    Rectangle()
-                        .fill(item.color)
-                        .frame(width: 12, height: 12)
-                    Text(item.title)
+        Group {
+            if !rows.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("KEY:")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.black)
+                    HStack(spacing: 12) {
+                        ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                            HStack(spacing: 5) {
+                                Rectangle()
+                                    .fill(row.result.solidColor)
+                                    .frame(width: 12, height: 12)
+                                ScorecardKeyLegendLabel(title: row.result.title, count: row.count, fontSize: 11)
+                            }
+                        }
+                    }
                 }
             }
         }
-        .font(.caption.weight(.medium))
     }
 }
 
@@ -622,9 +660,7 @@ private struct ScorecardShareSummaryCard: View {
                     Text("\(parTotalText) · \(round.startedAt.formatted(date: .abbreviated, time: .shortened))")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    Text(weatherText)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    roundWeatherHeadline(for: round, glyphFont: .title3, textFont: .subheadline)
                 }
 
                 Spacer()
@@ -650,46 +686,5 @@ private struct ScorecardShareSummaryCard: View {
         let parTotal = primaryScores.reduce(0) { $0 + $1.par }
         return parTotal > 0 ? "Par \(parTotal)" : "Par --"
     }
-
-    private var weatherText: String {
-        guard let snapshot = round.weatherSnapshots.sorted(by: { $0.observedAt > $1.observedAt }).first else {
-            return "Weather: Not captured"
-        }
-
-        var parts: [String] = []
-        if let conditionText = snapshot.conditionText {
-            parts.append(conditionText)
-        }
-        if let temperatureText = snapshot.temperatureText {
-            parts.append(temperatureText)
-        }
-        if let windSpeed = snapshot.windSpeedMilesPerHour {
-            parts.append("Wind \(windSpeed.rounded().formatted(.number.precision(.fractionLength(0)))) mph")
-        }
-
-        return parts.isEmpty ? "Weather: Not captured" : "Weather: \(parts.joined(separator: " · "))"
-    }
 }
 
-private struct ScorecardLegendItem: Identifiable {
-    let id = UUID()
-    let title: String
-    let color: Color
-}
-
-private extension ScorecardScoreResult {
-    var solidColor: Color {
-        tint
-    }
-
-    static var legendItems: [ScorecardLegendItem] {
-        [
-            ScorecardLegendItem(title: "Eagle+", color: ScorecardScoreResult(relativeToPar: -2)!.solidColor),
-            ScorecardLegendItem(title: "Birdie", color: ScorecardScoreResult(relativeToPar: -1)!.solidColor),
-            ScorecardLegendItem(title: "Par", color: ScorecardScoreResult(relativeToPar: 0)!.solidColor),
-            ScorecardLegendItem(title: "Bogey", color: ScorecardScoreResult(relativeToPar: 1)!.solidColor),
-            ScorecardLegendItem(title: "Double", color: ScorecardScoreResult(relativeToPar: 2)!.solidColor),
-            ScorecardLegendItem(title: "Triple", color: ScorecardScoreResult(relativeToPar: 3)!.solidColor)
-        ]
-    }
-}

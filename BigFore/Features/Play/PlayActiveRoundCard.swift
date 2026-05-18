@@ -5,6 +5,9 @@ struct PlayActiveRoundCard: View {
     let viewModel: PlayHomeViewModel
     let weatherSummary: WeatherSummary?
     let weatherErrorText: String?
+    let onResume: () -> Void
+    let onOpenGPS: () -> Void
+    let onSelectPlayerScorecard: (UUID) -> Void
 
     private var mapPoint: CourseMapPoint? {
         CourseMapPoint(round: round)
@@ -14,7 +17,11 @@ struct PlayActiveRoundCard: View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.large) {
             header
             weatherContext
-            PlayStatGrid(round: round, viewModel: viewModel)
+            PlayStatGrid(
+                round: round,
+                viewModel: viewModel,
+                onSelectPlayerScorecard: onSelectPlayerScorecard
+            )
             leaderSummary
             actions
             gpsMissingMessage
@@ -31,16 +38,30 @@ struct PlayActiveRoundCard: View {
     @ViewBuilder
     private var weatherContext: some View {
         if let weatherSummary {
-            HStack(spacing: BigForeDesign.Spacing.medium) {
-                Label(weatherSummary.temperatureText, systemImage: weatherSummary.symbolName)
-                    .font(.subheadline.weight(.semibold))
+            HStack(alignment: .center, spacing: BigForeDesign.Spacing.medium) {
+                WeatherGlyph(symbolName: weatherSummary.symbolName, font: .title2)
 
-                if let windText = weatherSummary.windText {
-                    Label(windText, systemImage: "wind")
-                        .font(.subheadline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        if let conditionText = weatherSummary.conditionText {
+                            Text(conditionText)
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        Text(weatherSummary.temperatureText)
+                            .font(.subheadline.weight(.semibold))
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(.secondary)
+
+                    if let windText = weatherSummary.windText {
+                        Label(windText, systemImage: "wind")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
+
+                Spacer(minLength: 0)
             }
-            .foregroundStyle(.secondary)
             .accessibilityElement(children: .combine)
         } else if let weatherErrorText {
             Label(weatherErrorText, systemImage: "exclamationmark.triangle")
@@ -91,26 +112,65 @@ struct PlayActiveRoundCard: View {
     }
 
     private var actions: some View {
-        HStack(spacing: BigForeDesign.Spacing.medium) {
-            NavigationLink {
-                ScorecardView(round: round)
-            } label: {
-                Label("Resume", systemImage: "scorecard")
-                    .frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(BigForeDesign.Palette.primaryAction)
-
-            if let mapPoint {
-                NavigationLink {
-                    CourseMapView(course: mapPoint, currentHoleNumber: round.currentHole, round: round)
-                } label: {
-                    Label("GPS", systemImage: "location.viewfinder")
-                        .frame(maxWidth: .infinity, minHeight: 44)
+        HStack(alignment: .center, spacing: BigForeDesign.Spacing.medium) {
+            Button(action: onResume) {
+                HStack(spacing: 8) {
+                    Image(systemName: "list.clipboard")
+                        .symbolRenderingMode(.hierarchical)
+                        .font(.subheadline.weight(.bold))
+                    Text("Resume")
+                        .font(.subheadline.weight(.semibold))
                 }
-                .buttonStyle(.bordered)
-                .tint(BigForeDesign.Palette.primaryAction)
+                .foregroundStyle(.white)
+                .padding(.horizontal, BigForeDesign.Spacing.large)
+                .padding(.vertical, 12)
+                .background {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.gpGreen.opacity(0.95),
+                                    Color.gpFlatGreen.opacity(0.92)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .shadow(color: Color.gpGreen.opacity(0.35), radius: 8, x: 0, y: 3)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
+                }
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Resume round, scorecard")
+
+            if mapPoint != nil {
+                Button(action: onOpenGPS) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "location.viewfinder")
+                            .font(.subheadline.weight(.bold))
+                        Text("GPS")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(BigForeDesign.Palette.primaryAction)
+                    .padding(.horizontal, BigForeDesign.Spacing.large)
+                    .padding(.vertical, 12)
+                    .background {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.primary.opacity(0.06))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(BigForeDesign.Palette.primaryAction.opacity(0.55), lineWidth: 1.5)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open GPS map")
+            }
+
+            Spacer(minLength: 0)
         }
     }
 

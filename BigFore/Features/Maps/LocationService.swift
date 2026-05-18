@@ -44,6 +44,34 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         errorMessage = nil
     }
 
+    /// Polls for a GPS fix after ``requestLocationAccess()`` has been called.
+    func waitForLocationFix(timeout: Duration = .seconds(12)) async -> CLLocation? {
+        switch authorizationStatus {
+        case .denied, .restricted:
+            return nil
+        default:
+            break
+        }
+
+        requestLocationAccess()
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            manager.requestLocation()
+        }
+
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if let location = currentLocation, location.horizontalAccuracy >= 0 {
+                return location
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+
+        if let location = currentLocation, location.horizontalAccuracy >= 0 {
+            return location
+        }
+        return nil
+    }
+
     var currentAccuracyText: String? {
         guard let horizontalAccuracy = currentLocation?.horizontalAccuracy, horizontalAccuracy >= 0 else {
             return nil

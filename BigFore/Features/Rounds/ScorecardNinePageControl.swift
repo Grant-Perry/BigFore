@@ -1,46 +1,89 @@
 import SwiftUI
 
+/// Front / Back nine switcher, grid **#** / **+** mode, and **Stack** (last chip).
 struct ScorecardNinePageControl: View {
     let nines: [ScorecardNine]
     @Binding var selectedNine: ScorecardNine
+    @Binding var gridShowsStrokeCounts: Bool
+    @Binding var stackScoringEnabled: Bool
+    let scoringMode: ScoringMode
+    let stackSelectionCount: Int
+    let clearStackSelection: () -> Void
 
     var body: some View {
-        HStack(spacing: BigForeDesign.Spacing.small) {
+        HStack(spacing: 8) {
             ForEach(nines) { nine in
-                Button {
+                chip(
+                    title: nine.shortSwitcherTitle,
+                    isSelected: selectedNine == nine,
+                    useHeavyDigitFont: false
+                ) {
                     selectedNine = nine
-                } label: {
-                    Text(nine.title)
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .frame(maxWidth: .infinity, minHeight: 32)
-                        .padding(.horizontal, BigForeDesign.Spacing.small)
-                        .background(fill(for: nine), in: Capsule())
-                        .overlay {
-                            Capsule()
-                                .stroke(stroke(for: nine), lineWidth: 1)
-                        }
                 }
-                .buttonStyle(.plain)
-                .frame(minHeight: 44)
                 .accessibilityLabel("Show \(nine.title)")
                 .accessibilityAddTraits(selectedNine == nine ? .isSelected : [])
             }
+
+            chip(
+                title: gridShowsStrokeCounts ? "#" : "+",
+                isSelected: gridShowsStrokeCounts,
+                useHeavyDigitFont: true
+            ) {
+                gridShowsStrokeCounts.toggle()
+            }
+            .accessibilityLabel(gridPlusModeAccessibilityLabel)
+            .accessibilityHint(gridToggleAccessibilityHint)
+
+            chip(
+                title: "Stack",
+                isSelected: stackScoringEnabled,
+                useHeavyDigitFont: false
+            ) {
+                stackScoringEnabled.toggle()
+            }
+            .accessibilityLabel(stackScoringEnabled ? "Stack scoring on" : "Stack scoring off")
+            .accessibilityHint("Select several holes, then apply one quick score to all selected.")
+
+            if stackScoringEnabled {
+                Text("\(stackSelectionCount) selected")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Button("Clear", action: clearStackSelection)
+                    .font(.caption2.weight(.semibold))
+                    .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
+            }
+
+            Spacer(minLength: 0)
         }
     }
 
-    private func fill(for nine: ScorecardNine) -> LinearGradient {
-        selectedNine == nine
-            ? LinearGradient(
-                colors: [Color.white.opacity(0.22), Color.white.opacity(0.08)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            : BigForeDesign.Gradients.softFill(for: .secondary)
+    private var gridPlusModeAccessibilityLabel: String {
+        if gridShowsStrokeCounts {
+            return "Stroke counts in grid"
+        }
+        return scoringMode == .stableford ? "Stableford points in grid" : "Versus par in grid"
     }
 
-    private func stroke(for nine: ScorecardNine) -> Color {
-        selectedNine == nine ? Color.white.opacity(0.5) : .secondary.opacity(0.16)
+    private var gridToggleAccessibilityHint: String {
+        let versus = scoringMode == .stableford ? "Stableford points" : "versus par"
+        return "Switches hole squares between stroke counts (#) and \(versus) (+)."
+    }
+
+    private func chip(
+        title: String,
+        isSelected: Bool,
+        useHeavyDigitFont: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(useHeavyDigitFont ? .caption.weight(.heavy) : .caption.weight(.semibold))
+                .monospacedDigit()
+                .lineLimit(1)
+        }
+        .buttonStyle(BigForePillButtonStyle.bigForeToggle(isSelected: isSelected))
     }
 }

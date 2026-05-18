@@ -12,6 +12,7 @@ struct CourseSearchView: View {
         NavigationStack {
             List {
                 searchSection
+                nearbySection
                 resultsSection
 
                 if viewModel.isLoadingCourse {
@@ -38,6 +39,9 @@ struct CourseSearchView: View {
             .scrollDismissesKeyboard(.interactively)
             .onAppear {
                 viewModel.apiKey = apiKey
+            }
+            .onDisappear {
+                viewModel.locationService.stopLocationUpdates()
             }
             .confirmationDialog(
                 "Clear all recent courses?",
@@ -77,9 +81,71 @@ struct CourseSearchView: View {
                                 .fontWeight(.semibold)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                     .disabled(!viewModel.hasSearchQuery || viewModel.isSearching)
                 }
+
+                TextField("City or ZIP (optional)", text: $viewModel.nearbyCityOrZIP)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+
+                Text("Leave blank to anchor on your GPS. When filled, Find closest centers on that place and uses the same mile radius (starts at 10 mi).")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+
+                HStack(alignment: .center, spacing: BigForeDesign.Spacing.medium) {
+                    Button {
+                        isRecentsExpanded = false
+                        Task { await viewModel.findClosestCourses() }
+                    } label: {
+                        if viewModel.isFindingClosest {
+                            ProgressView()
+                        } else {
+                            Label("Find closest", systemImage: "location.circle.fill")
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .buttonStyle(BigForePillButtonStyle.bigForePrimary)
+                    .disabled(viewModel.isFindingClosest || viewModel.isSearching)
+
+                    Spacer(minLength: 0)
+                }
+
+                if viewModel.isNearbySessionActive {
+                    VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
+                        Text("Within \(Int(viewModel.nearbyRadiusMiles)) mi")
+                            .font(.subheadline.weight(.semibold))
+
+                        Slider(
+                            value: $viewModel.nearbyRadiusMiles,
+                            in: CourseSearchViewModel.nearbyRadiusSliderClosedRange,
+                            step: CourseSearchViewModel.nearbyRadiusSliderStep,
+                            label: {
+                                Text("Search radius in miles")
+                            },
+                            onEditingChanged: { isEditing in
+                                if !isEditing {
+                                    Task { await viewModel.refreshNearbyRadiusAfterSliderReleased() }
+                                }
+                            }
+                        )
+                        .labelsHidden()
+                        .disabled(viewModel.isFindingClosest || viewModel.isSearching || viewModel.isRefreshingNearbyForRadius)
+
+                        if viewModel.isRefreshingNearbyForRadius {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+
+                        Text("Release the slider to search again at the new distance (no search while you drag).")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                Text("Find closest uses your GPS or an optional city/ZIP center and the mile radius to search Apple Maps for golf POIs, sorted by straight-line distance. The course database has no lat/lon search, so tapping a pin matches it by name and coordinates.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
 
                 if let errorMessage = viewModel.errorMessage {
                     CourseSearchMessageRow(message: errorMessage, systemImage: "exclamationmark.triangle.fill", tint: BigForeDesign.Palette.destructive)
@@ -88,6 +154,51 @@ struct CourseSearchView: View {
                 }
             }
             .padding(.vertical, BigForeDesign.Spacing.xSmall)
+        }
+    }
+
+    @ViewBuilder
+    private var nearbySection: some View {
+        if viewModel.isFindingClosest || !viewModel.nearbyMapKitRows.isEmpty || viewModel.isNearbySessionActive {
+            Section {
+                if viewModel.isFindingClosest {
+                    ProgressView("Finding nearby courses")
+                } else if viewModel.nearbyMapKitRows.isEmpty {
+                    ContentUnavailableView(
+                        "No courses in range",
+                        systemImage: "location.slash",
+                        description: Text("Move the distance slider up, adjust city or ZIP, or tap Find closest again.")
+                    )
+                } else {
+                    ForEach(viewModel.nearbyMapKitRows) { row in
+                        Button {
+                            Task {
+                                await viewModel.selectNearbyMapRow(row)
+                                await viewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
+                            }
+                        } label: {
+                            CourseDiscoveryCard(
+                                title: row.title,
+                                subtitle: row.subtitle ?? "Apple Maps golf POI",
+                                detail: "About \(row.distanceCaption) away · opens matched course in the database.",
+                                badges: ["Map"],
+                                systemImage: "location.fill",
+                                accentColor: BigForeDesign.Palette.secondaryAction,
+                                showsChevron: true
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    }
+                }
+            } header: {
+                CourseSearchSectionHeader(
+                    title: "Near you",
+                    detail: viewModel.nearbyMapKitRows.isEmpty ? nil : "\(viewModel.nearbyMapKitRows.count)"
+                )
+            }
         }
     }
 
@@ -286,12 +397,12 @@ struct CourseDetailSection: View {
                     Label("Start Round", systemImage: "figure.golf")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                 .tint(.green)
             } else {
                 Button("Start Round", systemImage: "figure.golf") {}
                     .frame(maxWidth: .infinity)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                     .tint(.green)
                     .disabled(true)
 

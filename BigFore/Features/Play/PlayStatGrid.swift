@@ -3,6 +3,7 @@ import SwiftUI
 struct PlayStatGrid: View {
     let round: GolfRound
     let viewModel: PlayHomeViewModel
+    let onSelectPlayerScorecard: (UUID) -> Void
 
     var body: some View {
         Grid(horizontalSpacing: BigForeDesign.Spacing.medium, verticalSpacing: BigForeDesign.Spacing.small) {
@@ -24,7 +25,8 @@ struct PlayStatGrid: View {
                 PlayPlayerScoresTile(
                     round: round,
                     playerCount: viewModel.playerCount(for: round),
-                    scoreSummaries: viewModel.playerScoreSummaries(for: round)
+                    scoreSummaries: viewModel.playerScoreSummaries(for: round),
+                    onSelectPlayerScorecard: onSelectPlayerScorecard
                 )
                 PlayStatTile(
                     title: viewModel.gpsTitleText(for: round),
@@ -71,6 +73,7 @@ private struct PlayPlayerScoresTile: View {
     let round: GolfRound
     let playerCount: Int
     let scoreSummaries: [PlayPlayerScoreSummary]
+    let onSelectPlayerScorecard: (UUID) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -81,8 +84,8 @@ private struct PlayPlayerScoresTile: View {
             ScrollView(.vertical) {
                 VStack(spacing: 3) {
                     ForEach(scoreSummaries) { summary in
-                        NavigationLink {
-                            ScorecardView(round: round, focusedPlayerID: summary.id)
+                        Button {
+                            onSelectPlayerScorecard(summary.id)
                         } label: {
                             PlayPlayerScoreRow(summary: summary)
                         }

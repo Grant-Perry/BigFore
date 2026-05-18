@@ -78,6 +78,20 @@ struct RoundScoring {
         return value > 0 ? "+\(value)" : "\(value)"
     }
 
+    /// GPS/map `ShotRecord` rows across rounds (e.g. completed history).
+    func mappedShotRecords(in rounds: [GolfRound]) -> [ShotRecord] {
+        rounds.flatMap(\.shotRecords)
+    }
+
+    func averageMappedShotDistanceYards(in rounds: [GolfRound]) -> Double? {
+        let yards = mappedShotRecords(in: rounds).map(\.distanceYards).filter { $0 > 0 }
+        guard !yards.isEmpty else {
+            return nil
+        }
+
+        return Double(yards.reduce(0, +)) / Double(yards.count)
+    }
+
     func summary(for player: RoundPlayer, scoringMode: ScoringMode) -> String {
         if scoringMode == .stableford {
             return "\(stablefordPoints(for: player)) pts"

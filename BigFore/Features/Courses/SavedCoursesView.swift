@@ -129,12 +129,12 @@ struct SavedCourseDetailView: View {
                         Label("Start Round", systemImage: "figure.golf")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                     .tint(.green)
                 } else {
                     Button("Start Round", systemImage: "figure.golf") {}
                         .frame(maxWidth: .infinity)
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                         .tint(.green)
                         .disabled(true)
 
@@ -164,16 +164,16 @@ struct SavedCourseDetailView: View {
                     }
                     .disabled(viewModel.locationService.currentLocation == nil)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                 HStack {
                     Button("Save Course Pin") {
                         viewModel.saveCoursePin(course: course, modelContext: modelContext)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                     Button("Clear Pin") {
                         viewModel.clearCoursePin(course: course, modelContext: modelContext)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                     .disabled(course.latitude == nil && course.longitude == nil)
                 }
                 if let pinStatusMessage = viewModel.pinStatusMessage {

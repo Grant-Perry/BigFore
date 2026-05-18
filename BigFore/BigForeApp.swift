@@ -10,7 +10,8 @@ import SwiftData
 
 @main
 struct BigForeApp: App {
-    var sharedModelContainer: ModelContainer = {
+    /// UI tests pass `-BigForeUITestInMemory` so each run uses a fresh store (no device migration / stale DB).
+    private static func makeSharedModelContainer() throws -> ModelContainer {
         let schema = Schema([
             GolfCourse.self,
             GolfCourseTee.self,
@@ -27,10 +28,15 @@ struct BigForeApp: App {
             ShotRecord.self,
             RoundWeatherSnapshot.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let inMemory = ProcessInfo.processInfo.arguments.contains("-BigForeUITestInMemory")
+        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
 
+        return try ModelContainer(for: schema, configurations: [modelConfiguration])
+    }
+
+    var sharedModelContainer: ModelContainer = {
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try Self.makeSharedModelContainer()
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }

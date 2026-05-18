@@ -25,35 +25,49 @@ struct ScorecardScoresSectionCard: View {
                     .lineLimit(1)
             }
 
-            VStack(spacing: BigForeDesign.Spacing.small) {
+            if viewModel.players.count > 1 {
+                Text("Use the lines on the left to reorder. Long-press a player card to remove them from the round.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            VStack(spacing: BigForeDesign.Spacing.medium) {
                 let players = viewModel.scoreEntryPlayers
                 ForEach(Array(players.enumerated()), id: \.element.id) { index, player in
                     insertionDropZone(at: index)
 
                     if let score = viewModel.sortedScores(for: player).first(where: { $0.holeNumber == viewModel.round.currentHole }) {
-                        ScorecardPlayerHoleScoreRow(
-                            player: player,
-                            score: score,
-                            scoringMode: viewModel.round.scoringMode,
-                            result: viewModel.scoreResult(for: score),
-                            isSelected: player.id == viewModel.primaryPlayer?.id,
-                            selectPlayer: {
-                                viewModel.selectPlayer(player.id)
-                            },
-                            saveScore: saveScore
-                        )
-                        .opacity(draggingPlayerID == player.id ? 0.55 : 1)
-                        .onDrag {
-                            draggingPlayerID = player.id
-                            return NSItemProvider(object: player.id.uuidString as NSString)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                playerPendingDeletion = player
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                        let showReorderHandle = viewModel.players.count > 1
+                        HStack(alignment: .center, spacing: BigForeDesign.Spacing.small) {
+                            if showReorderHandle {
+                                Image(systemName: "line.3.horizontal")
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(.tertiary)
+                                    .frame(width: 28, height: 44)
+                                    .contentShape(Rectangle())
+                                    .accessibilityLabel("Drag to reorder players")
+                                    .onDrag {
+                                        draggingPlayerID = player.id
+                                        return NSItemProvider(object: player.id.uuidString as NSString)
+                                    }
                             }
-                            .disabled(viewModel.players.count <= 1)
+
+                            ScorecardPlayerHoleScoreRow(
+                                player: player,
+                                score: score,
+                                scoringMode: viewModel.round.scoringMode,
+                                result: viewModel.scoreResult(for: score),
+                                isSelected: player.id == viewModel.primaryPlayer?.id,
+                                selectPlayer: {
+                                    viewModel.selectPlayer(player.id, modelContext: modelContext)
+                                },
+                                saveScore: saveScore,
+                                onRequestDelete: showReorderHandle
+                                    ? { playerPendingDeletion = player }
+                                    : nil
+                            )
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .onDrop(
                             of: [UTType.text],
@@ -66,10 +80,6 @@ struct ScorecardScoresSectionCard: View {
                                 }
                             )
                         )
-
-                        if player.id != players.last?.id {
-                            Divider()
-                        }
                     }
                 }
 
@@ -113,7 +123,7 @@ struct ScorecardScoresSectionCard: View {
                 .onSubmit(addPlayer)
 
             Button("Add", action: addPlayer)
-                .buttonStyle(.bordered)
+                .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                 .disabled(!canAddPlayer)
         }
     }

@@ -100,15 +100,3 @@ final class WeatherViewModel {
         round.weatherSnapshots.max { $0.observedAt < $1.observedAt }
     }
 }
-
-private extension WeatherSummary {
-    init(snapshot: RoundWeatherSnapshot) {
-        self.init(
-            symbolName: snapshot.symbolName,
-            temperatureFahrenheit: snapshot.temperatureFahrenheit,
-            conditionText: snapshot.conditionText,
-            windSpeedMilesPerHour: snapshot.windSpeedMilesPerHour,
-            windDirectionDegrees: snapshot.windDirectionDegrees
-        )
-    }
-}

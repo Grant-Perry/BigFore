@@ -1,6 +1,13 @@
 import SwiftData
 import SwiftUI
 
+private enum RoundsNavigation: Hashable {
+    /// `(roundID, focusedPlayerID)` — second value is optional focused player when opening the scorecard.
+    case scorecard(UUID, UUID?)
+    case map(UUID)
+    case recap(UUID)
+}
+
 struct RoundsListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \GolfRound.startedAt, order: .reverse) private var rounds: [GolfRound]
@@ -8,12 +15,13 @@ struct RoundsListView: View {
     @State private var playHomeViewModel = PlayHomeViewModel()
     @State private var weatherViewModel = WeatherViewModel()
     @State private var roundPendingDeletion: GolfRound?
+    @State private var navigationPath: [RoundsNavigation] = []
 
     var body: some View {
         let activeRounds = viewModel.activeRounds(from: rounds)
         let completedRounds = viewModel.completedRounds(from: rounds)
 
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             List {
                 if let activeRound = activeRounds.first {
                     Section {
@@ -21,7 +29,16 @@ struct RoundsListView: View {
                             round: activeRound,
                             viewModel: playHomeViewModel,
                             weatherSummary: weatherViewModel.summary(for: activeRound),
-                            weatherErrorText: weatherViewModel.errorText(for: activeRound)
+                            weatherErrorText: weatherViewModel.errorText(for: activeRound),
+                            onResume: {
+                                navigationPath.append(.scorecard(activeRound.id, nil))
+                            },
+                            onOpenGPS: {
+                                navigationPath.append(.map(activeRound.id))
+                            },
+                            onSelectPlayerScorecard: { playerID in
+                                navigationPath.append(.scorecard(activeRound.id, playerID))
+                            }
                         )
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         .listRowSeparator(.hidden)
@@ -38,8 +55,8 @@ struct RoundsListView: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(activeRounds) { round in
-                        NavigationLink {
-                            ScorecardView(round: round)
+                        Button {
+                            navigationPath.append(.scorecard(round.id, nil))
                         } label: {
                             RoundRow(
                                 round: round,
@@ -52,9 +69,6 @@ struct RoundsListView: View {
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
-                        .task(id: round.id) {
-                            await weatherViewModel.loadWeather(for: round, modelContext: modelContext)
-                        }
                         .swipeActions {
                             Button("Delete", role: .destructive) {
                                 roundPendingDeletion = round
@@ -69,9 +83,7 @@ struct RoundsListView: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(completedRounds) { round in
-                        NavigationLink {
-                            ScorecardView(round: round)
-                        } label: {
+                        NavigationLink(value: RoundsNavigation.recap(round.id)) {
                             RoundRow(
                                 round: round,
                                 viewModel: viewModel,
@@ -79,13 +91,9 @@ struct RoundsListView: View {
                                 weatherErrorText: weatherViewModel.errorText(for: round)
                             )
                         }
-                        .buttonStyle(.plain)
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
-                        .task(id: round.id) {
-                            await weatherViewModel.loadWeather(for: round, modelContext: modelContext)
-                        }
                         .swipeActions {
                             Button("Delete", role: .destructive) {
                                 roundPendingDeletion = round
@@ -127,7 +135,43 @@ struct RoundsListView: View {
             } message: {
                 Text("This removes the scorecard and players for this round.")
             }
+            .navigationDestination(for: RoundsNavigation.self) { link in
+                switch link {
+                case .scorecard(let roundID, let focusedPlayerID):
+                    if let round = rounds.first(where: { $0.id == roundID }) {
+                        ScorecardView(round: round, focusedPlayerID: focusedPlayerID)
+                    } else {
+                        ContentUnavailableView(
+                            "Round unavailable",
+                            systemImage: "exclamationmark.triangle",
+                            description: Text("That round is no longer in your library.")
+                        )
+                    }
+                case .map(let roundID):
+                    if let round = rounds.first(where: { $0.id == roundID }),
+                       let mapPoint = CourseMapPoint(round: round) {
+                        CourseMapView(course: mapPoint, currentHoleNumber: round.currentHole, round: round)
+                    } else {
+                        ContentUnavailableView(
+                            "GPS unavailable",
+                            systemImage: "location.slash",
+                            description: Text("Add a course pin from the saved course detail to enable GPS.")
+                        )
+                    }
+                case .recap(let roundID):
+                    if let round = rounds.first(where: { $0.id == roundID }) {
+                        RoundRecapView(round: round)
+                    } else {
+                        ContentUnavailableView(
+                            "Round unavailable",
+                            systemImage: "exclamationmark.triangle",
+                            description: Text("That round is no longer in your library.")
+                        )
+                    }
+                }
+            }
         }
+        .accessibilityIdentifier("bigfore.rounds.list")
     }
 }
 
@@ -143,6 +187,7 @@ struct RoundRow: View {
             subtitle: "\(viewModel.dateText(for: round)) · \(round.teeName) · \(round.scoringMode.title)",
             detail: detailText,
             badges: badges,
+            weatherSymbolName: weatherSummary?.symbolName,
             systemImage: round.isComplete ? "checkmark.circle.fill" : "location.viewfinder",
             accentColor: round.isComplete ? .secondary : BigForeDesign.Palette.primaryAction,
             showsChevron: true

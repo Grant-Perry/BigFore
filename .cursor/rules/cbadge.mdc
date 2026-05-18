@@ -1,0 +1,44 @@
+---
+description: Context info badge (cbadge) — hollow circle “i” with popover help; use anywhere inline help is needed without consuming layout space
+globs: "**/*.swift"
+alwaysApply: false
+---
+
+# cbadge (context info badge)
+
+When the user says **cbadge**, **@cbadge**, or “circle i badge” for contextual help, use this pattern.
+
+## What it is
+
+- A **small hollow circle** with a **bold lowercase i** inside (not SF Symbol `info.circle`, which reads as a filled badge).
+- The circle should be visually small but readable: default **~14pt** ring diameter in `CBadge`, with a comfortable minimum hit target (about **34pt**) around the glyph so it stays tappable in dense rows.
+- **Superscript** means **tight attachment**: the ring sits **right up on** the label or control it explains—top-trailing corner or immediately after the last character of a short caption—with **minimal gap** (about **0–4pt**), not a loose third column in a wide `HStack`. Prefer **`ZStack(alignment: .topTrailing)`** over the control (or control pair) plus a small `offset` so the badge overlaps the corner slightly if needed; avoid `Spacing.large`-scale gaps between the glyph and the thing.
+- On tap, shows a **popover** (iOS “thought bubble” / callout) with the **full instructions** for that feature. Prefer `.popover` + `.presentationCompactAdaptation(.popover)` so phone and pad behave well.
+
+## BigFore implementation
+
+- Reuse **`CBadge`** in `BigFore/Components/CBadge.swift` (`title` + `message`).
+- Do **not** duplicate the control inline unless there is a strong reason; extend `CBadge` with parameters (tint, ring size) if a screen needs a variant.
+
+## Not the same as **ib** (BigWrd)
+
+- The **`ib`** Cursor skill applies to **BigWrd**: `InfoCircleButton` + dimmed **`InfoBoxView` overlay** (custom modal feel).
+- **BigFore** should use **`CBadge` + `.popover`** only; do not port the BigWrd overlay pattern into this repo.
+- If you are unsure which codebase you are in: BigFore → cbadge; BigWrd → ib.
+
+## Content
+
+- **Title**: short (e.g. “Scorecard”).
+- **Message**: complete guidance that used to live in caption/footer copy; use `\n\n` between logical paragraphs when helpful.
+- The popover must include enough internal padding that the text never touches or clips against the bubble edge.
+- If the content might not fit, put the body in a **`ScrollView`** and cap the popover height instead of letting text clip.
+
+## Placement
+
+- Put the badge **next to or on** the label/control it explains, **raised** like a footnote superscript (slightly above cap height / box top edge).
+- **Do not** float it in whitespace: if an `HStack` forces a big gap, switch to **overlay** (`ZStack` / `.overlay(alignment:)`) so layout width does not insert padding between the control and the badge.
+- Inline captions (e.g. “Stroke Play” + cbadge): use a **tight inner `HStack`** (`spacing` **0–4**) and baseline alignment (`firstTextBaseline` / `center`) plus a small **negative Y** offset on the badge so it hugs the text.
+
+## Accessibility
+
+- Set **`accessibilityLabel`** to the short topic and **`accessibilityHint`** that the control reveals help (see `CBadge` defaults; override per feature).

@@ -8,6 +8,8 @@ final class ScorecardViewModel {
     var round: GolfRound
     var errorMessage: String?
     var focusedPlayerID: UUID?
+    /// `true` = hole squares show stroke counts (**#** on the toggle); `false` = vs par / Stableford (**+** on the toggle).
+    var scorecardGridShowsStrokeCounts = true
     private let scoring = RoundScoring()
 
     init(round: GolfRound, focusedPlayerID: UUID? = nil) {
@@ -39,20 +41,32 @@ final class ScorecardViewModel {
         return "\(scoring.summary(for: primaryPlayer, scoringMode: round.scoringMode)) - \(scoring.completedHoles(for: primaryPlayer))"
     }
 
-    var primaryPlayerScoreText: String? {
+    struct PrimaryScorecardHeaderCounts: Equatable {
+        let thisNine: String
+        let total: String
+    }
+
+    /// Stroke totals for the scorecard headline: **Front** or **Back** (visible nine) and **Round** (full round strokes), independent of the + / # grid mode.
+    func primaryPlayerHeaderCounts(for nine: ScorecardNine) -> PrimaryScorecardHeaderCounts? {
         guard let primaryPlayer else {
             return nil
         }
 
-        return scoring.summary(for: primaryPlayer, scoringMode: round.scoringMode)
+        let nineSummary = nineSummary(for: nine)
+        let thisNine = nineSummary.strokes.map(String.init) ?? "—"
+        let strokesTotal = scoring.totalStrokes(for: primaryPlayer)
+        let total = strokesTotal > 0 ? "\(strokesTotal)" : "—"
+        return PrimaryScorecardHeaderCounts(thisNine: thisNine, total: total)
     }
 
     var scoreEntryPlayers: [RoundPlayer] {
         players
     }
 
-    func selectPlayer(_ playerID: UUID) {
+    func selectPlayer(_ playerID: UUID, modelContext: ModelContext) {
         focusedPlayerID = playerID
+        syncDisplayedRoundTeeFromFocusedPlayer()
+        save(modelContext: modelContext)
     }
 
     var canAddPlayer: Bool {
@@ -66,9 +80,22 @@ final class ScorecardViewModel {
         }
 
         let scoreTemplates = players.first.map(scoring.sortedScores(for:)) ?? []
+        let templatePlayer = players.first
+        let inheritedTeeName: String = {
+            guard let templatePlayer else { return round.teeName }
+            let trimmed = templatePlayer.teeName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? round.teeName : templatePlayer.teeName
+        }()
+        let inheritedTeeGender: String = {
+            guard let templatePlayer else { return round.teeGender }
+            let trimmed = templatePlayer.teeGender.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? round.teeGender : templatePlayer.teeGender
+        }()
         let newPlayer = RoundPlayer(
             name: trimmedName,
             displayOrder: players.count,
+            teeName: inheritedTeeName,
+            teeGender: inheritedTeeGender,
             scores: scoreTemplates.map { score in
                 HoleScore(
                     holeNumber: score.holeNumber,
@@ -83,6 +110,7 @@ final class ScorecardViewModel {
         round.players.append(newPlayer)
         focusedPlayerID = newPlayer.id
         reindexPlayers(round.players.sorted { $0.displayOrder < $1.displayOrder })
+        syncDisplayedRoundTeeFromFocusedPlayer()
         save(modelContext: modelContext)
     }
 
@@ -101,6 +129,7 @@ final class ScorecardViewModel {
             focusedPlayerID = orderedPlayers.first?.id
         }
 
+        syncDisplayedRoundTeeFromFocusedPlayer()
         save(modelContext: modelContext)
     }
 
@@ -157,7 +186,18 @@ final class ScorecardViewModel {
     }
 
     var advanceButtonTitle: String {
-        nextHoleNumber == nil ? "Finish" : "Next Hole"
+        guard let hole = adjacentHole(from: round.currentHole, offset: 1) else {
+            return "Finish"
+        }
+        return "#\(hole) Tee Box"
+    }
+
+    /// Left navigation pill when moving to the prior hole’s tee.
+    var previousTeeBoxButtonTitle: String {
+        guard let hole = adjacentHole(from: round.currentHole, offset: -1) else {
+            return "— Tee Box"
+        }
+        return "#\(hole) Tee Box"
     }
 
     var currentHoleScore: HoleScore? {
@@ -358,6 +398,109 @@ final class ScorecardViewModel {
             round.completedAt = .now
         }
         save(modelContext: modelContext)
+    }
+
+    /// Marks the round finished from the venue header (any hole). Idempotent if already complete.
+    func markRoundComplete(modelContext: ModelContext) {
+        guard !round.isComplete else {
+            return
+        }
+
+        round.completedAt = .now
+        save(modelContext: modelContext)
+    }
+
+    /// Reasons the scorecard isn’t “full” — empty means safe to complete without extra warnings.
+    func roundCompletionAssessment() -> RoundCompletionAssessment {
+        var issues: [String] = []
+
+        if players.isEmpty {
+            issues.append("This round has no players.")
+        }
+
+        for player in players {
+            let scores = scoring.sortedScores(for: player)
+
+            for hole in availableHoles {
+                guard let score = scores.first(where: { $0.holeNumber == hole }) else {
+                    issues.append("\(player.name): no score row for hole #\(hole).")
+                    continue
+                }
+
+                if score.strokes == 0 {
+                    issues.append("\(player.name): hole #\(hole) has no score entered.")
+                }
+            }
+        }
+
+        return RoundCompletionAssessment(issues: issues)
+    }
+
+    /// Multi-line copy for the complete-round confirmation dialog.
+    func completeRoundConfirmationMessage(assessment: RoundCompletionAssessment) -> String {
+        if assessment.isReadyToComplete {
+            return """
+            This marks the round as finished. You can still open it from Rounds.
+
+            Are you certain you want to complete now?
+            """
+        }
+
+        let bullets = assessment.issues.map { "• \($0)" }.joined(separator: "\n")
+        return """
+        Are you certain? The round isn’t fully scored yet:
+
+        \(bullets)
+
+        You can go back and enter missing scores, or complete anyway and keep the round as-is.
+        """
+    }
+
+    struct RoundCompletionAssessment: Equatable {
+        let issues: [String]
+        var isReadyToComplete: Bool { issues.isEmpty }
+    }
+
+    func applySavedTee(_ tee: GolfCourseTee, modelContext: ModelContext, for player: RoundPlayer? = nil) {
+        guard let target = player ?? primaryPlayer else {
+            return
+        }
+
+        target.teeName = tee.name
+        target.teeGender = tee.gender
+
+        let holesByNumber = tee.holes.reduce(into: [Int: GolfCourseHole]()) { dict, hole in
+            dict[hole.number] = hole
+        }
+
+        for score in target.scores {
+            guard let hole = holesByNumber[score.holeNumber] else {
+                continue
+            }
+
+            score.par = hole.par ?? score.par
+            score.yardage = hole.yardage
+            score.handicap = hole.handicap
+
+            let par = hole.par ?? 4
+            if par < 4 {
+                score.teeShotAccuracy = .notApplicable
+            } else if score.teeShotAccuracy == .notApplicable {
+                score.teeShotAccuracy = nil
+            }
+        }
+
+        syncDisplayedRoundTeeFromFocusedPlayer()
+        save(modelContext: modelContext)
+    }
+
+    private func syncDisplayedRoundTeeFromFocusedPlayer() {
+        guard let player = primaryPlayer else {
+            return
+        }
+
+        round.teeName = player.resolvedTeeName(in: round)
+        round.teeGender = player.resolvedTeeGender(in: round)
     }
 
     func save(modelContext: ModelContext) {

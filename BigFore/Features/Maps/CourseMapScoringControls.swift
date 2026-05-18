@@ -37,7 +37,7 @@ struct CourseMapScoringControls: View {
                     Label(viewModel.saveHoleButtonTitle, systemImage: "checkmark")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                 .tint(BigForeDesign.Palette.primaryAction)
                 .controlSize(.large)
                 .disabled(!viewModel.canSaveHole)
@@ -75,7 +75,7 @@ struct CourseMapScoringControls: View {
                 .labelStyle(.iconOnly)
                 .disabled(!viewModel.canIncreaseSelectedHoleScore)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
             .controlSize(.regular)
         }
     }

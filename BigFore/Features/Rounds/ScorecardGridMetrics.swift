@@ -7,7 +7,7 @@ enum ScorecardGridMetrics {
     static let totalColumnWidth: CGFloat = 31
     static let holeHeaderHeight: CGFloat = 17
     static let scoreSquareSide: CGFloat = 30
-    /// Fits inside `scoreSquareSide` with comfortable padding.
-    static let scoreSquareFontSize: CGFloat = 16
+    /// Fits bottom-trailing placement inside `scoreSquareSide`.
+    static let scoreSquareFontSize: CGFloat = 13
     static let metricRowHeight: CGFloat = 15
 }

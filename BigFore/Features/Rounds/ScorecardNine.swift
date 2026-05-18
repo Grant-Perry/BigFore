@@ -24,6 +24,16 @@ enum ScorecardNine: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// Compact label for nine switcher (avoid wide oblong pills).
+    var shortSwitcherTitle: String {
+        switch self {
+        case .front:
+            "Front"
+        case .back:
+            "Back"
+        }
+    }
+
     var holeNumbers: [Int] {
         switch self {
         case .front:

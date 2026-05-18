@@ -10,16 +10,25 @@ struct ScorecardNavigationControlsCard: View {
 
     var body: some View {
         HStack(spacing: BigForeDesign.Spacing.medium) {
-            Button(previousTitle, systemImage: "chevron.left", action: moveToPreviousHole)
-                .buttonStyle(.bordered)
-                .disabled(!canMoveToPreviousHole)
-                .frame(maxWidth: .infinity, minHeight: 44)
+            Button(action: moveToPreviousHole) {
+                Label(previousTitle, systemImage: "chevron.left")
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
+            .disabled(!canMoveToPreviousHole)
 
-            Button(nextTitle, systemImage: nextTitle == "Finish" ? "checkmark" : "chevron.right", action: advanceOrFinish)
-                .buttonStyle(.borderedProminent)
-                .tint(.white)
-                .disabled(!canAdvanceHole)
-                .frame(maxWidth: .infinity, minHeight: 44)
+            Button(action: advanceOrFinish) {
+                Label(nextTitle, systemImage: nextTitle == "Finish" ? "checkmark" : "chevron.right")
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(BigForePillButtonStyle.bigForePrimary)
+            .disabled(!canAdvanceHole)
         }
         .padding(BigForeDesign.Spacing.medium)
         .scorecardCardBackground()

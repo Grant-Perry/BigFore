@@ -202,7 +202,7 @@ private struct BagCarryGapExplainerCard: View {
             } label: {
                 Label("Fill gap", systemImage: "plus.circle.fill")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(BigForePillButtonStyle.bigForePrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
