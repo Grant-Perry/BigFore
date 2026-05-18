@@ -218,7 +218,7 @@ struct ScorecardSharePreview: View {
     private func shareRow(_ title: String, values: [String], isHeader: Bool = false) -> some View {
         GridRow {
             scoreCell(title, width: 72, isHeader: isHeader)
-            ForEach(Array(values.enumerated()), id: \.offset) { _, value in
+            ForEach(values.enumerated(), id: \.offset) { _, value in
                 scoreCell(value, isHeader: isHeader)
             }
         }
@@ -241,7 +241,7 @@ struct ScorecardSharePreview: View {
     private func shareScoreRow(_ title: String, scores: [HoleScore], allScores: [HoleScore]) -> some View {
         GridRow {
             scoreCell(title, width: 72, isHeader: true, isPlayerName: true)
-            ForEach(Array(scoreValues(for: scores, allScores: allScores).enumerated()), id: \.offset) { _, value in
+            ForEach(scoreValues(for: scores, allScores: allScores).enumerated(), id: \.offset) { _, value in
                 scoreCell(value.text, isHeader: value.isTotal, fill: value.fill, isTotal: value.isTotal, isFinalTotal: value.isFinalTotal)
             }
         }
@@ -322,7 +322,7 @@ struct ScorecardSharePreview: View {
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(.black)
                 HStack(spacing: 10) {
-                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    ForEach(rows.enumerated(), id: \.offset) { _, row in
                         HStack(spacing: 4) {
                             Rectangle()
                                 .fill(row.result.solidColor)
@@ -592,7 +592,7 @@ private struct ScorecardColorKey: View {
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(.black)
                     HStack(spacing: 12) {
-                        ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                        ForEach(rows.enumerated(), id: \.offset) { _, row in
                             HStack(spacing: 5) {
                                 Rectangle()
                                     .fill(row.result.solidColor)

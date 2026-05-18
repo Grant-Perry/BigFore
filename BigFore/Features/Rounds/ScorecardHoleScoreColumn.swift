@@ -31,6 +31,8 @@ struct ScorecardHoleScoreColumn: View {
             .onTapGesture {
                 showQuickScore()
             }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("Quick score, hole \(holeNumber)")
 
             ScorecardGridMetricText(text: parText)
             ScorecardGridMetricText(text: yardsText)

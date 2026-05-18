@@ -105,7 +105,7 @@ struct BagView: View {
             .listStyle(.insetGrouped)
             .toolbar {
                 if let onDismiss {
-                    ToolbarItem(placement: .navigationBarLeading) {
+                    ToolbarItem(placement: .topBarLeading) {
                         Button {
                             onDismiss()
                         } label: {
@@ -336,7 +336,7 @@ private struct BagClubRow: View {
 
                 Toggle("Active", isOn: $club.isActive)
                     .labelsHidden()
-                    .onChange(of: club.isActive) {
+                    .onChange(of: club.isActive) { _, _ in
                         touchAndSave()
                     }
             }
@@ -356,7 +356,7 @@ private struct BagClubRow: View {
             .pickerStyle(.menu)
 
             Stepper("Carry \(club.carryYards) yds", value: $club.carryYards, in: 0...350, step: 5)
-                .onChange(of: club.carryYards) {
+                .onChange(of: club.carryYards) { _, _ in
                     club.syncTotalYardsFromCarry()
                     touchAndSave()
                 }
@@ -378,10 +378,10 @@ private struct BagClubRow: View {
                 save()
             }
         }
-        .onChange(of: club.name) {
+        .onChange(of: club.name) { _, _ in
             touchAndSave()
         }
-        .onChange(of: club.notes) {
+        .onChange(of: club.notes) { _, _ in
             touchAndSave()
         }
     }

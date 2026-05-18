@@ -14,40 +14,30 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            PlayHomeView(
-                openCourseSearch: { selectedTab = .find },
-                openSavedCourses: { selectedTab = .saved },
-                openRounds: { selectedTab = .rounds },
-                openBag: { selectedTab = .bag }
-            )
-            .tabItem {
-                Label("Play", systemImage: "figure.golf")
+            Tab("Play", systemImage: "figure.golf", value: BigForeTab.play) {
+                PlayHomeView(
+                    openCourseSearch: { selectedTab = .find },
+                    openSavedCourses: { selectedTab = .saved },
+                    openRounds: { selectedTab = .rounds },
+                    openBag: { selectedTab = .bag }
+                )
             }
-            .tag(BigForeTab.play)
 
-            CourseSearchView()
-                .tabItem {
-                    Label("Find", systemImage: "magnifyingglass")
-                }
-                .tag(BigForeTab.find)
+            Tab("Find", systemImage: "magnifyingglass", value: BigForeTab.find) {
+                CourseSearchView()
+            }
 
-            RoundsListView()
-                .tabItem {
-                    Label("Rounds", systemImage: "list.clipboard")
-                }
-                .tag(BigForeTab.rounds)
+            Tab("Rounds", systemImage: "list.clipboard", value: BigForeTab.rounds) {
+                RoundsListView()
+            }
 
-            BagView(onDismiss: { selectedTab = .play })
-                .tabItem {
-                    Label("Bag", systemImage: "bag")
-                }
-                .tag(BigForeTab.bag)
+            Tab("Bag", systemImage: "bag", value: BigForeTab.bag) {
+                BagView(onDismiss: { selectedTab = .play })
+            }
 
-            SavedCoursesView()
-                .tabItem {
-                    Label("Saved", systemImage: "tray.full")
-                }
-                .tag(BigForeTab.saved)
+            Tab("Saved", systemImage: "tray.full", value: BigForeTab.saved) {
+                SavedCoursesView()
+            }
         }
         .preferredColorScheme(prefersDarkMode ? .dark : .light)
     }

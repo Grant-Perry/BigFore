@@ -104,6 +104,8 @@ struct ScorecardPlayerHoleScoreRow: View {
         .onTapGesture {
             selectPlayer()
         }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Select \(player.name)")
     }
 
     private var scoringAndTeeRow: some View {

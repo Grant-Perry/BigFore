@@ -403,6 +403,16 @@ final class CourseMapViewModel {
         selectedClubID = activeClubs.first?.id
     }
 
+    /// Stable signature for `onChange` when shot/tee/pin geometry affects Woody club selection.
+    var woodyClubSelectionGeometrySignature: String {
+        Self.coordinatePairSignature(
+            shotStartCoordinate,
+            shotEndCoordinate,
+            teeBoxCoordinate,
+            holePinCoordinate
+        )
+    }
+
     func selectWoodyClub(from clubs: [GolfClub]) {
         selectWoodyClub(from: clubs, geometries: [])
     }
@@ -1733,6 +1743,14 @@ final class CourseMapViewModel {
     private static func coordinatesMatch(_ lhs: CLLocationCoordinate2D, _ rhs: CLLocationCoordinate2D) -> Bool {
         abs(lhs.latitude - rhs.latitude) < 0.0000001
             && abs(lhs.longitude - rhs.longitude) < 0.0000001
+    }
+
+    private static func coordinatePairSignature(_ coordinates: CLLocationCoordinate2D?...) -> String {
+        coordinates.map { coordinate in
+            guard let coordinate else { return "-" }
+            return String(format: "%.6f,%.6f", coordinate.latitude, coordinate.longitude)
+        }
+        .joined(separator: "|")
     }
 
     private func title(_ baseTitle: String, holeNumber: Int) -> String {

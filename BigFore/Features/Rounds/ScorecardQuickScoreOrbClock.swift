@@ -23,7 +23,7 @@ struct ScorecardQuickScoreOrbClockPicker: View {
                     centerScoreHub(side: hubSide)
                         .position(x: rect.midX, y: rect.midY)
 
-                    ForEach(Array(ScorecardQuickScoreOption.clockwiseClockOrder.enumerated()), id: \.element.id) { index, option in
+                    ForEach(ScorecardQuickScoreOption.clockwiseClockOrder.enumerated(), id: \.element.id) { index, option in
                         quickScoreOrbButton(option: option)
                             .position(
                                 quickScoreClockPosition(
@@ -126,13 +126,14 @@ private enum QuickScoreOrbMetrics {
 }
 
 private struct QuickScoreOrbButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     let glowTint: Color
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .compositingGroup()
             .scaleEffect(configuration.isPressed ? 0.92 : 1)
-            .animation(.spring(response: 0.26, dampingFraction: 0.68), value: configuration.isPressed)
+            .animation(accessibilityReduceMotion ? nil : .spring(response: 0.26, dampingFraction: 0.68), value: configuration.isPressed)
             .shadow(color: .black.opacity(0.42), radius: configuration.isPressed ? 4 : 9, x: 0, y: configuration.isPressed ? 2 : 5)
             .shadow(color: glowTint.opacity(configuration.isPressed ? 0.92 : 0.42), radius: configuration.isPressed ? 22 : 10, x: 0, y: 0)
             .overlay {

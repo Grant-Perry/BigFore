@@ -1,7 +1,7 @@
 import Foundation
 
 enum GolfCourseAPIConfiguration {
-    // Temporary static configuration. Keep callers injected so this can move to obfuscated/config storage later.
+    // Temporary hardcoded key for local/TestFlight testing. Move to Keychain or xcconfig before release.
     static let defaultAPIKey = "DPP3A3BWZYVZELH6DIBLHQRNUE"
 }
 

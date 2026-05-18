@@ -83,6 +83,7 @@ struct CourseSearchView: View {
                     }
                     .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                     .disabled(!courseSearchViewModel.hasSearchQuery || courseSearchViewModel.isSearching)
+                    .accessibilityLabel(courseSearchViewModel.isSearching ? "Searching courses" : "Search")
                 }
 
                 TextField("City or ZIP (optional)", text: $courseSearchViewModel.nearbyCityOrZIP)

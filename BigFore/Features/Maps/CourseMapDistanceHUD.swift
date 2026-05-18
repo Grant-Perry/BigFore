@@ -21,6 +21,7 @@ struct CourseMapVenueChip: View {
 }
 
 struct CourseMapDistanceMetricStack: View {
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     let courseMapViewModel: CourseMapViewModel
     let modelContext: ModelContext
     let activeGolfClubs: [GolfClub]
@@ -158,7 +159,7 @@ struct CourseMapDistanceMetricStack: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                Text(recommendation.title.replacingOccurrences(of: "Woody says ", with: ""))
+                Text(recommendation.title.replacing("Woody says ", with: ""))
                     .font(.headline.weight(.black))
                     .lineLimit(1)
                     .minimumScaleFactor(0.68)
@@ -188,8 +189,12 @@ struct CourseMapDistanceMetricStack: View {
         .bigForePanelBackground(cornerRadius: BigForeDesign.Radius.card, materialOpacity: 0.58)
         .contentShape(RoundedRectangle(cornerRadius: BigForeDesign.Radius.card, style: .continuous))
         .onTapGesture {
-            withAnimation(.snappy) {
+            if accessibilityReduceMotion {
                 isWoodyExpanded.toggle()
+            } else {
+                withAnimation(.snappy) {
+                    isWoodyExpanded.toggle()
+                }
             }
         }
         .accessibilityAddTraits(.isButton)
@@ -256,6 +261,8 @@ private struct CourseMapAllPlayersScoreSheet: View {
                             .onTapGesture {
                                 playerForQuickScore = player
                             }
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityHint("Opens quick score picker for \(player.name).")
                             .popover(item: quickScoreBinding(for: player)) { player in
                                 quickScorePopover(for: player)
                                     .presentationCompactAdaptation(.popover)

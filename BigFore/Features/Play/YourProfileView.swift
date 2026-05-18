@@ -6,6 +6,9 @@ struct YourProfileView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var profile: PlayerProfile
     @State private var handicapText: String
+    @State private var phoneText: String
+    @State private var emailText: String
+    @State private var homeCourseText: String
     @State private var isAvatarSourceDialogPresented = false
     @State private var selectedImageSource: ProfileImageSource?
     @State private var imagePendingCrop: ProfileImageCropItem?
@@ -14,6 +17,9 @@ struct YourProfileView: View {
     init(profile: PlayerProfile) {
         self.profile = profile
         _handicapText = State(initialValue: profile.handicapIndex.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "")
+        _phoneText = State(initialValue: profile.phoneNumber ?? "")
+        _emailText = State(initialValue: profile.emailAddress ?? "")
+        _homeCourseText = State(initialValue: profile.homeCourseName ?? "")
     }
 
     var body: some View {
@@ -43,51 +49,45 @@ struct YourProfileView: View {
             Section("Player") {
                 TextField("Display name", text: $profile.displayName)
                     .textInputAutocapitalization(.words)
-                    .onChange(of: profile.displayName) {
+                    .onChange(of: profile.displayName) { _, _ in
                         touchAndSave()
                     }
 
-                TextField("Phone number", text: Binding(
-                    get: { profile.phoneNumber ?? "" },
-                    set: { profile.phoneNumber = $0.isEmpty ? nil : $0 }
-                ))
-                .keyboardType(.phonePad)
-                .onChange(of: profile.phoneNumber) {
-                    touchAndSave()
-                }
+                TextField("Phone number", text: $phoneText)
+                    .keyboardType(.phonePad)
+                    .onChange(of: phoneText) { _, newValue in
+                        profile.phoneNumber = newValue.isEmpty ? nil : newValue
+                        touchAndSave()
+                    }
 
-                TextField("Email address", text: Binding(
-                    get: { profile.emailAddress ?? "" },
-                    set: { profile.emailAddress = $0.isEmpty ? nil : $0 }
-                ))
-                .keyboardType(.emailAddress)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .onChange(of: profile.emailAddress) {
-                    touchAndSave()
-                }
+                TextField("Email address", text: $emailText)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onChange(of: emailText) { _, newValue in
+                        profile.emailAddress = newValue.isEmpty ? nil : newValue
+                        touchAndSave()
+                    }
 
                 TextField("Handicap Index", text: $handicapText)
                     .keyboardType(.decimalPad)
-                    .onChange(of: handicapText) {
-                        profile.handicapIndex = Double(handicapText.trimmingCharacters(in: .whitespacesAndNewlines))
+                    .onChange(of: handicapText) { _, newValue in
+                        profile.handicapIndex = Double(newValue.trimmingCharacters(in: .whitespacesAndNewlines))
                         touchAndSave()
                     }
             }
 
             Section("Golf") {
-                TextField("Home course", text: Binding(
-                    get: { profile.homeCourseName ?? "" },
-                    set: { profile.homeCourseName = $0.isEmpty ? nil : $0 }
-                ))
-                .textInputAutocapitalization(.words)
-                .onChange(of: profile.homeCourseName) {
-                    touchAndSave()
-                }
+                TextField("Home course", text: $homeCourseText)
+                    .textInputAutocapitalization(.words)
+                    .onChange(of: homeCourseText) { _, newValue in
+                        profile.homeCourseName = newValue.isEmpty ? nil : newValue
+                        touchAndSave()
+                    }
 
                 TextField("Notes", text: $profile.notes, axis: .vertical)
                     .lineLimit(2...4)
-                    .onChange(of: profile.notes) {
+                    .onChange(of: profile.notes) { _, _ in
                         touchAndSave()
                     }
             }

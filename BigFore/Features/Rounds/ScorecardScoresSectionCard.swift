@@ -34,7 +34,7 @@ struct ScorecardScoresSectionCard: View {
 
             VStack(spacing: BigForeDesign.Spacing.medium) {
                 let players = scorecardViewModel.scoreEntryPlayers
-                ForEach(Array(players.enumerated()), id: \.element.id) { index, player in
+                ForEach(players.enumerated(), id: \.element.id) { index, player in
                     insertionDropZone(at: index)
 
                     if let score = scorecardViewModel.sortedScores(for: player).first(where: { $0.holeNumber == scorecardViewModel.round.currentHole }) {

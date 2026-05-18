@@ -18,7 +18,7 @@ struct CourseMapScoringControls: View {
                     }
                     .pickerStyle(.menu)
                     .accessibilityLabel("Ball and scoring player")
-                    .onChange(of: courseMapViewModel.selectedScoringPlayerID) {
+                    .onChange(of: courseMapViewModel.selectedScoringPlayerID) { _, _ in
                         courseMapViewModel.syncManualShotCountToScore(modelContext: modelContext)
                     }
                 }

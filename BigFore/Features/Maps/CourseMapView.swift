@@ -20,6 +20,7 @@ struct CourseMapPoint: Identifiable, Hashable {
 }
 
 struct CourseMapView: View {
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.modelContext) private var modelContext
     @Query private var courseGeometries: [CourseGeometry]
     @Query(
@@ -235,7 +236,7 @@ struct CourseMapView: View {
                             .stroke(BigForeDesign.Palette.shot.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
                     }
 
-                    ForEach(Array(courseMapViewModel.savedShotLineSegments.enumerated()), id: \.offset) { _, segment in
+                    ForEach(courseMapViewModel.savedShotLineSegments.enumerated(), id: \.offset) { _, segment in
                         MapPolyline(coordinates: segment)
                             .stroke(BigForeDesign.Palette.shotLine.opacity(0.82), style: StrokeStyle(lineWidth: 3, dash: [5, 5]))
                     }
@@ -362,8 +363,8 @@ struct CourseMapView: View {
                 }
             }
         }
-        .animation(.snappy, value: isControlPanelExpanded)
-        .animation(.snappy, value: isDistancesExpanded)
+        .animation(accessibilityReduceMotion ? nil : .snappy, value: isControlPanelExpanded)
+        .animation(accessibilityReduceMotion ? nil : .snappy, value: isDistancesExpanded)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -373,54 +374,51 @@ struct CourseMapView: View {
             focusInitialRoundHoleIfNeeded()
             courseMapViewModel.requestLocationAccess()
         }
-        .onChange(of: courseGeometries.map(\.updatedAt)) {
+        .onChange(of: courseGeometriesRevision) { _, _ in
             courseMapViewModel.applyStoredHoleSetup(from: courseGeometries)
             courseMapViewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
             focusInitialRoundHoleIfNeeded()
         }
-        .onChange(of: courseMapViewModel.targetHoleNumber) {
+        .onChange(of: courseMapViewModel.targetHoleNumber) { _, _ in
             courseMapViewModel.applyStoredHoleSetup(from: courseGeometries)
             courseMapViewModel.applyPersistedShotRecords()
             courseMapViewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
-        .onChange(of: activeGolfClubs.map(\.id)) {
+        .onChange(of: activeGolfClubIDs) { _, _ in
             courseMapViewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
-        .onChange(of: courseMapViewModel.shotStartCoordinate?.latitude) {
-            courseMapViewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
-        }
-        .onChange(of: courseMapViewModel.shotStartCoordinate?.longitude) {
-            courseMapViewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
-        }
-        .onChange(of: courseMapViewModel.shotEndCoordinate?.latitude) {
-            courseMapViewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
-        }
-        .onChange(of: courseMapViewModel.shotEndCoordinate?.longitude) {
-            courseMapViewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
-        }
-        .onChange(of: courseMapViewModel.teeBoxCoordinate?.latitude) {
-            courseMapViewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
-        }
-        .onChange(of: courseMapViewModel.teeBoxCoordinate?.longitude) {
-            courseMapViewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
-        }
-        .onChange(of: courseMapViewModel.holePinCoordinate?.latitude) {
-            courseMapViewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
-        }
-        .onChange(of: courseMapViewModel.holePinCoordinate?.longitude) {
+        .onChange(of: courseMapViewModel.woodyClubSelectionGeometrySignature) { _, _ in
             courseMapViewModel.selectWoodyClub(from: activeGolfClubs, geometries: courseGeometries)
         }
     }
 
+    private var courseGeometriesRevision: String {
+        courseGeometries
+            .map { "\($0.courseExternalID):\($0.updatedAt.timeIntervalSinceReferenceDate)" }
+            .joined(separator: ",")
+    }
+
+    private var activeGolfClubIDs: [UUID] {
+        activeGolfClubs.map(\.id)
+    }
+
     private func expandControlPanel() {
-        withAnimation(.snappy) {
+        if accessibilityReduceMotion {
             isControlPanelExpanded = true
+        } else {
+            withAnimation(.snappy) {
+                isControlPanelExpanded = true
+            }
         }
     }
 
     private func collapseControlPanel() {
-        withAnimation(.snappy) {
+        if accessibilityReduceMotion {
             isControlPanelExpanded = false
+        } else {
+            withAnimation(.snappy) {
+                isControlPanelExpanded = false
+            }
         }
     }
 
