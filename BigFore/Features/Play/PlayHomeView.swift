@@ -12,7 +12,7 @@ struct PlayHomeView: View {
     @Query(sort: \GolfCourse.courseName) private var savedCourses: [GolfCourse]
     @Query(filter: #Predicate<PlayerProfile> { $0.isPrimaryUser }) private var primaryProfiles: [PlayerProfile]
     @AppStorage("playHome.prefersDarkMode") private var prefersDarkMode = false
-    @State private var viewModel = PlayHomeViewModel()
+    @State private var playHomeViewModel = PlayHomeViewModel()
 
     private var primaryProfile: PlayerProfile? {
         primaryProfiles.first
@@ -74,8 +74,8 @@ struct PlayHomeView: View {
                 .padding(.trailing, BigForeDesign.Spacing.large)
             }
             .onAppear {
-                viewModel.requestLocationAccess()
-                viewModel.ensurePrimaryProfile(existingProfiles: primaryProfiles, modelContext: modelContext)
+                playHomeViewModel.requestLocationAccess()
+                playHomeViewModel.ensurePrimaryProfile(existingProfiles: primaryProfiles, modelContext: modelContext)
             }
         }
     }

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PlaySavedCoursesSection: View {
     let courses: [GolfCourse]
-    let viewModel: PlayHomeViewModel
+    let playHomeViewModel: PlayHomeViewModel
     let openSavedCourses: () -> Void
 
     var body: some View {
@@ -15,9 +15,9 @@ struct PlaySavedCoursesSection: View {
                 } label: {
                     CourseDiscoveryCard(
                         title: course.courseName,
-                        subtitle: viewModel.savedCourseSubtitle(for: course),
+                        subtitle: playHomeViewModel.savedCourseSubtitle(for: course),
                         detail: "Pick a tee and start a round.",
-                        badges: viewModel.savedCourseBadges(for: course),
+                        badges: playHomeViewModel.savedCourseBadges(for: course),
                         systemImage: "flag.checkered",
                         showsChevron: true
                     )
@@ -30,7 +30,7 @@ struct PlaySavedCoursesSection: View {
 
 struct PlayRecentRoundSection: View {
     let round: GolfRound
-    let viewModel: PlayHomeViewModel
+    let playHomeViewModel: PlayHomeViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
@@ -41,8 +41,8 @@ struct PlayRecentRoundSection: View {
             } label: {
                 CourseDiscoveryCard(
                     title: round.courseName,
-                    subtitle: "\(viewModel.roundDateText(for: round)) · \(viewModel.roundSetupText(for: round))",
-                    detail: viewModel.leaderSummary(for: round),
+                    subtitle: "\(playHomeViewModel.roundDateText(for: round)) · \(playHomeViewModel.roundSetupText(for: round))",
+                    detail: playHomeViewModel.leaderSummary(for: round),
                     badges: ["Completed"],
                     systemImage: "checkmark.circle.fill",
                     accentColor: .secondary,

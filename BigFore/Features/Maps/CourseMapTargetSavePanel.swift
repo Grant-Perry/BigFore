@@ -2,33 +2,33 @@ import SwiftData
 import SwiftUI
 
 struct CourseMapTargetSavePanel: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
     let modelContext: ModelContext
     let featurePoints: [CourseMapFeaturePoint]
     @Binding var isExpanded: Bool
 
     var body: some View {
-        @Bindable var viewModel = viewModel
+        @Bindable var courseMapViewModel = courseMapViewModel
 
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
-                Text("Hazard, layup, dogleg, and target stay saved for Hole \(viewModel.targetHoleNumber).")
+                Text("Hazard, layup, dogleg, and target stay saved for Hole \(courseMapViewModel.targetHoleNumber).")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                Picker("Target type", selection: $viewModel.selectedFeatureKind) {
+                Picker("Target type", selection: $courseMapViewModel.selectedFeatureKind) {
                     ForEach(CourseMapFeatureKind.saveableTargetKinds) { kind in
                         Text(kind.title).tag(kind)
                     }
                 }
                 .pickerStyle(.segmented)
-                TextField(viewModel.defaultFeatureLabel, text: $viewModel.featureLabel)
+                TextField(courseMapViewModel.defaultFeatureLabel, text: $courseMapViewModel.featureLabel)
                     .textInputAutocapitalization(.words)
                 Button("Save Target") {
-                    viewModel.saveMeasuredPointAsFeature(modelContext: modelContext)
+                    courseMapViewModel.saveMeasuredPointAsFeature(modelContext: modelContext)
                 }
                 .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                 .controlSize(.large)
-                .disabled(viewModel.measuredCoordinate == nil)
+                .disabled(courseMapViewModel.measuredCoordinate == nil)
                 savedFeaturePointList
             }
             .padding(.top, BigForeDesign.Spacing.small)
@@ -42,7 +42,7 @@ struct CourseMapTargetSavePanel: View {
     private var savedFeaturePointList: some View {
         if featurePoints.isEmpty == false {
             Divider()
-            Text("Saved on Hole \(viewModel.targetHoleNumber)")
+            Text("Saved on Hole \(courseMapViewModel.targetHoleNumber)")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
@@ -60,7 +60,7 @@ struct CourseMapTargetSavePanel: View {
                     Spacer(minLength: BigForeDesign.Spacing.medium)
 
                     Button("Delete \(featurePoint.label)", systemImage: "trash", role: .destructive) {
-                        viewModel.deleteUserMappedFeaturePoint(featurePoint, modelContext: modelContext)
+                        courseMapViewModel.deleteUserMappedFeaturePoint(featurePoint, modelContext: modelContext)
                     }
                     .labelStyle(.iconOnly)
                     .buttonStyle(BigForePillButtonStyle.bigForeDestructive)

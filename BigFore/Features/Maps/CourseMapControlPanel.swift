@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct CourseMapControlPanel: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
     let modelContext: ModelContext
     let courseGeometries: [CourseGeometry]
     let activeGeometry: CourseGeometry?
@@ -21,7 +21,7 @@ struct CourseMapControlPanel: View {
                     geometryImportControls
                     holeNavigationControls
                     tapModeControls
-                    CourseMapDistanceDisclosure(viewModel: viewModel, isExpanded: $isDistancesExpanded)
+                    CourseMapDistanceDisclosure(courseMapViewModel: courseMapViewModel, isExpanded: $isDistancesExpanded)
 
                     Divider()
 
@@ -50,17 +50,17 @@ struct CourseMapControlPanel: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.xSmall) {
-            Text("Hole \(viewModel.targetHoleNumber)")
+            Text("Hole \(courseMapViewModel.targetHoleNumber)")
                 .font(.title2.weight(.black))
                 .monospacedDigit()
-            Text(viewModel.course.courseName)
+            Text(courseMapViewModel.course.courseName)
                 .font(.headline)
                 .lineLimit(1)
-            Text(viewModel.mapSubtitle)
+            Text(courseMapViewModel.mapSubtitle)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            Text(viewModel.locationService.locationStatusText)
+            Text(courseMapViewModel.locationService.locationStatusText)
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -71,10 +71,10 @@ struct CourseMapControlPanel: View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.xSmall) {
             Button {
                 Task {
-                    await viewModel.refreshOpenStreetMapGeometry(modelContext: modelContext)
+                    await courseMapViewModel.refreshOpenStreetMapGeometry(modelContext: modelContext)
                 }
             } label: {
-                if viewModel.isRefreshingGeometry {
+                if courseMapViewModel.isRefreshingGeometry {
                     Label("Finding OSM Geometry", systemImage: "arrow.triangle.2.circlepath")
                 } else {
                     Label(activeGeometry == nil ? "Find OSM Geometry" : "Refresh OSM Geometry", systemImage: "map")
@@ -82,7 +82,7 @@ struct CourseMapControlPanel: View {
             }
             .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
             .controlSize(.small)
-            .disabled(viewModel.isRefreshingGeometry)
+            .disabled(courseMapViewModel.isRefreshingGeometry)
 
             if let geometrySummaryText {
                 Text(geometrySummaryText)
@@ -102,21 +102,21 @@ struct CourseMapControlPanel: View {
 
     @ViewBuilder
     private var holeNavigationControls: some View {
-        if viewModel.availableHoles.count > 1 {
+        if courseMapViewModel.availableHoles.count > 1 {
             VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
                 HStack(spacing: BigForeDesign.Spacing.small) {
                     Button("Previous hole", systemImage: "chevron.left") {
-                        viewModel.selectPreviousHole(geometries: courseGeometries, modelContext: modelContext)
+                        courseMapViewModel.selectPreviousHole(geometries: courseGeometries, modelContext: modelContext)
                     }
                     .labelStyle(.iconOnly)
-                    .disabled(!viewModel.canMoveToPreviousHole)
+                    .disabled(!courseMapViewModel.canMoveToPreviousHole)
                     .accessibilityHint("Moves the map and score target to the previous hole.")
 
                     Picker("Hole", selection: Binding(
-                        get: { viewModel.targetHoleNumber },
-                        set: { viewModel.selectHole($0, geometries: courseGeometries, modelContext: modelContext) }
+                        get: { courseMapViewModel.targetHoleNumber },
+                        set: { courseMapViewModel.selectHole($0, geometries: courseGeometries, modelContext: modelContext) }
                     )) {
-                        ForEach(viewModel.availableHoles, id: \.self) { holeNumber in
+                        ForEach(courseMapViewModel.availableHoles, id: \.self) { holeNumber in
                             Text("Hole \(holeNumber)").tag(holeNumber)
                         }
                     }
@@ -125,16 +125,16 @@ struct CourseMapControlPanel: View {
                     .accessibilityLabel("Current hole")
 
                     Button("Next hole", systemImage: "chevron.right") {
-                        viewModel.selectNextHole(geometries: courseGeometries, modelContext: modelContext)
+                        courseMapViewModel.selectNextHole(geometries: courseGeometries, modelContext: modelContext)
                     }
                     .labelStyle(.iconOnly)
-                    .disabled(!viewModel.canMoveToNextHole)
+                    .disabled(!courseMapViewModel.canMoveToNextHole)
                     .accessibilityHint("Moves the map and score target to the next hole.")
                 }
                 .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                 .controlSize(.small)
 
-                Text("Shots and scores target Hole \(viewModel.targetHoleNumber).")
+                Text("Shots and scores target Hole \(courseMapViewModel.targetHoleNumber).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -146,17 +146,17 @@ struct CourseMapControlPanel: View {
             Text("Tap Sets")
                 .font(.headline)
             selectionModeButtons
-            Text(viewModel.selectionMode.tapInstruction)
+            Text(courseMapViewModel.selectionMode.tapInstruction)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
-            Text(viewModel.manualShotHelpText)
+            Text(courseMapViewModel.manualShotHelpText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
-            if viewModel.teeBoxCoordinate != nil || viewModel.holePinCoordinate != nil {
+            if courseMapViewModel.teeBoxCoordinate != nil || courseMapViewModel.holePinCoordinate != nil {
                 Button("Clear Setup") {
-                    viewModel.clearHoleSetup(modelContext: modelContext)
+                    courseMapViewModel.clearHoleSetup(modelContext: modelContext)
                 }
                 .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                 .controlSize(.small)
@@ -169,9 +169,9 @@ struct CourseMapControlPanel: View {
         ScrollView(.horizontal) {
             HStack(spacing: BigForeDesign.Spacing.small) {
                 ForEach(CourseMapSelectionMode.allCases) { mode in
-                    if viewModel.selectionMode == mode {
+                    if courseMapViewModel.selectionMode == mode {
                         Button(mode.title) {
-                            viewModel.selectTapMode(mode, geometries: courseGeometries)
+                            courseMapViewModel.selectTapMode(mode, geometries: courseGeometries)
                         }
                         .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                         .controlSize(.small)
@@ -180,7 +180,7 @@ struct CourseMapControlPanel: View {
                         .minimumScaleFactor(0.75)
                     } else {
                         Button(mode.title) {
-                            viewModel.selectTapMode(mode, geometries: courseGeometries)
+                            courseMapViewModel.selectTapMode(mode, geometries: courseGeometries)
                         }
                         .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                         .controlSize(.small)
@@ -200,14 +200,14 @@ struct CourseMapControlPanel: View {
             HStack(spacing: BigForeDesign.Spacing.small) {
                 if hasUserMappedTee {
                     Button("Delete Tee", role: .destructive) {
-                        viewModel.deleteStickyHoleAnchor(kind: .teeBox, modelContext: modelContext, geometries: courseGeometries)
+                        courseMapViewModel.deleteStickyHoleAnchor(kind: .teeBox, modelContext: modelContext, geometries: courseGeometries)
                     }
                     .buttonStyle(BigForePillButtonStyle.bigForeDestructive)
                 }
 
                 if hasUserMappedPin {
                     Button("Delete Pin", role: .destructive) {
-                        viewModel.deleteStickyHoleAnchor(kind: .greenPin, modelContext: modelContext, geometries: courseGeometries)
+                        courseMapViewModel.deleteStickyHoleAnchor(kind: .greenPin, modelContext: modelContext, geometries: courseGeometries)
                     }
                     .buttonStyle(BigForePillButtonStyle.bigForeDestructive)
                 }
@@ -222,8 +222,8 @@ struct CourseMapControlPanel: View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
             Text("Manual Shots")
                 .font(.headline)
-            if let shotDistanceText = viewModel.shotDistanceText {
-                LabeledContent(viewModel.isTrackingShot ? "Live distance" : "Shot distance", value: shotDistanceText)
+            if let shotDistanceText = courseMapViewModel.shotDistanceText {
+                LabeledContent(courseMapViewModel.isTrackingShot ? "Live distance" : "Shot distance", value: shotDistanceText)
                     .font(.headline)
                     .monospacedDigit()
             } else {
@@ -231,14 +231,14 @@ struct CourseMapControlPanel: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            CourseMapShotSummaryList(viewModel: viewModel)
+            CourseMapShotSummaryList(courseMapViewModel: courseMapViewModel)
             clubSelectionControls
             woodyRecommendationCard
-            CourseMapScoringControls(viewModel: viewModel, modelContext: modelContext)
+            CourseMapScoringControls(courseMapViewModel: courseMapViewModel, modelContext: modelContext)
             ViewThatFits(in: .horizontal) {
-                CourseMapShotActionButtons(viewModel: viewModel, modelContext: modelContext)
+                CourseMapShotActionButtons(courseMapViewModel: courseMapViewModel, modelContext: modelContext)
                 VStack(alignment: .leading) {
-                    CourseMapShotActionButtons(viewModel: viewModel, modelContext: modelContext)
+                    CourseMapShotActionButtons(courseMapViewModel: courseMapViewModel, modelContext: modelContext)
                 }
             }
         }
@@ -253,10 +253,10 @@ struct CourseMapControlPanel: View {
         } else {
             VStack(alignment: .leading, spacing: BigForeDesign.Spacing.xSmall) {
                 Picker("Club", selection: Binding(
-                    get: { viewModel.selectedClubID },
+                    get: { courseMapViewModel.selectedClubID },
                     set: { newValue in
-                        viewModel.selectedClubID = newValue
-                        viewModel.applySelectedClubToCurrentShot(from: activeGolfClubs, modelContext: modelContext)
+                        courseMapViewModel.selectedClubID = newValue
+                        courseMapViewModel.applySelectedClubToCurrentShot(from: activeGolfClubs, modelContext: modelContext)
                     }
                 )) {
                     ForEach(activeGolfClubs) { club in
@@ -265,7 +265,7 @@ struct CourseMapControlPanel: View {
                 }
                 .pickerStyle(.menu)
 
-                Text(viewModel.selectedClubAverageText(from: activeGolfClubs) ?? viewModel.selectedClubName(from: activeGolfClubs))
+                Text(courseMapViewModel.selectedClubAverageText(from: activeGolfClubs) ?? courseMapViewModel.selectedClubName(from: activeGolfClubs))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -274,7 +274,7 @@ struct CourseMapControlPanel: View {
 
     @ViewBuilder
     private var woodyRecommendationCard: some View {
-        if let recommendation = viewModel.clubRecommendation(from: activeGolfClubs, geometries: courseGeometries) {
+        if let recommendation = courseMapViewModel.clubRecommendation(from: activeGolfClubs, geometries: courseGeometries) {
             VStack(alignment: .leading, spacing: BigForeDesign.Spacing.xSmall) {
                 Label(recommendation.title, systemImage: "figure.golf")
                     .font(.callout.weight(.bold))
@@ -304,13 +304,13 @@ struct CourseMapControlPanel: View {
 
     @ViewBuilder
     private var statusMessages: some View {
-        if let statusMessage = viewModel.statusMessage {
+        if let statusMessage = courseMapViewModel.statusMessage {
             Text(statusMessage)
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
 
-        if let errorMessage = viewModel.errorMessage ?? viewModel.locationService.errorMessage {
+        if let errorMessage = courseMapViewModel.errorMessage ?? courseMapViewModel.locationService.errorMessage {
             Text(errorMessage)
                 .font(.callout)
                 .foregroundStyle(BigForeDesign.Palette.destructive)
@@ -337,26 +337,26 @@ struct CourseMapControlPanel: View {
     private var mapCameraButtons: some View {
         HStack(spacing: BigForeDesign.Spacing.small) {
             Button("Course Center") {
-                viewModel.showCourse()
+                courseMapViewModel.showCourse()
             }
-            if viewModel.locationService.currentLocation != nil {
+            if courseMapViewModel.locationService.currentLocation != nil {
                 Button("My GPS") {
-                    viewModel.showUser()
+                    courseMapViewModel.showUser()
                 }
             }
-            if viewModel.teeBoxCoordinate != nil {
+            if courseMapViewModel.teeBoxCoordinate != nil {
                 Button("Tee") {
-                    viewModel.showTeeBox()
+                    courseMapViewModel.showTeeBox()
                 }
             }
-            if viewModel.holePinCoordinate != nil {
+            if courseMapViewModel.holePinCoordinate != nil {
                 Button("Hole Pin") {
-                    viewModel.showHolePin()
+                    courseMapViewModel.showHolePin()
                 }
             }
-            if viewModel.shotMeasurementCoordinates != nil {
+            if courseMapViewModel.shotMeasurementCoordinates != nil {
                 Button("Shot Line") {
-                    viewModel.showShotMeasurement()
+                    courseMapViewModel.showShotMeasurement()
                 }
             }
         }
@@ -370,27 +370,27 @@ struct CourseMapControlPanel: View {
     private var mapAdjustmentButtons: some View {
         HStack(spacing: BigForeDesign.Spacing.small) {
             Button("Zoom in", systemImage: "plus.magnifyingglass") {
-                viewModel.zoomIn()
+                courseMapViewModel.zoomIn()
             }
             .labelStyle(.iconOnly)
 
             Button("Zoom out", systemImage: "minus.magnifyingglass") {
-                viewModel.zoomOut()
+                courseMapViewModel.zoomOut()
             }
             .labelStyle(.iconOnly)
 
             Button("Rotate left", systemImage: "rotate.left") {
-                viewModel.rotateLeft()
+                courseMapViewModel.rotateLeft()
             }
             .labelStyle(.iconOnly)
 
             Button("Rotate right", systemImage: "rotate.right") {
-                viewModel.rotateRight()
+                courseMapViewModel.rotateRight()
             }
             .labelStyle(.iconOnly)
 
             Button("N") {
-                viewModel.resetNorth()
+                courseMapViewModel.resetNorth()
             }
             .accessibilityLabel("Reset north")
         }

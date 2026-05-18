@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PlayStatGrid: View {
     let round: GolfRound
-    let viewModel: PlayHomeViewModel
+    let playHomeViewModel: PlayHomeViewModel
     let onSelectPlayerScorecard: (UUID) -> Void
 
     var body: some View {
@@ -10,30 +10,30 @@ struct PlayStatGrid: View {
             GridRow {
                 PlayStatTile(
                     title: "Current",
-                    value: viewModel.currentHoleTitle(for: round),
-                    detail: viewModel.currentHoleDetail(for: round),
+                    value: playHomeViewModel.currentHoleTitle(for: round),
+                    detail: playHomeViewModel.currentHoleDetail(for: round),
                     systemImage: "flag.fill"
                 )
                 PlayStatTile(
                     title: "Scoring",
                     value: round.scoringMode.title,
-                    detail: viewModel.roundSetupText(for: round),
+                    detail: playHomeViewModel.roundSetupText(for: round),
                     systemImage: "list.number"
                 )
             }
             GridRow {
                 PlayPlayerScoresTile(
                     round: round,
-                    playerCount: viewModel.playerCount(for: round),
-                    scoreSummaries: viewModel.playerScoreSummaries(for: round),
+                    playerCount: playHomeViewModel.playerCount(for: round),
+                    scoreSummaries: playHomeViewModel.playerScoreSummaries(for: round),
                     onSelectPlayerScorecard: onSelectPlayerScorecard
                 )
                 PlayStatTile(
-                    title: viewModel.gpsTitleText(for: round),
-                    value: viewModel.gpsStatusText(for: round),
-                    detail: viewModel.gpsDetailText(for: round),
+                    title: playHomeViewModel.gpsTitleText(for: round),
+                    value: playHomeViewModel.gpsStatusText(for: round),
+                    detail: playHomeViewModel.gpsDetailText(for: round),
                     systemImage: "location.fill",
-                    valueColor: viewModel.isGPSReady(for: round) ? BigForeDesign.Palette.primaryAction : BigForeDesign.Palette.destructive
+                    valueColor: playHomeViewModel.isGPSReady(for: round) ? BigForeDesign.Palette.primaryAction : BigForeDesign.Palette.destructive
                 )
             }
         }

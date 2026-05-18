@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct CourseMapCollapsedActionButtons: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
     let modelContext: ModelContext
     let onExpand: () -> Void
 

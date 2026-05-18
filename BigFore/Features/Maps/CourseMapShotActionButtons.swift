@@ -2,54 +2,54 @@ import SwiftData
 import SwiftUI
 
 struct CourseMapShotActionButtons: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
     let modelContext: ModelContext
 
     var body: some View {
         HStack(spacing: BigForeDesign.Spacing.small) {
-            if viewModel.locationService.currentLocation != nil {
-                Button(viewModel.isTrackingShot ? "GPS" : "GPS Start") {
-                    viewModel.startShotFromCurrentLocation()
+            if courseMapViewModel.locationService.currentLocation != nil {
+                Button(courseMapViewModel.isTrackingShot ? "GPS" : "GPS Start") {
+                    courseMapViewModel.startShotFromCurrentLocation()
                 }
                 .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
-                if viewModel.shotStartCoordinate != nil {
+                if courseMapViewModel.shotStartCoordinate != nil {
                     Button("GPS Ball") {
-                        viewModel.markShotEndAtCurrentLocation(modelContext: modelContext)
+                        courseMapViewModel.markShotEndAtCurrentLocation(modelContext: modelContext)
                     }
                     .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                 }
             }
-            if viewModel.measuredCoordinate != nil {
+            if courseMapViewModel.measuredCoordinate != nil {
                 Button("Pin Start") {
-                    viewModel.startShotFromMeasuredPoint()
+                    courseMapViewModel.startShotFromMeasuredPoint()
                 }
                 .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
-                if viewModel.shotStartCoordinate != nil {
+                if courseMapViewModel.shotStartCoordinate != nil {
                     Button("Pin Ball") {
-                        viewModel.markShotEndAtMeasuredPoint(modelContext: modelContext)
+                        courseMapViewModel.markShotEndAtMeasuredPoint(modelContext: modelContext)
                     }
                     .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                 }
             }
-            if viewModel.canStartNextShotFromBall {
+            if courseMapViewModel.canStartNextShotFromBall {
                 Button("Next") {
-                    viewModel.startNextShotFromBall()
+                    courseMapViewModel.startNextShotFromBall()
                 }
                 .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
             }
-            if viewModel.selectedShotMarker != nil {
+            if courseMapViewModel.selectedShotMarker != nil {
                 Button("Move") {
-                    viewModel.selectionMode = .moveShotBall
+                    courseMapViewModel.selectionMode = .moveShotBall
                 }
                 .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                 Button("Delete", role: .destructive) {
-                    viewModel.deleteSelectedShotMarker(modelContext: modelContext)
+                    courseMapViewModel.deleteSelectedShotMarker(modelContext: modelContext)
                 }
                 .buttonStyle(BigForePillButtonStyle.bigForeDestructive)
             }
-            if viewModel.shotStartCoordinate != nil {
+            if courseMapViewModel.shotStartCoordinate != nil {
                 Button("Clear") {
-                    viewModel.clearShotMeasurement()
+                    courseMapViewModel.clearShotMeasurement()
                 }
                 .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
             }

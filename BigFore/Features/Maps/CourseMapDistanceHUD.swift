@@ -21,7 +21,7 @@ struct CourseMapVenueChip: View {
 }
 
 struct CourseMapDistanceMetricStack: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
     let modelContext: ModelContext
     let activeGolfClubs: [GolfClub]
     let courseGeometries: [CourseGeometry]
@@ -30,37 +30,37 @@ struct CourseMapDistanceMetricStack: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: BigForeDesign.Spacing.small) {
-            metricCard(title: "Hole", value: "\(viewModel.targetHoleNumber)", detail: viewModel.holeParText(for: viewModel.targetHoleNumber))
+            metricCard(title: "Hole", value: "\(courseMapViewModel.targetHoleNumber)", detail: courseMapViewModel.holeParText(for: courseMapViewModel.targetHoleNumber))
 
-            if let scoringPlayerDetailText = viewModel.scoringPlayerDetailText {
+            if let scoringPlayerDetailText = courseMapViewModel.scoringPlayerDetailText {
                 scoringCard(title: "Scoring", value: scoringPlayerDetailText)
             }
 
-            if let teeDistanceText = viewModel.teeToHolePinDistanceText {
+            if let teeDistanceText = courseMapViewModel.teeToHolePinDistanceText {
                 metricCard(title: "Tee to pin", value: displayDistance(teeDistanceText))
             } else {
                 metricCard(title: "Setup", value: "Set", detail: "Tee + pin")
             }
 
-            if let shotToPinText = viewModel.shotLocationToHolePinDistanceText,
-               viewModel.shotLocationToHolePinLabel != "Tee to pin" {
-                metricCard(title: viewModel.shotLocationToHolePinLabel, value: displayDistance(shotToPinText))
+            if let shotToPinText = courseMapViewModel.shotLocationToHolePinDistanceText,
+               courseMapViewModel.shotLocationToHolePinLabel != "Tee to pin" {
+                metricCard(title: courseMapViewModel.shotLocationToHolePinLabel, value: displayDistance(shotToPinText))
             }
 
-            if let shotDistanceText = viewModel.shotDistanceText {
+            if let shotDistanceText = courseMapViewModel.shotDistanceText {
                 metricCard(
-                    title: viewModel.isTrackingShot ? "Live shot" : "Shot distance",
+                    title: courseMapViewModel.isTrackingShot ? "Live shot" : "Shot distance",
                     value: displayDistance(shotDistanceText)
                 )
             }
 
-            if let recommendation = viewModel.clubRecommendation(from: activeGolfClubs, geometries: courseGeometries) {
+            if let recommendation = courseMapViewModel.clubRecommendation(from: activeGolfClubs, geometries: courseGeometries) {
                 woodyCard(recommendation)
             }
         }
         .accessibilityElement(children: .combine)
         .sheet(isPresented: $isScoreSheetPresented) {
-            CourseMapAllPlayersScoreSheet(courseMapViewModel: viewModel, modelContext: modelContext)
+            CourseMapAllPlayersScoreSheet(courseMapViewModel: courseMapViewModel, modelContext: modelContext)
                 .presentationDetents([.fraction(0.78), .large])
                 .presentationContentInteraction(.scrolls)
                 .presentationDragIndicator(.visible)
@@ -80,10 +80,10 @@ struct CourseMapDistanceMetricStack: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.68)
 
-                if let resultText = viewModel.selectedHoleScoreResultText {
+                if let resultText = courseMapViewModel.selectedHoleScoreResultText {
                     Text(resultText)
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(viewModel.selectedHoleScoreResult?.tint ?? .secondary)
+                        .foregroundStyle(courseMapViewModel.selectedHoleScoreResult?.tint ?? .secondary)
                         .lineLimit(1)
                 }
             }
@@ -96,24 +96,24 @@ struct CourseMapDistanceMetricStack: View {
 
             HStack(spacing: BigForeDesign.Spacing.xSmall) {
                 Button("Decrease score", systemImage: "minus") {
-                    viewModel.decrementSelectedHoleScore(modelContext: modelContext)
+                    courseMapViewModel.decrementSelectedHoleScore(modelContext: modelContext)
                 }
                 .labelStyle(.iconOnly)
-                .disabled(!viewModel.canDecreaseSelectedHoleScore)
+                .disabled(!courseMapViewModel.canDecreaseSelectedHoleScore)
 
-                Text(viewModel.selectedHoleScoreValueText)
+                Text(courseMapViewModel.selectedHoleScoreValueText)
                     .font(.callout.weight(.bold))
                     .monospacedDigit()
-                    .foregroundStyle(viewModel.selectedHoleScoreResult?.tint ?? .primary)
+                    .foregroundStyle(courseMapViewModel.selectedHoleScoreResult?.tint ?? .primary)
                     .frame(minWidth: 24)
                     .accessibilityLabel("Current score")
-                    .accessibilityValue(viewModel.selectedHoleScoreValueText == "-" ? "Not scored" : "\(viewModel.selectedHoleScoreValueText) strokes")
+                    .accessibilityValue(courseMapViewModel.selectedHoleScoreValueText == "-" ? "Not scored" : "\(courseMapViewModel.selectedHoleScoreValueText) strokes")
 
                 Button("Increase score", systemImage: "plus") {
-                    viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+                    courseMapViewModel.incrementSelectedHoleScore(modelContext: modelContext)
                 }
                 .labelStyle(.iconOnly)
-                .disabled(!viewModel.canIncreaseSelectedHoleScore)
+                .disabled(!courseMapViewModel.canIncreaseSelectedHoleScore)
             }
             .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
             .controlSize(.small)

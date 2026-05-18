@@ -12,7 +12,7 @@ struct BagView: View {
             SortDescriptor(\GolfClub.name)
         ]
     ) private var clubs: [GolfClub]
-    @State private var viewModel = BagViewModel()
+    @State private var bagViewModel = BagViewModel()
     @State private var isPresentingSpecialClubSheet = false
 
     private var activeClubs: [GolfClub] {
@@ -63,7 +63,7 @@ struct BagView: View {
                                         existingClubs: clubs
                                     ),
                                     onAddTemplate: { template in
-                                        viewModel.addClub(from: template, modelContext: modelContext)
+                                        bagViewModel.addClub(from: template, modelContext: modelContext)
                                     },
                                     onAddSpecial: { isPresentingSpecialClubSheet = true }
                                 )
@@ -73,7 +73,7 @@ struct BagView: View {
                             }
 
                             BagClubRow(club: club) {
-                                viewModel.save(modelContext: modelContext)
+                                bagViewModel.save(modelContext: modelContext)
                             }
                             .listRowBackground(
                                 BagCarryGapRowBackground(
@@ -92,7 +92,7 @@ struct BagView: View {
                     }
                 }
 
-                if let statusMessage = viewModel.statusMessage {
+                if let statusMessage = bagViewModel.statusMessage {
                     Section {
                         Text(statusMessage)
                             .font(.caption)
@@ -119,7 +119,7 @@ struct BagView: View {
                     Menu {
                         ForEach(addableTemplates) { template in
                             Button(template.name) {
-                                viewModel.addClub(from: template, modelContext: modelContext)
+                                bagViewModel.addClub(from: template, modelContext: modelContext)
                             }
                         }
                         if addableTemplates.isEmpty == false {
@@ -136,11 +136,11 @@ struct BagView: View {
             }
             .sheet(isPresented: $isPresentingSpecialClubSheet) {
                 AddSpecialClubSheet { name, carry in
-                    viewModel.addSpecialClub(name: name, carryYards: carry, modelContext: modelContext)
+                    bagViewModel.addSpecialClub(name: name, carryYards: carry, modelContext: modelContext)
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                if let errorMessage = viewModel.errorMessage {
+                if let errorMessage = bagViewModel.errorMessage {
                     Text(errorMessage)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white)
@@ -150,14 +150,14 @@ struct BagView: View {
                 }
             }
             .onAppear {
-                viewModel.seedDefaultBagIfNeeded(existingClubs: clubs, modelContext: modelContext)
+                bagViewModel.seedDefaultBagIfNeeded(existingClubs: clubs, modelContext: modelContext)
             }
         }
     }
 
     private func deleteClubs(at offsets: IndexSet) {
         for index in offsets {
-            viewModel.deleteClub(clubs[index], modelContext: modelContext)
+            bagViewModel.deleteClub(clubs[index], modelContext: modelContext)
         }
     }
 }

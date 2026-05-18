@@ -2,28 +2,28 @@ import SwiftData
 import SwiftUI
 
 struct CourseMapScoringControls: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
     let modelContext: ModelContext
 
     var body: some View {
-        @Bindable var viewModel = viewModel
+        @Bindable var courseMapViewModel = courseMapViewModel
 
-        if viewModel.scoringPlayers.isEmpty == false {
+        if courseMapViewModel.scoringPlayers.isEmpty == false {
             VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
-                if viewModel.scoringPlayers.count > 1 {
-                    Picker("Ball / scoring player", selection: $viewModel.selectedScoringPlayerID) {
-                        ForEach(viewModel.scoringPlayers) { player in
+                if courseMapViewModel.scoringPlayers.count > 1 {
+                    Picker("Ball / scoring player", selection: $courseMapViewModel.selectedScoringPlayerID) {
+                        ForEach(courseMapViewModel.scoringPlayers) { player in
                             Text(player.name).tag(Optional(player.id))
                         }
                     }
                     .pickerStyle(.menu)
                     .accessibilityLabel("Ball and scoring player")
-                    .onChange(of: viewModel.selectedScoringPlayerID) {
-                        viewModel.syncManualShotCountToScore(modelContext: modelContext)
+                    .onChange(of: courseMapViewModel.selectedScoringPlayerID) {
+                        courseMapViewModel.syncManualShotCountToScore(modelContext: modelContext)
                     }
                 }
 
-                if let manualShotScoreText = viewModel.manualShotScoreText {
+                if let manualShotScoreText = courseMapViewModel.manualShotScoreText {
                     Text(manualShotScoreText)
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -32,18 +32,18 @@ struct CourseMapScoringControls: View {
                 scoreAdjustmentControls
 
                 Button {
-                    viewModel.saveCurrentHole(modelContext: modelContext)
+                    courseMapViewModel.saveCurrentHole(modelContext: modelContext)
                 } label: {
-                    Label(viewModel.saveHoleButtonTitle, systemImage: "checkmark")
+                    Label(courseMapViewModel.saveHoleButtonTitle, systemImage: "checkmark")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                 .tint(BigForeDesign.Palette.primaryAction)
                 .controlSize(.large)
-                .disabled(!viewModel.canSaveHole)
-                .accessibilityLabel(Text(viewModel.saveHoleActionAccessibilityLabel))
+                .disabled(!courseMapViewModel.canSaveHole)
+                .accessibilityLabel(Text(courseMapViewModel.saveHoleActionAccessibilityLabel))
 
-                if let saveHoleHelpText = viewModel.saveHoleHelpText {
+                if let saveHoleHelpText = courseMapViewModel.saveHoleHelpText {
                     Text(saveHoleHelpText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -54,26 +54,26 @@ struct CourseMapScoringControls: View {
 
     @ViewBuilder
     private var scoreAdjustmentControls: some View {
-        if viewModel.selectedHoleScore != nil {
+        if courseMapViewModel.selectedHoleScore != nil {
             HStack(spacing: BigForeDesign.Spacing.small) {
                 Button("Decrease score", systemImage: "minus") {
-                    viewModel.decrementSelectedHoleScore(modelContext: modelContext)
+                    courseMapViewModel.decrementSelectedHoleScore(modelContext: modelContext)
                 }
                 .labelStyle(.iconOnly)
-                .disabled(!viewModel.canDecreaseSelectedHoleScore)
+                .disabled(!courseMapViewModel.canDecreaseSelectedHoleScore)
 
-                Text(viewModel.selectedHoleScoreValueText)
+                Text(courseMapViewModel.selectedHoleScoreValueText)
                     .font(.title2.weight(.bold))
                     .monospacedDigit()
                     .frame(minWidth: 36)
                     .accessibilityLabel("Hole score")
-                    .accessibilityValue(viewModel.selectedHoleScoreValueText == "-" ? "Not scored" : "\(viewModel.selectedHoleScoreValueText) strokes")
+                    .accessibilityValue(courseMapViewModel.selectedHoleScoreValueText == "-" ? "Not scored" : "\(courseMapViewModel.selectedHoleScoreValueText) strokes")
 
                 Button("Increase score", systemImage: "plus") {
-                    viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+                    courseMapViewModel.incrementSelectedHoleScore(modelContext: modelContext)
                 }
                 .labelStyle(.iconOnly)
-                .disabled(!viewModel.canIncreaseSelectedHoleScore)
+                .disabled(!courseMapViewModel.canIncreaseSelectedHoleScore)
             }
             .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
             .controlSize(.regular)

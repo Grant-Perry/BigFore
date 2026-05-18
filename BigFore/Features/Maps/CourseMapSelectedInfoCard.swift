@@ -2,11 +2,11 @@ import SwiftData
 import SwiftUI
 
 struct CourseMapSelectedInfoCard: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
     let modelContext: ModelContext
 
     var body: some View {
-        if let summary = viewModel.selectedMapInfoSummary {
+        if let summary = courseMapViewModel.selectedMapInfoSummary {
             VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(summary.title)
@@ -16,7 +16,7 @@ struct CourseMapSelectedInfoCard: View {
                     Spacer(minLength: BigForeDesign.Spacing.medium)
 
                     Button("Close distance popup", systemImage: "xmark.circle.fill") {
-                        viewModel.clearSelectedMapInfo()
+                        courseMapViewModel.clearSelectedMapInfo()
                     }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
@@ -25,9 +25,9 @@ struct CourseMapSelectedInfoCard: View {
                 LabeledContent(summary.referenceDistanceLabel, value: summary.referenceDistanceText ?? "Reference unavailable")
                 LabeledContent("To pin", value: summary.pinDistanceText ?? "Pin unavailable")
 
-                if viewModel.selectedShotMarker != nil {
+                if courseMapViewModel.selectedShotMarker != nil {
                     Button("Delete Ball", role: .destructive) {
-                        viewModel.deleteSelectedShotMarker(modelContext: modelContext)
+                        courseMapViewModel.deleteSelectedShotMarker(modelContext: modelContext)
                     }
                     .buttonStyle(BigForePillButtonStyle.bigForeDestructive)
                     .controlSize(.small)

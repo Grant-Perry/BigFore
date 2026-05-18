@@ -112,47 +112,47 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 1, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, currentHoleNumber: 1, round: round)
 
-        viewModel.incrementScore(for: player)
+        courseMapViewModel.incrementScore(for: player)
 
         let score = try #require(player.scores.first)
         #expect(score.strokes == 1)
         #expect(score.putts == 1)
-        #expect(!viewModel.canIncreasePutts(for: player))
+        #expect(!courseMapViewModel.canIncreasePutts(for: player))
 
-        viewModel.incrementScore(for: player)
+        courseMapViewModel.incrementScore(for: player)
         #expect(score.strokes == 2)
         #expect(score.putts == 1)
-        #expect(viewModel.canIncreasePutts(for: player))
+        #expect(courseMapViewModel.canIncreasePutts(for: player))
 
-        viewModel.incrementPutts(for: player)
-        viewModel.incrementPutts(for: player)
+        courseMapViewModel.incrementPutts(for: player)
+        courseMapViewModel.incrementPutts(for: player)
         #expect(score.putts == 2)
 
-        viewModel.decrementScore(for: player)
+        courseMapViewModel.decrementScore(for: player)
         #expect(score.strokes == 1)
         #expect(score.putts == 1)
 
-        viewModel.setTeeShotAccuracy(.bunker, for: player)
+        courseMapViewModel.setTeeShotAccuracy(.bunker, for: player)
         #expect(score.teeShotAccuracy == .bunker)
 
-        viewModel.setScoreRelativeToPar(-1, for: player)
+        courseMapViewModel.setScoreRelativeToPar(-1, for: player)
         #expect(score.strokes == 3)
         #expect(score.putts == 1)
 
-        viewModel.setScoreRelativeToPar(2, for: player)
+        courseMapViewModel.setScoreRelativeToPar(2, for: player)
         #expect(score.strokes == 6)
         #expect(score.putts == 1)
 
-        viewModel.selectedScoringPlayerID = secondPlayer.id
-        viewModel.deleteScoringPlayer(secondPlayer, modelContext: modelContext)
-        #expect(viewModel.scoringPlayers.map(\.name) == ["Grant"])
-        #expect(viewModel.selectedScoringPlayerID == player.id)
+        courseMapViewModel.selectedScoringPlayerID = secondPlayer.id
+        courseMapViewModel.deleteScoringPlayer(secondPlayer, modelContext: modelContext)
+        #expect(courseMapViewModel.scoringPlayers.map(\.name) == ["Grant"])
+        #expect(courseMapViewModel.selectedScoringPlayerID == player.id)
 
-        viewModel.deleteScoringPlayer(player, modelContext: modelContext)
-        #expect(viewModel.scoringPlayers.map(\.name) == ["Grant"])
-        #expect(viewModel.errorMessage == "A round needs at least one player.")
+        courseMapViewModel.deleteScoringPlayer(player, modelContext: modelContext)
+        #expect(courseMapViewModel.scoringPlayers.map(\.name) == ["Grant"])
+        #expect(courseMapViewModel.errorMessage == "A round needs at least one player.")
     }
 
     @Test func roundBuilderLinksPrimaryProfileToFirstPlayer() {
@@ -240,7 +240,7 @@ struct BigForeTests {
 
     @Test func playHomeViewModelFormatsDistancePlayerScoresAndGPSAccuracy() {
         let locationService = LocationService()
-        let viewModel = PlayHomeViewModel(locationService: locationService)
+        let playHomeViewModel = PlayHomeViewModel(locationService: locationService)
         let gp = RoundPlayer(
             name: "Gp.",
             displayOrder: 0,
@@ -279,16 +279,16 @@ struct BigForeTests {
             timestamp: .now
         )
 
-        let scoreSummaries = viewModel.playerScoreSummaries(for: round)
+        let scoreSummaries = playHomeViewModel.playerScoreSummaries(for: round)
         #expect(scoreSummaries.map(\.name) == ["Gp.", "Toehead"])
         #expect(scoreSummaries.map(\.score) == ["+1", "+3"])
         #expect(scoreSummaries.map(\.completedHoles) == [3, 3])
-        #expect(viewModel.leaderSummary(for: round) == "Current Leader: Gp. +1")
-        #expect(viewModel.distanceText(for: round).hasPrefix("Distance: "))
-        #expect(viewModel.distanceText(for: round).hasSuffix(" miles"))
-        #expect(viewModel.gpsTitleText(for: round) == "GPS +/- 5 yds")
-        #expect(viewModel.gpsDetailText(for: round) == "+/- 5 yds")
-        #expect(viewModel.isGPSReady(for: round))
+        #expect(playHomeViewModel.leaderSummary(for: round) == "Current Leader: Gp. +1")
+        #expect(playHomeViewModel.distanceText(for: round).hasPrefix("Distance: "))
+        #expect(playHomeViewModel.distanceText(for: round).hasSuffix(" miles"))
+        #expect(playHomeViewModel.gpsTitleText(for: round) == "GPS +/- 5 yds")
+        #expect(playHomeViewModel.gpsDetailText(for: round) == "+/- 5 yds")
+        #expect(playHomeViewModel.isGPSReady(for: round))
     }
 
     @Test func courseMapPointBuildsFromSavedCourseAndRoundCoordinates() throws {
@@ -327,30 +327,30 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course, locationService: locationService)
+        let courseMapViewModel = CourseMapViewModel(course: course, locationService: locationService)
 
         locationService.currentLocation = CLLocation(latitude: 33.0, longitude: -84.0)
-        viewModel.startShotFromCurrentLocation()
+        courseMapViewModel.startShotFromCurrentLocation()
 
-        #expect(viewModel.isTrackingShot)
-        #expect(viewModel.shotEndCoordinate == nil)
+        #expect(courseMapViewModel.isTrackingShot)
+        #expect(courseMapViewModel.shotEndCoordinate == nil)
 
         locationService.currentLocation = CLLocation(latitude: 33.001, longitude: -84.0)
-        let liveDistance = try #require(viewModel.shotDistanceText)
+        let liveDistance = try #require(courseMapViewModel.shotDistanceText)
 
         #expect(liveDistance.hasSuffix(" yds"))
 
-        viewModel.markShotEndAtCurrentLocation()
+        courseMapViewModel.markShotEndAtCurrentLocation()
 
-        #expect(viewModel.isTrackingShot == false)
-        #expect(viewModel.shotEndCoordinate != nil)
-        #expect(viewModel.shotDistanceText == liveDistance)
+        #expect(courseMapViewModel.isTrackingShot == false)
+        #expect(courseMapViewModel.shotEndCoordinate != nil)
+        #expect(courseMapViewModel.shotDistanceText == liveDistance)
 
-        viewModel.clearShotMeasurement()
+        courseMapViewModel.clearShotMeasurement()
 
-        #expect(viewModel.shotStartCoordinate == nil)
-        #expect(viewModel.shotEndCoordinate == nil)
-        #expect(viewModel.shotDistanceText == nil)
+        #expect(courseMapViewModel.shotStartCoordinate == nil)
+        #expect(courseMapViewModel.shotEndCoordinate == nil)
+        #expect(courseMapViewModel.shotDistanceText == nil)
     }
 
     @Test func courseMapViewModelTracksShotDistanceBetweenTappedPoints() throws {
@@ -361,18 +361,18 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
 
-        viewModel.measurePoint(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
-        viewModel.startShotFromMeasuredPoint()
-        viewModel.measurePoint(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
-        viewModel.markShotEndAtMeasuredPoint()
+        courseMapViewModel.measurePoint(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        courseMapViewModel.startShotFromMeasuredPoint()
+        courseMapViewModel.measurePoint(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        courseMapViewModel.markShotEndAtMeasuredPoint()
 
-        let shotDistance = try #require(viewModel.shotDistanceText)
+        let shotDistance = try #require(courseMapViewModel.shotDistanceText)
 
-        #expect(viewModel.isTrackingShot == false)
-        #expect(viewModel.shotStartCoordinate != nil)
-        #expect(viewModel.shotEndCoordinate != nil)
+        #expect(courseMapViewModel.isTrackingShot == false)
+        #expect(courseMapViewModel.shotStartCoordinate != nil)
+        #expect(courseMapViewModel.shotEndCoordinate != nil)
         #expect(shotDistance.hasSuffix(" yds"))
     }
 
@@ -384,31 +384,31 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let measurement = CLLocationCoordinate2D(latitude: 33.0001, longitude: -84.0001)
         let teeBox = CLLocationCoordinate2D(latitude: 33.0002, longitude: -84.0002)
         let holePin = CLLocationCoordinate2D(latitude: 33.0012, longitude: -84.0002)
         let shotStart = CLLocationCoordinate2D(latitude: 33.0003, longitude: -84.0003)
         let ball = CLLocationCoordinate2D(latitude: 33.0008, longitude: -84.0003)
 
-        viewModel.selectionMode = .measurementPin
-        viewModel.selectMapLocation(at: measurement)
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: teeBox)
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: holePin)
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: shotStart)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: ball)
+        courseMapViewModel.selectionMode = .measurementPin
+        courseMapViewModel.selectMapLocation(at: measurement)
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: teeBox)
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: holePin)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: shotStart)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: ball)
 
-        #expect(viewModel.measuredCoordinate?.latitude == measurement.latitude)
-        #expect(viewModel.teeBoxCoordinate?.latitude == teeBox.latitude)
-        #expect(viewModel.holePinCoordinate?.latitude == holePin.latitude)
-        #expect(viewModel.shotStartCoordinate?.latitude == shotStart.latitude)
-        #expect(viewModel.shotEndCoordinate?.latitude == ball.latitude)
-        #expect(viewModel.isTrackingShot == false)
-        #expect(viewModel.selectionMode == .inactive)
+        #expect(courseMapViewModel.measuredCoordinate?.latitude == measurement.latitude)
+        #expect(courseMapViewModel.teeBoxCoordinate?.latitude == teeBox.latitude)
+        #expect(courseMapViewModel.holePinCoordinate?.latitude == holePin.latitude)
+        #expect(courseMapViewModel.shotStartCoordinate?.latitude == shotStart.latitude)
+        #expect(courseMapViewModel.shotEndCoordinate?.latitude == ball.latitude)
+        #expect(courseMapViewModel.isTrackingShot == false)
+        #expect(courseMapViewModel.selectionMode == .inactive)
     }
 
     @Test func courseMapViewModelUndoesPlacedMapPinsInReverseOrder() {
@@ -419,46 +419,46 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let measurement = CLLocationCoordinate2D(latitude: 33.0001, longitude: -84.0001)
         let teeBox = CLLocationCoordinate2D(latitude: 33.0002, longitude: -84.0002)
         let holePin = CLLocationCoordinate2D(latitude: 33.0012, longitude: -84.0002)
         let shotStart = CLLocationCoordinate2D(latitude: 33.0003, longitude: -84.0003)
         let ball = CLLocationCoordinate2D(latitude: 33.0008, longitude: -84.0003)
 
-        viewModel.selectionMode = .measurementPin
-        viewModel.selectMapLocation(at: measurement)
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: teeBox)
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: holePin)
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: shotStart)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: ball)
+        courseMapViewModel.selectionMode = .measurementPin
+        courseMapViewModel.selectMapLocation(at: measurement)
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: teeBox)
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: holePin)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: shotStart)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: ball)
 
-        #expect(viewModel.canUndoLastPin)
+        #expect(courseMapViewModel.canUndoLastPin)
 
-        viewModel.undoLastPin()
-        #expect(viewModel.shotEndCoordinate == nil)
-        #expect(viewModel.shotMarkers.isEmpty)
-        #expect(viewModel.shotStartCoordinate?.latitude == shotStart.latitude)
+        courseMapViewModel.undoLastPin()
+        #expect(courseMapViewModel.shotEndCoordinate == nil)
+        #expect(courseMapViewModel.shotMarkers.isEmpty)
+        #expect(courseMapViewModel.shotStartCoordinate?.latitude == shotStart.latitude)
 
-        viewModel.undoLastPin()
-        #expect(viewModel.shotStartCoordinate == nil)
-        #expect(viewModel.holePinCoordinate?.latitude == holePin.latitude)
+        courseMapViewModel.undoLastPin()
+        #expect(courseMapViewModel.shotStartCoordinate == nil)
+        #expect(courseMapViewModel.holePinCoordinate?.latitude == holePin.latitude)
 
-        viewModel.undoLastPin()
-        #expect(viewModel.holePinCoordinate == nil)
-        #expect(viewModel.teeBoxCoordinate?.latitude == teeBox.latitude)
+        courseMapViewModel.undoLastPin()
+        #expect(courseMapViewModel.holePinCoordinate == nil)
+        #expect(courseMapViewModel.teeBoxCoordinate?.latitude == teeBox.latitude)
 
-        viewModel.undoLastPin()
-        #expect(viewModel.teeBoxCoordinate == nil)
-        #expect(viewModel.measuredCoordinate?.latitude == measurement.latitude)
+        courseMapViewModel.undoLastPin()
+        #expect(courseMapViewModel.teeBoxCoordinate == nil)
+        #expect(courseMapViewModel.measuredCoordinate?.latitude == measurement.latitude)
 
-        viewModel.undoLastPin()
-        #expect(viewModel.measuredCoordinate == nil)
-        #expect(viewModel.canUndoLastPin == false)
+        courseMapViewModel.undoLastPin()
+        #expect(courseMapViewModel.measuredCoordinate == nil)
+        #expect(courseMapViewModel.canUndoLastPin == false)
     }
 
     @Test func courseMapViewModelTapModesDeactivateAfterPlacement() {
@@ -469,16 +469,16 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let firstTee = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
         let secondTee = CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0)
 
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: firstTee)
-        viewModel.selectMapLocation(at: secondTee)
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: firstTee)
+        courseMapViewModel.selectMapLocation(at: secondTee)
 
-        #expect(viewModel.selectionMode == .inactive)
-        #expect(viewModel.teeBoxCoordinate?.latitude == firstTee.latitude)
+        #expect(courseMapViewModel.selectionMode == .inactive)
+        #expect(courseMapViewModel.teeBoxCoordinate?.latitude == firstTee.latitude)
     }
 
     @Test func courseMapViewModelActionStripButtonsSetTapModes() {
@@ -489,30 +489,30 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 4)
+        let courseMapViewModel = CourseMapViewModel(course: course, currentHoleNumber: 4)
 
-        viewModel.errorMessage = "Previous error"
-        viewModel.setMeasurementPinTapMode()
-        #expect(viewModel.selectionMode == .measurementPin)
-        #expect(viewModel.statusMessage == "Tap the map to drop a measurement pin.")
-        #expect(viewModel.errorMessage == nil)
+        courseMapViewModel.errorMessage = "Previous error"
+        courseMapViewModel.setMeasurementPinTapMode()
+        #expect(courseMapViewModel.selectionMode == .measurementPin)
+        #expect(courseMapViewModel.statusMessage == "Tap the map to drop a measurement pin.")
+        #expect(courseMapViewModel.errorMessage == nil)
 
-        viewModel.setShotStartTapMode()
-        #expect(viewModel.selectionMode == .shotStart)
-        #expect(viewModel.statusMessage == "Tap the map to set shot start for Hole 4.")
-        #expect(viewModel.errorMessage == nil)
+        courseMapViewModel.setShotStartTapMode()
+        #expect(courseMapViewModel.selectionMode == .shotStart)
+        #expect(courseMapViewModel.statusMessage == "Tap the map to set shot start for Hole 4.")
+        #expect(courseMapViewModel.errorMessage == nil)
 
-        viewModel.setShotBallTapMode()
-        #expect(viewModel.selectionMode == .shotBall)
-        #expect(viewModel.statusMessage == "Tap the map to set ball location for Hole 4.")
+        courseMapViewModel.setShotBallTapMode()
+        #expect(courseMapViewModel.selectionMode == .shotBall)
+        #expect(courseMapViewModel.statusMessage == "Tap the map to set ball location for Hole 4.")
 
-        viewModel.setTeeBoxTapMode()
-        #expect(viewModel.selectionMode == .teeBox)
-        #expect(viewModel.statusMessage == "Tap the map to save Tee 4.")
+        courseMapViewModel.setTeeBoxTapMode()
+        #expect(courseMapViewModel.selectionMode == .teeBox)
+        #expect(courseMapViewModel.statusMessage == "Tap the map to save Tee 4.")
 
-        viewModel.setHolePinTapMode()
-        #expect(viewModel.selectionMode == .holePin)
-        #expect(viewModel.statusMessage == "Tap the map to save Pin 4.")
+        courseMapViewModel.setHolePinTapMode()
+        #expect(courseMapViewModel.selectionMode == .holePin)
+        #expect(courseMapViewModel.statusMessage == "Tap the map to save Pin 4.")
     }
 
     @Test func courseMapViewModelTeePinModesFrameHoleLineWithPinAtTop() {
@@ -523,7 +523,7 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 15)
+        let courseMapViewModel = CourseMapViewModel(course: course, currentHoleNumber: 15)
         let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let pin = CLLocationCoordinate2D(latitude: 33.0, longitude: -83.99)
         let geometry = CourseGeometry(
@@ -548,25 +548,25 @@ struct BigForeTests {
             ]
         )
 
-        viewModel.setTeeBoxTapMode(geometries: [geometry])
+        courseMapViewModel.setTeeBoxTapMode(geometries: [geometry])
 
-        #expect(viewModel.selectionMode == .teeBox)
-        #expect(viewModel.teeBoxCoordinate?.latitude == tee.latitude)
-        #expect(viewModel.holePinCoordinate?.longitude == pin.longitude)
-        #expect(abs(viewModel.cameraCenter.longitude - ((tee.longitude + pin.longitude) / 2)) < 0.000001)
-        #expect((85...95).contains(viewModel.cameraHeading))
-        #expect(viewModel.cameraPitch == 55)
+        #expect(courseMapViewModel.selectionMode == .teeBox)
+        #expect(courseMapViewModel.teeBoxCoordinate?.latitude == tee.latitude)
+        #expect(courseMapViewModel.holePinCoordinate?.longitude == pin.longitude)
+        #expect(abs(courseMapViewModel.cameraCenter.longitude - ((tee.longitude + pin.longitude) / 2)) < 0.000001)
+        #expect((85...95).contains(courseMapViewModel.cameraHeading))
+        #expect(courseMapViewModel.cameraPitch == 55)
 
-        viewModel.setHolePinTapMode(geometries: [geometry])
+        courseMapViewModel.setHolePinTapMode(geometries: [geometry])
 
-        #expect(viewModel.selectionMode == .holePin)
-        #expect((85...95).contains(viewModel.cameraHeading))
-        #expect(viewModel.cameraPitch == 55)
+        #expect(courseMapViewModel.selectionMode == .holePin)
+        #expect((85...95).contains(courseMapViewModel.cameraHeading))
+        #expect(courseMapViewModel.cameraPitch == 55)
 
-        viewModel.selectHole(15, geometries: [geometry])
+        courseMapViewModel.selectHole(15, geometries: [geometry])
 
-        #expect((85...95).contains(viewModel.cameraHeading))
-        #expect(viewModel.cameraPitch == 55)
+        #expect((85...95).contains(courseMapViewModel.cameraHeading))
+        #expect(courseMapViewModel.cameraPitch == 55)
     }
 
     @Test func courseMapViewModelBuildsFaintNextHoleTransitionLineTarget() throws {
@@ -577,7 +577,7 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 9)
+        let courseMapViewModel = CourseMapViewModel(course: course, currentHoleNumber: 9)
         let holeNinePin = CLLocationCoordinate2D(latitude: 33.009, longitude: -84.0)
         let holeTenTee = CLLocationCoordinate2D(latitude: 33.010, longitude: -84.001)
         let geometry = CourseGeometry(
@@ -601,8 +601,8 @@ struct BigForeTests {
             ]
         )
 
-        viewModel.applyStoredHoleSetup(from: [geometry])
-        let transitionCoordinates = try #require(viewModel.nextHoleTransitionCoordinates(from: [geometry]))
+        courseMapViewModel.applyStoredHoleSetup(from: [geometry])
+        let transitionCoordinates = try #require(courseMapViewModel.nextHoleTransitionCoordinates(from: [geometry]))
 
         #expect(transitionCoordinates.count == 2)
         #expect(transitionCoordinates.first?.latitude == holeNinePin.latitude)
@@ -617,7 +617,7 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let tee = CLLocationCoordinate2D(latitude: 33.010, longitude: -84.010)
         let pin = CLLocationCoordinate2D(latitude: 33.014, longitude: -84.006)
         let geometry = CourseGeometry(
@@ -635,13 +635,13 @@ struct BigForeTests {
             ]
         )
 
-        viewModel.selectHole(2, geometries: [geometry])
+        courseMapViewModel.selectHole(2, geometries: [geometry])
 
-        #expect(viewModel.targetHoleNumber == 2)
-        #expect(viewModel.teeBoxCoordinate?.latitude == tee.latitude)
-        #expect(viewModel.holePinCoordinate?.latitude == pin.latitude)
-        #expect(viewModel.cameraCenter.latitude == (tee.latitude + pin.latitude) / 2)
-        #expect(viewModel.cameraCenter.longitude == (tee.longitude + pin.longitude) / 2)
+        #expect(courseMapViewModel.targetHoleNumber == 2)
+        #expect(courseMapViewModel.teeBoxCoordinate?.latitude == tee.latitude)
+        #expect(courseMapViewModel.holePinCoordinate?.latitude == pin.latitude)
+        #expect(courseMapViewModel.cameraCenter.latitude == (tee.latitude + pin.latitude) / 2)
+        #expect(courseMapViewModel.cameraCenter.longitude == (tee.longitude + pin.longitude) / 2)
     }
 
     @Test func courseMapViewModelSelectingHoleFallsBackToPreviousHolePin() {
@@ -652,7 +652,7 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let previousPin = CLLocationCoordinate2D(latitude: 33.020, longitude: -84.020)
         let geometry = CourseGeometry(
             courseExternalID: 42,
@@ -673,13 +673,13 @@ struct BigForeTests {
             ]
         )
 
-        viewModel.selectHole(3, geometries: [geometry])
+        courseMapViewModel.selectHole(3, geometries: [geometry])
 
-        #expect(viewModel.targetHoleNumber == 3)
-        #expect(viewModel.teeBoxCoordinate == nil)
-        #expect(viewModel.holePinCoordinate == nil)
-        #expect(viewModel.cameraCenter.latitude == previousPin.latitude)
-        #expect(viewModel.cameraCenter.longitude == previousPin.longitude)
+        #expect(courseMapViewModel.targetHoleNumber == 3)
+        #expect(courseMapViewModel.teeBoxCoordinate == nil)
+        #expect(courseMapViewModel.holePinCoordinate == nil)
+        #expect(courseMapViewModel.cameraCenter.latitude == previousPin.latitude)
+        #expect(courseMapViewModel.cameraCenter.longitude == previousPin.longitude)
     }
 
     @Test func courseMapViewModelSelectingHoleSkipsMissingPreviousPin() {
@@ -690,7 +690,7 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let holeTwoTee = CLLocationCoordinate2D(latitude: 33.030, longitude: -84.030)
         let holeOnePin = CLLocationCoordinate2D(latitude: 33.010, longitude: -84.010)
         let geometry = CourseGeometry(
@@ -723,10 +723,10 @@ struct BigForeTests {
             ]
         )
 
-        viewModel.selectHole(3, geometries: [geometry])
+        courseMapViewModel.selectHole(3, geometries: [geometry])
 
-        #expect(viewModel.cameraCenter.latitude == holeOnePin.latitude)
-        #expect(viewModel.cameraCenter.longitude == holeOnePin.longitude)
+        #expect(courseMapViewModel.cameraCenter.latitude == holeOnePin.latitude)
+        #expect(courseMapViewModel.cameraCenter.longitude == holeOnePin.longitude)
     }
 
     @Test func courseMapViewModelSelectingHoleKeepsSelectedHolePinPriority() {
@@ -737,7 +737,7 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let previousPin = CLLocationCoordinate2D(latitude: 33.020, longitude: -84.020)
         let selectedPin = CLLocationCoordinate2D(latitude: 33.040, longitude: -84.040)
         let geometry = CourseGeometry(
@@ -770,11 +770,11 @@ struct BigForeTests {
             ]
         )
 
-        viewModel.selectHole(3, geometries: [geometry])
+        courseMapViewModel.selectHole(3, geometries: [geometry])
 
-        #expect(viewModel.holePinCoordinate?.latitude == selectedPin.latitude)
-        #expect(viewModel.cameraCenter.latitude == selectedPin.latitude)
-        #expect(viewModel.cameraCenter.longitude == selectedPin.longitude)
+        #expect(courseMapViewModel.holePinCoordinate?.latitude == selectedPin.latitude)
+        #expect(courseMapViewModel.cameraCenter.latitude == selectedPin.latitude)
+        #expect(courseMapViewModel.cameraCenter.longitude == selectedPin.longitude)
     }
 
     @Test func courseMapViewModelSelectingHoleFallsBackToShotLineThenCourseCenter() {
@@ -785,25 +785,25 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 2)
+        let courseMapViewModel = CourseMapViewModel(course: course, currentHoleNumber: 2)
         let shotStart = CLLocationCoordinate2D(latitude: 33.010, longitude: -84.010)
         let ball = CLLocationCoordinate2D(latitude: 33.014, longitude: -84.006)
 
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: shotStart)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: ball)
-        viewModel.moveToHole(1)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: shotStart)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: ball)
+        courseMapViewModel.moveToHole(1)
 
-        viewModel.selectHole(2, geometries: [])
+        courseMapViewModel.selectHole(2, geometries: [])
 
-        #expect(viewModel.cameraCenter.latitude == (shotStart.latitude + ball.latitude) / 2)
-        #expect(viewModel.cameraCenter.longitude == (shotStart.longitude + ball.longitude) / 2)
+        #expect(courseMapViewModel.cameraCenter.latitude == (shotStart.latitude + ball.latitude) / 2)
+        #expect(courseMapViewModel.cameraCenter.longitude == (shotStart.longitude + ball.longitude) / 2)
 
-        viewModel.selectHole(3, geometries: [])
+        courseMapViewModel.selectHole(3, geometries: [])
 
-        #expect(viewModel.cameraCenter.latitude == course.latitude)
-        #expect(viewModel.cameraCenter.longitude == course.longitude)
+        #expect(courseMapViewModel.cameraCenter.latitude == course.latitude)
+        #expect(courseMapViewModel.cameraCenter.longitude == course.longitude)
     }
 
     @Test func startRoundViewModelDefaultsFirstPlayerToPrimaryProfile() {
@@ -821,23 +821,23 @@ struct BigForeTests {
             parTotal: nil,
             holes: [RoundSetupHole(number: 1, par: 4, yardage: nil, handicap: nil)]
         )
-        let viewModel = StartRoundViewModel(course: course, tee: tee)
+        let startRoundViewModel = StartRoundViewModel(course: course, tee: tee)
 
-        #expect(viewModel.playerNames == ["Player"])
+        #expect(startRoundViewModel.playerNames == ["Player"])
 
         let profile = PlayerProfile(displayName: "Grant", isPrimaryUser: true)
-        viewModel.configurePrimaryPlayer(profile)
+        startRoundViewModel.configurePrimaryPlayer(profile)
 
-        #expect(viewModel.playerNames == ["Grant"])
+        #expect(startRoundViewModel.playerNames == ["Grant"])
 
-        viewModel.removePlayers(at: IndexSet(integer: 0))
+        startRoundViewModel.removePlayers(at: IndexSet(integer: 0))
 
-        #expect(viewModel.playerNames == ["Grant"])
+        #expect(startRoundViewModel.playerNames == ["Grant"])
 
-        viewModel.newPlayerName = "Alex"
-        viewModel.addPlayer()
+        startRoundViewModel.newPlayerName = "Alex"
+        startRoundViewModel.addPlayer()
 
-        #expect(viewModel.playerNames == ["Grant", "Alex"])
+        #expect(startRoundViewModel.playerNames == ["Grant", "Alex"])
     }
 
     @Test func courseMapViewModelReportsTeeToHolePinDistance() throws {
@@ -848,17 +848,17 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
 
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
 
-        let teeDistance = try #require(viewModel.teeToHolePinDistanceText)
+        let teeDistance = try #require(courseMapViewModel.teeToHolePinDistanceText)
 
         #expect(teeDistance.hasSuffix(" yds"))
-        #expect(viewModel.teeToHolePinCoordinates?.count == 2)
+        #expect(courseMapViewModel.teeToHolePinCoordinates?.count == 2)
     }
 
     @Test func courseMapViewModelManualShotSelectionOverridesGPS() throws {
@@ -870,29 +870,29 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course, locationService: locationService)
+        let courseMapViewModel = CourseMapViewModel(course: course, locationService: locationService)
         let manualStart = CLLocationCoordinate2D(latitude: 33.0001, longitude: -84.0)
         let manualBall = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
         let holePin = CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0)
 
         locationService.currentLocation = CLLocation(latitude: 33.0, longitude: -84.0)
-        viewModel.startShotFromCurrentLocation()
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: manualStart)
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: holePin)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: manualBall)
+        courseMapViewModel.startShotFromCurrentLocation()
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: manualStart)
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: holePin)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: manualBall)
 
-        let shotDistance = try #require(viewModel.shotDistanceText)
-        let ballToPinDistance = try #require(viewModel.shotLocationToHolePinDistanceText)
+        let shotDistance = try #require(courseMapViewModel.shotDistanceText)
+        let ballToPinDistance = try #require(courseMapViewModel.shotLocationToHolePinDistanceText)
         locationService.currentLocation = CLLocation(latitude: 33.004, longitude: -84.0)
 
-        #expect(viewModel.shotStartCoordinate?.latitude == manualStart.latitude)
-        #expect(viewModel.shotEndCoordinate?.latitude == manualBall.latitude)
-        #expect(viewModel.shotDistanceText == shotDistance)
-        #expect(viewModel.shotLocationToHolePinLabel == "Ball to pin")
-        #expect(viewModel.shotLocationToHolePinDistanceText == ballToPinDistance)
+        #expect(courseMapViewModel.shotStartCoordinate?.latitude == manualStart.latitude)
+        #expect(courseMapViewModel.shotEndCoordinate?.latitude == manualBall.latitude)
+        #expect(courseMapViewModel.shotDistanceText == shotDistance)
+        #expect(courseMapViewModel.shotLocationToHolePinLabel == "Ball to pin")
+        #expect(courseMapViewModel.shotLocationToHolePinDistanceText == ballToPinDistance)
     }
 
     @Test func courseMapViewModelPersistsStickyTeeAndPinFromMapTaps() throws {
@@ -907,15 +907,15 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 3)
+        let courseMapViewModel = CourseMapViewModel(course: course, currentHoleNumber: 3)
         let teeBox = CLLocationCoordinate2D(latitude: 33.0002, longitude: -84.0002)
         let providerPin = CLLocationCoordinate2D(latitude: 33.0099, longitude: -84.0099)
         let userPin = CLLocationCoordinate2D(latitude: 33.0012, longitude: -84.0002)
 
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: teeBox, modelContext: modelContext)
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: userPin, modelContext: modelContext)
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: teeBox, modelContext: modelContext)
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: userPin, modelContext: modelContext)
 
         let geometries = try modelContext.fetch(FetchDescriptor<CourseGeometry>())
         let geometry = try #require(geometries.first)
@@ -941,23 +941,23 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let shotStart = CLLocationCoordinate2D(latitude: 33.0001, longitude: -84.0)
         let ball = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
 
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: shotStart)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: ball)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: shotStart)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: ball)
 
-        #expect(viewModel.shotMarkers.count == 1)
-        #expect(viewModel.shotMarkers.first?.ballCoordinate.latitude == ball.latitude)
+        #expect(courseMapViewModel.shotMarkers.count == 1)
+        #expect(courseMapViewModel.shotMarkers.first?.ballCoordinate.latitude == ball.latitude)
 
-        viewModel.startNextShotFromBall()
+        courseMapViewModel.startNextShotFromBall()
 
-        #expect(viewModel.shotStartCoordinate?.latitude == ball.latitude)
-        #expect(viewModel.shotEndCoordinate == nil)
-        #expect(viewModel.selectionMode == .shotBall)
+        #expect(courseMapViewModel.shotStartCoordinate?.latitude == ball.latitude)
+        #expect(courseMapViewModel.shotEndCoordinate == nil)
+        #expect(courseMapViewModel.selectionMode == .shotBall)
     }
 
     @Test func courseMapViewModelFirstBallDefaultsShotStartToTeeBox() throws {
@@ -968,19 +968,19 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let ball = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
 
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: tee)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: ball)
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: tee)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: ball)
 
-        #expect(viewModel.shotMarkers.count == 1)
-        #expect(viewModel.shotStartCoordinate?.latitude == tee.latitude)
-        #expect(viewModel.shotEndCoordinate?.latitude == ball.latitude)
-        #expect(viewModel.shotMarkers.first?.startCoordinate.latitude == tee.latitude)
+        #expect(courseMapViewModel.shotMarkers.count == 1)
+        #expect(courseMapViewModel.shotStartCoordinate?.latitude == tee.latitude)
+        #expect(courseMapViewModel.shotEndCoordinate?.latitude == ball.latitude)
+        #expect(courseMapViewModel.shotMarkers.first?.startCoordinate.latitude == tee.latitude)
     }
 
     @Test func courseMapViewModelBallTapUpdatesExistingShotWithSameStart() throws {
@@ -991,21 +991,21 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let firstBall = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
         let correctedBall = CLLocationCoordinate2D(latitude: 33.0015, longitude: -84.0)
 
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: tee)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: firstBall)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: correctedBall)
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: tee)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: firstBall)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: correctedBall)
 
-        #expect(viewModel.shotMarkers.count == 1)
-        #expect(viewModel.shotMarkers.first?.shotNumber == 1)
-        #expect(viewModel.shotMarkers.first?.ballCoordinate.latitude == correctedBall.latitude)
+        #expect(courseMapViewModel.shotMarkers.count == 1)
+        #expect(courseMapViewModel.shotMarkers.first?.shotNumber == 1)
+        #expect(courseMapViewModel.shotMarkers.first?.ballCoordinate.latitude == correctedBall.latitude)
     }
 
     @Test func courseMapViewModelBallTapAddsNextShotWhenNoStartOrSelectionExists() throws {
@@ -1016,24 +1016,24 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let firstBall = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
         let secondBall = CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0)
 
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: tee)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: firstBall)
-        viewModel.clearShotMeasurement()
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: secondBall)
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: tee)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: firstBall)
+        courseMapViewModel.clearShotMeasurement()
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: secondBall)
 
-        #expect(viewModel.shotMarkers.count == 2)
-        #expect(viewModel.shotMarkers.first?.shotNumber == 1)
-        #expect(viewModel.shotMarkers.last?.shotNumber == 2)
-        #expect(viewModel.shotMarkers.last?.startCoordinate.latitude == firstBall.latitude)
-        #expect(viewModel.shotMarkers.last?.ballCoordinate.latitude == secondBall.latitude)
+        #expect(courseMapViewModel.shotMarkers.count == 2)
+        #expect(courseMapViewModel.shotMarkers.first?.shotNumber == 1)
+        #expect(courseMapViewModel.shotMarkers.last?.shotNumber == 2)
+        #expect(courseMapViewModel.shotMarkers.last?.startCoordinate.latitude == firstBall.latitude)
+        #expect(courseMapViewModel.shotMarkers.last?.ballCoordinate.latitude == secondBall.latitude)
     }
 
     @Test func courseMapViewModelNextShotBallTapUpdatesExistingSubsequentShot() throws {
@@ -1044,26 +1044,26 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let firstBall = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
         let secondBall = CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0)
         let correctedSecondBall = CLLocationCoordinate2D(latitude: 33.0025, longitude: -84.0)
 
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: tee)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: firstBall)
-        viewModel.startNextShotFromBall()
-        viewModel.selectMapLocation(at: secondBall)
-        let firstMarker = try #require(viewModel.shotMarkers.first)
-        viewModel.selectShotMarker(id: firstMarker.id)
-        viewModel.startNextShotFromBall()
-        viewModel.selectMapLocation(at: correctedSecondBall)
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: tee)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: firstBall)
+        courseMapViewModel.startNextShotFromBall()
+        courseMapViewModel.selectMapLocation(at: secondBall)
+        let firstMarker = try #require(courseMapViewModel.shotMarkers.first)
+        courseMapViewModel.selectShotMarker(id: firstMarker.id)
+        courseMapViewModel.startNextShotFromBall()
+        courseMapViewModel.selectMapLocation(at: correctedSecondBall)
 
-        #expect(viewModel.shotMarkers.count == 2)
-        #expect(viewModel.shotMarkers.last?.shotNumber == 2)
-        #expect(viewModel.shotMarkers.last?.ballCoordinate.latitude == correctedSecondBall.latitude)
+        #expect(courseMapViewModel.shotMarkers.count == 2)
+        #expect(courseMapViewModel.shotMarkers.last?.shotNumber == 2)
+        #expect(courseMapViewModel.shotMarkers.last?.ballCoordinate.latitude == correctedSecondBall.latitude)
     }
 
     @Test func courseMapViewModelDeletesSelectedShotAndUpdatesScore() throws {
@@ -1084,23 +1084,23 @@ struct BigForeTests {
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
 
         modelContext.insert(round)
         try modelContext.save()
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0), modelContext: modelContext)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0), modelContext: modelContext)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0), modelContext: modelContext)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0), modelContext: modelContext)
 
-        let marker = try #require(viewModel.shotMarkers.first)
-        viewModel.selectShotMarker(id: marker.id)
-        viewModel.deleteSelectedShotMarker(modelContext: modelContext)
+        let marker = try #require(courseMapViewModel.shotMarkers.first)
+        courseMapViewModel.selectShotMarker(id: marker.id)
+        courseMapViewModel.deleteSelectedShotMarker(modelContext: modelContext)
 
-        #expect(viewModel.shotMarkers.isEmpty)
-        #expect(viewModel.selectedShotMarkerID == nil)
+        #expect(courseMapViewModel.shotMarkers.isEmpty)
+        #expect(courseMapViewModel.selectedShotMarkerID == nil)
         #expect(score.strokes == 0)
-        #expect(viewModel.statusMessage == "Deleted shot.")
+        #expect(courseMapViewModel.statusMessage == "Deleted shot.")
     }
 
     @Test func courseGeometryEditorDeletesUserMappedAnchorsButKeepsImportedFallback() throws {
@@ -1154,29 +1154,29 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let shotStart = CLLocationCoordinate2D(latitude: 33.0001, longitude: -84.0)
         let ball = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
 
-        #expect(viewModel.canStartNextShotFromBall == false)
-        viewModel.startNextShotFromBall()
-        #expect(viewModel.shotStartCoordinate == nil)
-        #expect(viewModel.selectionMode == .inactive)
+        #expect(courseMapViewModel.canStartNextShotFromBall == false)
+        courseMapViewModel.startNextShotFromBall()
+        #expect(courseMapViewModel.shotStartCoordinate == nil)
+        #expect(courseMapViewModel.selectionMode == .inactive)
 
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: shotStart)
-        #expect(viewModel.canStartNextShotFromBall == false)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: shotStart)
+        #expect(courseMapViewModel.canStartNextShotFromBall == false)
 
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: ball)
-        #expect(viewModel.canStartNextShotFromBall)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: ball)
+        #expect(courseMapViewModel.canStartNextShotFromBall)
 
-        viewModel.startNextShotFromBall()
+        courseMapViewModel.startNextShotFromBall()
 
-        #expect(viewModel.canStartNextShotFromBall == false)
-        #expect(viewModel.shotStartCoordinate?.latitude == ball.latitude)
-        #expect(viewModel.shotEndCoordinate == nil)
-        #expect(viewModel.selectionMode == .shotBall)
+        #expect(courseMapViewModel.canStartNextShotFromBall == false)
+        #expect(courseMapViewModel.shotStartCoordinate?.latitude == ball.latitude)
+        #expect(courseMapViewModel.shotEndCoordinate == nil)
+        #expect(courseMapViewModel.selectionMode == .shotBall)
     }
 
     @Test func courseMapViewModelSelectsShotMarkerAndUpdatesBallLocation() throws {
@@ -1187,35 +1187,35 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let shotStart = CLLocationCoordinate2D(latitude: 33.0001, longitude: -84.0)
         let ball = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
         let movedBall = CLLocationCoordinate2D(latitude: 33.0014, longitude: -84.0)
         let holePin = CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0)
 
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: holePin)
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: shotStart)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: ball)
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: holePin)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: shotStart)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: ball)
 
-        let marker = try #require(viewModel.shotMarkers.first)
-        viewModel.selectShotMarker(id: marker.id)
+        let marker = try #require(courseMapViewModel.shotMarkers.first)
+        courseMapViewModel.selectShotMarker(id: marker.id)
 
-        let distanceToPin = try #require(viewModel.selectedShotMarkerDistanceToPinText)
-        let selectedSummary = try #require(viewModel.selectedMapInfoSummary)
+        let distanceToPin = try #require(courseMapViewModel.selectedShotMarkerDistanceToPinText)
+        let selectedSummary = try #require(courseMapViewModel.selectedMapInfoSummary)
         #expect(selectedSummary.referenceDistanceLabel == "From tee")
         #expect(selectedSummary.referenceDistanceText?.hasSuffix(" yds") == true)
         #expect(selectedSummary.pinDistanceText == distanceToPin)
 
-        viewModel.selectionMode = .moveShotBall
-        viewModel.selectMapLocation(at: movedBall)
+        courseMapViewModel.selectionMode = .moveShotBall
+        courseMapViewModel.selectMapLocation(at: movedBall)
 
         #expect(distanceToPin.hasSuffix(" yds"))
-        #expect(viewModel.shotMarkers.first?.ballCoordinate.latitude == movedBall.latitude)
-        #expect(viewModel.shotEndCoordinate?.latitude == movedBall.latitude)
-        #expect(viewModel.selectedShotMarkerDistanceToPinText != distanceToPin)
+        #expect(courseMapViewModel.shotMarkers.first?.ballCoordinate.latitude == movedBall.latitude)
+        #expect(courseMapViewModel.shotEndCoordinate?.latitude == movedBall.latitude)
+        #expect(courseMapViewModel.selectedShotMarkerDistanceToPinText != distanceToPin)
     }
 
     @Test func courseMapViewModelBuildsAllShotSummariesFromTeePreviousBallAndPin() throws {
@@ -1226,7 +1226,7 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let calculator = DistanceCalculator()
         let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let firstStart = CLLocationCoordinate2D(latitude: 33.0002, longitude: -84.0)
@@ -1234,18 +1234,18 @@ struct BigForeTests {
         let secondBall = CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0)
         let pin = CLLocationCoordinate2D(latitude: 33.003, longitude: -84.0)
 
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: tee)
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: pin)
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: firstStart)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: firstBall)
-        viewModel.startNextShotFromBall()
-        viewModel.selectMapLocation(at: secondBall)
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: tee)
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: pin)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: firstStart)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: firstBall)
+        courseMapViewModel.startNextShotFromBall()
+        courseMapViewModel.selectMapLocation(at: secondBall)
 
-        let summaries = viewModel.shotSummaries
+        let summaries = courseMapViewModel.shotSummaries
         let firstSummary = try #require(summaries.first)
         let secondSummary = try #require(summaries.last)
 
@@ -1264,29 +1264,29 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let firstStart = CLLocationCoordinate2D(latitude: 33.0001, longitude: -84.0)
         let firstBall = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
         let secondBall = CLLocationCoordinate2D(latitude: 33.004, longitude: -84.0)
 
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: firstStart)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: firstBall)
-        viewModel.startNextShotFromBall()
-        viewModel.selectMapLocation(at: secondBall)
-        let cameraCenter = viewModel.cameraCenter
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: firstStart)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: firstBall)
+        courseMapViewModel.startNextShotFromBall()
+        courseMapViewModel.selectMapLocation(at: secondBall)
+        let cameraCenter = courseMapViewModel.cameraCenter
 
-        let firstMarker = try #require(viewModel.shotMarkers.first)
-        viewModel.selectShotMarker(id: firstMarker.id)
+        let firstMarker = try #require(courseMapViewModel.shotMarkers.first)
+        courseMapViewModel.selectShotMarker(id: firstMarker.id)
 
-        #expect(viewModel.selectedShotMarkerID == firstMarker.id)
-        #expect(viewModel.shotStartCoordinate?.latitude == firstStart.latitude)
-        #expect(viewModel.shotEndCoordinate?.latitude == firstBall.latitude)
-        #expect(viewModel.selectionMode == .moveShotBall)
-        #expect(viewModel.cameraCenter.latitude == cameraCenter.latitude)
-        #expect(viewModel.cameraCenter.longitude == cameraCenter.longitude)
-        #expect(viewModel.shotSummaries.first?.isSelected == true)
+        #expect(courseMapViewModel.selectedShotMarkerID == firstMarker.id)
+        #expect(courseMapViewModel.shotStartCoordinate?.latitude == firstStart.latitude)
+        #expect(courseMapViewModel.shotEndCoordinate?.latitude == firstBall.latitude)
+        #expect(courseMapViewModel.selectionMode == .moveShotBall)
+        #expect(courseMapViewModel.cameraCenter.latitude == cameraCenter.latitude)
+        #expect(courseMapViewModel.cameraCenter.longitude == cameraCenter.longitude)
+        #expect(courseMapViewModel.shotSummaries.first?.isSelected == true)
     }
 
     @Test func courseMapViewModelScoreButtonsUpdateCurrentHoleScore() throws {
@@ -1307,28 +1307,28 @@ struct BigForeTests {
             players: [player]
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
 
         modelContext.insert(round)
         try modelContext.save()
 
-        viewModel.incrementSelectedHoleScore(modelContext: modelContext)
-        viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+        courseMapViewModel.incrementSelectedHoleScore(modelContext: modelContext)
+        courseMapViewModel.incrementSelectedHoleScore(modelContext: modelContext)
 
         #expect(score.strokes == 2)
-        #expect(viewModel.compactHoleScoreText == "S2")
-        #expect(viewModel.canDecreaseSelectedHoleScore)
+        #expect(courseMapViewModel.compactHoleScoreText == "S2")
+        #expect(courseMapViewModel.canDecreaseSelectedHoleScore)
 
-        viewModel.decrementSelectedHoleScore(modelContext: modelContext)
+        courseMapViewModel.decrementSelectedHoleScore(modelContext: modelContext)
 
         #expect(score.strokes == 1)
 
         for _ in 0..<20 {
-            viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+            courseMapViewModel.incrementSelectedHoleScore(modelContext: modelContext)
         }
 
         #expect(score.strokes == 12)
-        #expect(viewModel.canIncreaseSelectedHoleScore == false)
+        #expect(courseMapViewModel.canIncreaseSelectedHoleScore == false)
     }
 
     @Test func courseMapViewModelManualShotsUpdateFirstPlayerHoleScore() throws {
@@ -1351,23 +1351,23 @@ struct BigForeTests {
             players: [alex, grant]
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
 
         modelContext.insert(round)
         try modelContext.save()
 
-        viewModel.incrementSelectedHoleScore(modelContext: modelContext)
-        viewModel.incrementSelectedHoleScore(modelContext: modelContext)
-        viewModel.incrementSelectedHoleScore(modelContext: modelContext)
+        courseMapViewModel.incrementSelectedHoleScore(modelContext: modelContext)
+        courseMapViewModel.incrementSelectedHoleScore(modelContext: modelContext)
+        courseMapViewModel.incrementSelectedHoleScore(modelContext: modelContext)
 
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0), modelContext: modelContext)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0), modelContext: modelContext)
-        viewModel.startNextShotFromBall()
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0), modelContext: modelContext)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0), modelContext: modelContext)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0), modelContext: modelContext)
+        courseMapViewModel.startNextShotFromBall()
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0), modelContext: modelContext)
 
-        #expect(viewModel.selectedScoringPlayer?.name == "Grant")
+        #expect(courseMapViewModel.selectedScoringPlayer?.name == "Grant")
         #expect(grantScore.strokes == 2)
         #expect(alexScore.strokes == 0)
     }
@@ -1388,15 +1388,15 @@ struct BigForeTests {
             players: [grant, alex]
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round, focusedPlayerID: alex.id)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round, focusedPlayerID: alex.id)
 
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
 
-        #expect(viewModel.selectedScoringPlayer?.name == "Alex")
-        #expect(viewModel.scoringPlayerDetailText == "Ball: Alex")
+        #expect(courseMapViewModel.selectedScoringPlayer?.name == "Alex")
+        #expect(courseMapViewModel.scoringPlayerDetailText == "Ball: Alex")
         #expect(alexScore.strokes == 1)
         #expect(grantScore.strokes == 0)
     }
@@ -1420,18 +1420,18 @@ struct BigForeTests {
             players: [player]
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
         let shotStart = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let ball = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
 
         modelContext.insert(club)
         modelContext.insert(round)
         try modelContext.save()
-        viewModel.selectedClubID = club.id
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: shotStart, modelContext: modelContext)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: ball, modelContext: modelContext)
+        courseMapViewModel.selectedClubID = club.id
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: shotStart, modelContext: modelContext)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: ball, modelContext: modelContext)
 
         let records = try modelContext.fetch(FetchDescriptor<ShotRecord>())
         let record = try #require(records.first)
@@ -1473,18 +1473,18 @@ struct BigForeTests {
             players: [player]
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
 
         modelContext.insert(round)
         try modelContext.save()
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0), modelContext: modelContext)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0), modelContext: modelContext)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0), modelContext: modelContext)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0), modelContext: modelContext)
 
-        let marker = try #require(viewModel.shotMarkers.first)
-        viewModel.selectShotMarker(id: marker.id)
-        viewModel.deleteSelectedShotMarker(modelContext: modelContext)
+        let marker = try #require(courseMapViewModel.shotMarkers.first)
+        courseMapViewModel.selectShotMarker(id: marker.id)
+        courseMapViewModel.deleteSelectedShotMarker(modelContext: modelContext)
 
         #expect(try modelContext.fetch(FetchDescriptor<ShotRecord>()).isEmpty)
         #expect(score.strokes == 0)
@@ -1510,16 +1510,16 @@ struct BigForeTests {
             windSpeedMilesPerHour: 8
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
 
         round.weatherSnapshots = [weatherSnapshot]
-        viewModel.selectedClubID = club.id
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        courseMapViewModel.selectedClubID = club.id
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
 
-        let recommendation = try #require(viewModel.clubRecommendation(from: [club]))
+        let recommendation = try #require(courseMapViewModel.clubRecommendation(from: [club]))
 
         #expect(recommendation.title == "Woody says 9 Iron")
         #expect(recommendation.detail.contains("default"))
@@ -1541,15 +1541,15 @@ struct BigForeTests {
             teeGender: "male"
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
 
-        viewModel.selectedClubID = driver.id
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        courseMapViewModel.selectedClubID = driver.id
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
 
-        let recommendation = try #require(viewModel.clubRecommendation(from: [driver, pitchingWedge]))
+        let recommendation = try #require(courseMapViewModel.clubRecommendation(from: [driver, pitchingWedge]))
 
         #expect(recommendation.title == "Woody says PW")
         #expect(recommendation.detail.contains("Selected shot club: Driver"))
@@ -1568,15 +1568,15 @@ struct BigForeTests {
             teeGender: "male"
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
 
-        viewModel.selectedClubID = pitchingWedge.id
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.00125, longitude: -84.0))
+        courseMapViewModel.selectedClubID = pitchingWedge.id
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.00125, longitude: -84.0))
 
-        let recommendation = try #require(viewModel.clubRecommendation(from: [sevenIron, pitchingWedge]))
+        let recommendation = try #require(courseMapViewModel.clubRecommendation(from: [sevenIron, pitchingWedge]))
 
         #expect(recommendation.title == "Woody says 7 Iron")
     }
@@ -1594,16 +1594,16 @@ struct BigForeTests {
             teeGender: "male"
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
 
-        viewModel.selectedClubID = driver.id
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
-        viewModel.selectWoodyClub(from: [driver, pitchingWedge])
+        courseMapViewModel.selectedClubID = driver.id
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        courseMapViewModel.selectWoodyClub(from: [driver, pitchingWedge])
 
-        #expect(viewModel.selectedClubID == pitchingWedge.id)
+        #expect(courseMapViewModel.selectedClubID == pitchingWedge.id)
     }
 
     @Test func courseMapViewModelBuildsWoodyRecommendedClubLandingTarget() throws {
@@ -1619,38 +1619,38 @@ struct BigForeTests {
             teeGender: "male"
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
         let start = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let pin = CLLocationCoordinate2D(latitude: 33.004, longitude: -84.0)
 
-        viewModel.selectedClubID = driver.id
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: start)
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: pin)
+        courseMapViewModel.selectedClubID = driver.id
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: start)
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: pin)
 
-        let landingTarget = try #require(viewModel.clubLandingTarget(from: [driver]))
+        let landingTarget = try #require(courseMapViewModel.clubLandingTarget(from: [driver]))
         let targetDistance = DistanceCalculator().yards(from: start, to: landingTarget.coordinate)
 
         #expect(landingTarget.title == "Driver target 245 yds")
         #expect((240...250).contains(targetDistance))
         #expect(landingTarget.lineCoordinates.first?.latitude == start.latitude)
 
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: start)
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: start)
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
 
-        let shorterTarget = try #require(viewModel.clubLandingTarget(from: [driver, pitchingWedge]))
+        let shorterTarget = try #require(courseMapViewModel.clubLandingTarget(from: [driver, pitchingWedge]))
         let shorterTargetDistance = DistanceCalculator().yards(from: start, to: shorterTarget.coordinate)
 
         #expect(shorterTarget.title == "PW target 120 yds")
         #expect((115...125).contains(shorterTargetDistance))
 
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0005, longitude: -84.0))
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0005, longitude: -84.0))
 
-        #expect(viewModel.clubLandingTarget(from: [driver, pitchingWedge]) == nil)
+        #expect(courseMapViewModel.clubLandingTarget(from: [driver, pitchingWedge]) == nil)
     }
 
     @Test func courseMapViewModelBuildsWoodyRecommendationFromSavedClubAverage() throws {
@@ -1698,16 +1698,16 @@ struct BigForeTests {
             distanceYards: 122
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
 
         round.shotRecords = [firstShot, secondShot, thirdShot]
-        viewModel.selectedClubID = club.id
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        courseMapViewModel.selectedClubID = club.id
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
 
-        let recommendation = try #require(viewModel.clubRecommendation(from: [club]))
+        let recommendation = try #require(courseMapViewModel.clubRecommendation(from: [club]))
 
         #expect(recommendation.detail.contains("122 yds"))
         #expect(recommendation.detail.contains("3-shot average"))
@@ -1722,13 +1722,13 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let tappedCoordinate = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
 
-        viewModel.handleMapTap(at: tappedCoordinate)
+        courseMapViewModel.handleMapTap(at: tappedCoordinate)
 
-        #expect(viewModel.measuredCoordinate == nil)
-        #expect(viewModel.statusMessage == "Choose a map action before tapping.")
+        #expect(courseMapViewModel.measuredCoordinate == nil)
+        #expect(courseMapViewModel.statusMessage == "Choose a map action before tapping.")
     }
 
     @Test func courseMapViewModelDeletingMeasuredPointDisablesMapTapAction() {
@@ -1739,20 +1739,20 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
 
-        viewModel.handleMapTap(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
-        viewModel.deleteMeasuredPoint()
-        viewModel.handleMapTap(at: CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0))
+        courseMapViewModel.handleMapTap(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        courseMapViewModel.deleteMeasuredPoint()
+        courseMapViewModel.handleMapTap(at: CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0))
 
-        #expect(viewModel.measuredCoordinate == nil)
-        #expect(viewModel.selectionMode == .inactive)
-        #expect(viewModel.statusMessage == "Choose a map action before tapping.")
+        #expect(courseMapViewModel.measuredCoordinate == nil)
+        #expect(courseMapViewModel.selectionMode == .inactive)
+        #expect(courseMapViewModel.statusMessage == "Choose a map action before tapping.")
 
-        viewModel.selectionMode = .measurementPin
-        viewModel.handleMapTap(at: CLLocationCoordinate2D(latitude: 33.003, longitude: -84.0))
+        courseMapViewModel.selectionMode = .measurementPin
+        courseMapViewModel.handleMapTap(at: CLLocationCoordinate2D(latitude: 33.003, longitude: -84.0))
 
-        #expect(viewModel.measuredCoordinate?.latitude == 33.003)
+        #expect(courseMapViewModel.measuredCoordinate?.latitude == 33.003)
     }
 
     @Test func courseMapViewModelSelectedMapInfoUsesCurrentPlayReference() throws {
@@ -1763,36 +1763,36 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
+        let courseMapViewModel = CourseMapViewModel(course: course)
         let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let pin = CLLocationCoordinate2D(latitude: 33.003, longitude: -84.0)
         let hazard = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
         let ball = CLLocationCoordinate2D(latitude: 33.002, longitude: -84.0)
 
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: tee)
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: pin)
-        viewModel.selectMapInfo(title: "Bunker 1", coordinate: hazard)
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: tee)
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: pin)
+        courseMapViewModel.selectMapInfo(title: "Bunker 1", coordinate: hazard)
 
-        var summary = try #require(viewModel.selectedMapInfoSummary)
+        var summary = try #require(courseMapViewModel.selectedMapInfoSummary)
         #expect(summary.referenceDistanceLabel == "Tee to this")
         #expect(summary.referenceDistanceText?.hasSuffix(" yds") == true)
         #expect(summary.pinDistanceText?.hasSuffix(" yds") == true)
 
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: tee)
-        viewModel.locationService.currentLocation = CLLocation(latitude: 33.0015, longitude: -84.0)
-        viewModel.selectMapInfo(title: "Bunker 1", coordinate: hazard)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: tee)
+        courseMapViewModel.locationService.currentLocation = CLLocation(latitude: 33.0015, longitude: -84.0)
+        courseMapViewModel.selectMapInfo(title: "Bunker 1", coordinate: hazard)
 
-        summary = try #require(viewModel.selectedMapInfoSummary)
+        summary = try #require(courseMapViewModel.selectedMapInfoSummary)
         #expect(summary.referenceDistanceLabel == "GPS to this")
 
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: ball)
-        viewModel.selectMapInfo(title: "Bunker 1", coordinate: hazard)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: ball)
+        courseMapViewModel.selectMapInfo(title: "Bunker 1", coordinate: hazard)
 
-        summary = try #require(viewModel.selectedMapInfoSummary)
+        summary = try #require(courseMapViewModel.selectedMapInfoSummary)
         #expect(summary.referenceDistanceLabel == "Ball to this")
     }
 
@@ -1810,11 +1810,11 @@ struct BigForeTests {
             players: [player]
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, currentHoleNumber: 13, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, currentHoleNumber: 13, round: round)
 
-        #expect(viewModel.teeBoxTitle(for: 13) == "Tee Box 13 - Par 3")
-        #expect(viewModel.greenTitle(for: 13) == "Green 13 - Par 3")
-        #expect(viewModel.teeBoxTitle(for: 14) == "Tee Box 14")
+        #expect(courseMapViewModel.teeBoxTitle(for: 13) == "Tee Box 13 - Par 3")
+        #expect(courseMapViewModel.greenTitle(for: 13) == "Green 13 - Par 3")
+        #expect(courseMapViewModel.teeBoxTitle(for: 14) == "Tee Box 14")
     }
 
     @Test func courseMapViewModelSaveHoleRequiresShotsOrScoreBeforeAdvancing() throws {
@@ -1832,28 +1832,28 @@ struct BigForeTests {
             players: [player]
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
 
-        #expect(viewModel.canSaveHole == false)
-        #expect(viewModel.saveHoleButtonTitle == "Save Grant")
-        #expect(viewModel.saveHoleActionAccessibilityLabel == "Save hole for Grant and go to next hole")
-        viewModel.saveCurrentHole()
+        #expect(courseMapViewModel.canSaveHole == false)
+        #expect(courseMapViewModel.saveHoleButtonTitle == "Save Grant")
+        #expect(courseMapViewModel.saveHoleActionAccessibilityLabel == "Save hole for Grant and go to next hole")
+        courseMapViewModel.saveCurrentHole()
         #expect(round.currentHole == 1)
 
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
-        #expect(viewModel.canSaveHole)
-        #expect(viewModel.saveHoleButtonTitle == "Save Grant")
-        #expect(viewModel.saveHoleHelpText == "Saves Hole 1 for Grant and moves to Hole 2.")
-        #expect(viewModel.scoringPlayerDetailText == "Ball: Grant")
-        viewModel.saveCurrentHole()
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0))
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0))
+        #expect(courseMapViewModel.canSaveHole)
+        #expect(courseMapViewModel.saveHoleButtonTitle == "Save Grant")
+        #expect(courseMapViewModel.saveHoleHelpText == "Saves Hole 1 for Grant and moves to Hole 2.")
+        #expect(courseMapViewModel.scoringPlayerDetailText == "Ball: Grant")
+        courseMapViewModel.saveCurrentHole()
 
         #expect(firstScore.strokes == 1)
         #expect(round.currentHole == 2)
-        #expect(viewModel.targetHoleNumber == 2)
-        #expect(viewModel.shotMarkers.isEmpty)
+        #expect(courseMapViewModel.targetHoleNumber == 2)
+        #expect(courseMapViewModel.shotMarkers.isEmpty)
     }
 
     @Test func courseMapViewModelMovingHolesSyncsScoreAndRestoresHoleSession() throws {
@@ -1871,42 +1871,42 @@ struct BigForeTests {
             players: [player]
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
         let tee = CLLocationCoordinate2D(latitude: 33.0, longitude: -84.0)
         let pin = CLLocationCoordinate2D(latitude: 33.003, longitude: -84.0)
         let measurement = CLLocationCoordinate2D(latitude: 33.0005, longitude: -84.0)
         let ball = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.0)
 
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: tee)
-        viewModel.selectionMode = .holePin
-        viewModel.selectMapLocation(at: pin)
-        viewModel.selectionMode = .measurementPin
-        viewModel.selectMapLocation(at: measurement)
-        viewModel.selectionMode = .shotStart
-        viewModel.selectMapLocation(at: tee)
-        viewModel.selectionMode = .shotBall
-        viewModel.selectMapLocation(at: ball)
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: tee)
+        courseMapViewModel.selectionMode = .holePin
+        courseMapViewModel.selectMapLocation(at: pin)
+        courseMapViewModel.selectionMode = .measurementPin
+        courseMapViewModel.selectMapLocation(at: measurement)
+        courseMapViewModel.selectionMode = .shotStart
+        courseMapViewModel.selectMapLocation(at: tee)
+        courseMapViewModel.selectionMode = .shotBall
+        courseMapViewModel.selectMapLocation(at: ball)
 
-        viewModel.moveToNextHole()
-        let selectedHoleScore = try #require(viewModel.selectedHoleScore)
+        courseMapViewModel.moveToNextHole()
+        let selectedHoleScore = try #require(courseMapViewModel.selectedHoleScore)
 
         #expect(firstScore.strokes == 1)
         #expect(round.currentHole == 2)
-        #expect(viewModel.targetHoleNumber == 2)
+        #expect(courseMapViewModel.targetHoleNumber == 2)
         #expect(selectedHoleScore === secondScore)
-        #expect(viewModel.shotMarkers.isEmpty)
-        #expect(viewModel.teeBoxCoordinate == nil)
-        #expect(viewModel.holePinCoordinate == nil)
-        #expect(viewModel.measuredCoordinate == nil)
+        #expect(courseMapViewModel.shotMarkers.isEmpty)
+        #expect(courseMapViewModel.teeBoxCoordinate == nil)
+        #expect(courseMapViewModel.holePinCoordinate == nil)
+        #expect(courseMapViewModel.measuredCoordinate == nil)
 
-        viewModel.moveToPreviousHole()
+        courseMapViewModel.moveToPreviousHole()
 
         #expect(round.currentHole == 1)
-        #expect(viewModel.shotMarkers.count == 1)
-        #expect(viewModel.teeBoxCoordinate?.latitude == tee.latitude)
-        #expect(viewModel.holePinCoordinate?.latitude == pin.latitude)
-        #expect(viewModel.measuredCoordinate?.latitude == measurement.latitude)
+        #expect(courseMapViewModel.shotMarkers.count == 1)
+        #expect(courseMapViewModel.teeBoxCoordinate?.latitude == tee.latitude)
+        #expect(courseMapViewModel.holePinCoordinate?.latitude == pin.latitude)
+        #expect(courseMapViewModel.measuredCoordinate?.latitude == measurement.latitude)
     }
 
     @Test func courseMapViewModelSaveHoleFinishesOnFinalHole() throws {
@@ -1925,13 +1925,13 @@ struct BigForeTests {
             players: [player]
         )
         let course = try #require(CourseMapPoint(round: round))
-        let viewModel = CourseMapViewModel(course: course, round: round)
+        let courseMapViewModel = CourseMapViewModel(course: course, round: round)
 
-        #expect(viewModel.canSaveHole)
-        #expect(viewModel.saveHoleButtonTitle == "Save Grant")
-        #expect(viewModel.saveHoleActionAccessibilityLabel == "Save final hole for Grant and finish round")
+        #expect(courseMapViewModel.canSaveHole)
+        #expect(courseMapViewModel.saveHoleButtonTitle == "Save Grant")
+        #expect(courseMapViewModel.saveHoleActionAccessibilityLabel == "Save final hole for Grant and finish round")
 
-        viewModel.saveCurrentHole()
+        courseMapViewModel.saveCurrentHole()
 
         #expect(round.currentHole == 2)
         #expect(round.completedAt != nil)
@@ -1945,34 +1945,34 @@ struct BigForeTests {
             latitude: 33.0,
             longitude: -84.0
         )
-        let viewModel = CourseMapViewModel(course: course)
-        let initialDistance = viewModel.cameraDistance
+        let courseMapViewModel = CourseMapViewModel(course: course)
+        let initialDistance = courseMapViewModel.cameraDistance
         let teeBox = CLLocationCoordinate2D(latitude: 33.001, longitude: -84.001)
 
-        viewModel.zoomIn()
-        #expect(viewModel.cameraDistance < initialDistance)
+        courseMapViewModel.zoomIn()
+        #expect(courseMapViewModel.cameraDistance < initialDistance)
 
-        viewModel.zoomOut()
-        #expect(viewModel.cameraDistance == initialDistance)
+        courseMapViewModel.zoomOut()
+        #expect(courseMapViewModel.cameraDistance == initialDistance)
 
-        viewModel.rotateLeft()
-        #expect(viewModel.cameraHeading == 345)
+        courseMapViewModel.rotateLeft()
+        #expect(courseMapViewModel.cameraHeading == 345)
 
-        viewModel.rotateRight()
-        #expect(viewModel.cameraHeading == 0)
+        courseMapViewModel.rotateRight()
+        #expect(courseMapViewModel.cameraHeading == 0)
 
-        viewModel.rotateRight()
-        #expect(viewModel.cameraHeading == 15)
+        courseMapViewModel.rotateRight()
+        #expect(courseMapViewModel.cameraHeading == 15)
 
-        viewModel.resetNorth()
-        #expect(viewModel.cameraHeading == 0)
+        courseMapViewModel.resetNorth()
+        #expect(courseMapViewModel.cameraHeading == 0)
 
-        viewModel.selectionMode = .teeBox
-        viewModel.selectMapLocation(at: teeBox)
-        viewModel.showTeeBox()
+        courseMapViewModel.selectionMode = .teeBox
+        courseMapViewModel.selectMapLocation(at: teeBox)
+        courseMapViewModel.showTeeBox()
 
-        #expect(viewModel.cameraCenter.latitude == teeBox.latitude)
-        #expect(viewModel.cameraCenter.longitude == teeBox.longitude)
+        #expect(courseMapViewModel.cameraCenter.latitude == teeBox.latitude)
+        #expect(courseMapViewModel.cameraCenter.longitude == teeBox.longitude)
     }
 
     @Test func courseCoordinateEditorPersistsAndClearsManualCoursePin() throws {
@@ -2217,12 +2217,12 @@ struct BigForeTests {
         let geometries = try modelContext.fetch(FetchDescriptor<CourseGeometry>())
         let geometry = try #require(geometries.first)
         let hole = try #require(geometry.holes.first { $0.number == 1 })
-        let viewModel = CourseMapViewModel(
+        let courseMapViewModel = CourseMapViewModel(
             course: CourseMapPoint(id: 42, courseName: "Example Course", clubName: "Example Club", latitude: 33.0, longitude: -84.0),
             currentHoleNumber: 1
         )
 
-        viewModel.applyStoredHoleSetup(from: geometries)
+        courseMapViewModel.applyStoredHoleSetup(from: geometries)
 
         #expect(geometry.sourceRawValue == CourseGeometrySource.openStreetMap.rawValue)
         #expect(geometry.attribution == "© OpenStreetMap contributors, ODbL")
@@ -2230,8 +2230,8 @@ struct BigForeTests {
         #expect(hole.featurePoints.contains { $0.kind == .teeBox && $0.source == .openStreetMap })
         #expect(hole.featurePoints.contains { $0.kind == .greenPin && $0.source == .userMapped })
         #expect(hole.greenCenterLatitude == osmGreen.latitude)
-        #expect(viewModel.teeBoxCoordinate?.latitude == userTee.latitude)
-        #expect(viewModel.holePinCoordinate?.latitude == userPin.latitude)
+        #expect(courseMapViewModel.teeBoxCoordinate?.latitude == userTee.latitude)
+        #expect(courseMapViewModel.holePinCoordinate?.latitude == userPin.latitude)
     }
 
     @Test func courseGeometryStrategyReportsMissingAndAvailableGeometry() {
@@ -2359,11 +2359,11 @@ struct BigForeTests {
         let response = try JSONDecoder().decode(GolfCourseAPISearchResponse.self, from: json)
         let course = try #require(response.courses.first)
         let whiteTee = try #require(course.allTees.first { $0.teeName == "White" })
-        let viewModel = CourseSearchViewModel(apiKey: "test-key")
+        let courseSearchViewModel = CourseSearchViewModel(apiKey: "test-key")
 
-        viewModel.selectTee(id: whiteTee.id)
+        courseSearchViewModel.selectTee(id: whiteTee.id)
 
-        #expect(viewModel.selectedTeeID == whiteTee.id)
+        #expect(courseSearchViewModel.selectedTeeID == whiteTee.id)
     }
 
     @Test func courseRecentsStorePersistsEncodedSummaries() throws {
@@ -2389,7 +2389,7 @@ struct BigForeTests {
             CourseRecent(id: 2, displayName: "Old Second Club"),
             CourseRecent(id: 3, displayName: "Third Club")
         ])
-        let viewModel = CourseSearchViewModel(
+        let courseSearchViewModel = CourseSearchViewModel(
             apiKey: "test-key",
             apiClientProvider: { _ in StubGolfCourseAPIClient() },
             recentsStore: store
@@ -2401,12 +2401,12 @@ struct BigForeTests {
             address: "2 Fairway"
         )
 
-        viewModel.recordRecent(course: updatedCourse)
+        courseSearchViewModel.recordRecent(course: updatedCourse)
 
-        #expect(viewModel.recents.map(\.id) == [2, 1, 3])
-        #expect(viewModel.recents.first?.displayName == "Updated Club - Updated Course")
-        #expect(viewModel.recents.first?.locationText == "2 Fairway")
-        #expect(store.savedRecents == viewModel.recents)
+        #expect(courseSearchViewModel.recents.map(\.id) == [2, 1, 3])
+        #expect(courseSearchViewModel.recents.first?.displayName == "Updated Club - Updated Course")
+        #expect(courseSearchViewModel.recents.first?.locationText == "2 Fairway")
+        #expect(store.savedRecents == courseSearchViewModel.recents)
     }
 
     @Test func courseSearchViewModelCapsRecentsAtTwenty() throws {
@@ -2414,29 +2414,29 @@ struct BigForeTests {
             CourseRecent(id: id, displayName: "Course \(id)")
         }
         let store = InMemoryCourseRecentsStore(initialRecents: initialRecents)
-        let viewModel = CourseSearchViewModel(
+        let courseSearchViewModel = CourseSearchViewModel(
             apiKey: "test-key",
             apiClientProvider: { _ in StubGolfCourseAPIClient() },
             recentsStore: store
         )
         let newCourse = try makeAPICourse(id: 21, clubName: "Newest Club", courseName: "Newest Course")
 
-        viewModel.recordRecent(course: newCourse)
+        courseSearchViewModel.recordRecent(course: newCourse)
 
-        #expect(viewModel.recents.count == 20)
-        #expect(viewModel.recents.first?.id == 21)
-        #expect(viewModel.recents.map(\.id).contains(20) == false)
+        #expect(courseSearchViewModel.recents.count == 20)
+        #expect(courseSearchViewModel.recents.first?.id == 21)
+        #expect(courseSearchViewModel.recents.map(\.id).contains(20) == false)
         #expect(store.savedRecents.count == 20)
     }
 
     @Test func courseSearchViewModelReportsSearchQueryPresence() {
-        let viewModel = CourseSearchViewModel(apiKey: "test-key")
+        let courseSearchViewModel = CourseSearchViewModel(apiKey: "test-key")
 
-        #expect(viewModel.hasSearchQuery == false)
+        #expect(courseSearchViewModel.hasSearchQuery == false)
 
-        viewModel.query = "  Golden Horseshoe  "
+        courseSearchViewModel.query = "  Golden Horseshoe  "
 
-        #expect(viewModel.hasSearchQuery)
+        #expect(courseSearchViewModel.hasSearchQuery)
     }
 
     @Test func golfCourseNearbyRankingOrdersByDistanceAndDropsMissingCoordinates() throws {
@@ -2465,9 +2465,9 @@ struct BigForeTests {
             longitude: -84.0
         )
         let client = StubGolfCourseAPIClient(searchResults: [withoutCoords], coursesByID: [901: withCoords])
-        let viewModel = CourseSearchViewModel(apiKey: "test-key", apiClientProvider: { _ in client })
+        let courseSearchViewModel = CourseSearchViewModel(apiKey: "test-key", apiClientProvider: { _ in client })
 
-        let enriched = try await viewModel.enrichSearchHitsWithCoordinates([withoutCoords], api: client)
+        let enriched = try await courseSearchViewModel.enrichSearchHitsWithCoordinates([withoutCoords], api: client)
 
         #expect(enriched.count == 1)
         #expect(enriched[0].location.latitude == 33.0)
@@ -2480,20 +2480,20 @@ struct BigForeTests {
             CourseRecent(id: 2, displayName: "Second Club"),
             CourseRecent(id: 3, displayName: "Third Club")
         ])
-        let viewModel = CourseSearchViewModel(
+        let courseSearchViewModel = CourseSearchViewModel(
             apiKey: "test-key",
             apiClientProvider: { _ in StubGolfCourseAPIClient() },
             recentsStore: store
         )
 
-        viewModel.deleteRecent(id: 2)
+        courseSearchViewModel.deleteRecent(id: 2)
 
-        #expect(viewModel.recents.map(\.id) == [1, 3])
-        #expect(store.savedRecents == viewModel.recents)
+        #expect(courseSearchViewModel.recents.map(\.id) == [1, 3])
+        #expect(store.savedRecents == courseSearchViewModel.recents)
 
-        viewModel.clearRecents()
+        courseSearchViewModel.clearRecents()
 
-        #expect(viewModel.recents.isEmpty)
+        #expect(courseSearchViewModel.recents.isEmpty)
         #expect(store.savedRecents.isEmpty)
     }
 
@@ -2506,18 +2506,18 @@ struct BigForeTests {
         )
         let apiClient = StubGolfCourseAPIClient(coursesByID: [42: course])
         let store = InMemoryCourseRecentsStore()
-        let viewModel = CourseSearchViewModel(
+        let courseSearchViewModel = CourseSearchViewModel(
             apiKey: "test-key",
             apiClientProvider: { _ in apiClient },
             recentsStore: store
         )
 
-        await viewModel.loadCourse(id: 42)
+        await courseSearchViewModel.loadCourse(id: 42)
 
-        #expect(viewModel.errorMessage == nil)
-        #expect(viewModel.selectedCourse?.id == 42)
-        #expect(viewModel.recents == [CourseRecent(course: course)])
-        #expect(store.savedRecents == viewModel.recents)
+        #expect(courseSearchViewModel.errorMessage == nil)
+        #expect(courseSearchViewModel.selectedCourse?.id == 42)
+        #expect(courseSearchViewModel.recents == [CourseRecent(course: course)])
+        #expect(store.savedRecents == courseSearchViewModel.recents)
     }
 
     @Test func courseSearchViewModelLoadsOpenStreetMapGeometryWhenMissing() async throws {
@@ -2534,14 +2534,14 @@ struct BigForeTests {
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
-        let viewModel = CourseSearchViewModel(
+        let courseSearchViewModel = CourseSearchViewModel(
             apiKey: "test-key",
             apiClientProvider: { _ in apiClient },
             geometryProvider: geometryProvider
         )
 
-        await viewModel.loadCourse(id: 42)
-        await viewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
+        await courseSearchViewModel.loadCourse(id: 42)
+        await courseSearchViewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
 
         let geometries = try modelContext.fetch(FetchDescriptor<CourseGeometry>())
         let geometry = try #require(geometries.first)
@@ -2549,7 +2549,7 @@ struct BigForeTests {
         #expect(geometryProvider.requestCount == 1)
         #expect(geometry.courseExternalID == 42)
         #expect(geometry.sourceRawValue == CourseGeometrySource.openStreetMap.rawValue)
-        #expect(viewModel.statusMessage == "Loaded OpenStreetMap geometry for 1 hole.")
+        #expect(courseSearchViewModel.statusMessage == "Loaded OpenStreetMap geometry for 1 hole.")
     }
 
     @Test func courseSearchViewModelSkipsOpenStreetMapGeometryWhenCached() async throws {
@@ -2572,7 +2572,7 @@ struct BigForeTests {
             sourceName: "OpenStreetMap",
             holes: [HoleGeometry(number: 1, greenCenterLatitude: 33.75, greenCenterLongitude: -84.39)]
         )
-        let viewModel = CourseSearchViewModel(
+        let courseSearchViewModel = CourseSearchViewModel(
             apiKey: "test-key",
             apiClientProvider: { _ in apiClient },
             geometryProvider: geometryProvider
@@ -2580,8 +2580,8 @@ struct BigForeTests {
 
         modelContext.insert(cachedGeometry)
         try modelContext.save()
-        await viewModel.loadCourse(id: 42)
-        await viewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
+        await courseSearchViewModel.loadCourse(id: 42)
+        await courseSearchViewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
 
         #expect(geometryProvider.requestCount == 0)
     }
@@ -2627,12 +2627,12 @@ struct BigForeTests {
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
-        let viewModel = CourseSearchViewModel(apiKey: "test-key")
+        let courseSearchViewModel = CourseSearchViewModel(apiKey: "test-key")
 
-        viewModel.save(course: apiCourse, modelContext: modelContext)
+        courseSearchViewModel.save(course: apiCourse, modelContext: modelContext)
 
-        #expect(viewModel.errorMessage == nil)
-        #expect(viewModel.statusMessage == "Saved Example Club - Example Course.")
+        #expect(courseSearchViewModel.errorMessage == nil)
+        #expect(courseSearchViewModel.statusMessage == "Saved Example Club - Example Course.")
 
         let courses = try modelContext.fetch(FetchDescriptor<GolfCourse>())
         let savedCourse = try #require(courses.first)
@@ -2848,13 +2848,13 @@ struct BigForeTests {
             teeGender: "male",
             players: [player]
         )
-        let viewModel = ScorecardViewModel(round: round)
+        let scorecardViewModel = ScorecardViewModel(round: round)
 
-        #expect(viewModel.frontNineHoles == Array(1...9))
-        #expect(viewModel.backNineHoles == Array(10...18))
-        #expect(viewModel.frontNineSummaryText == "Par 36 · 3600 yds")
-        #expect(viewModel.backNineSummaryText == "Par 45 · 4500 yds")
-        #expect(viewModel.roundSummaryText == "Par 81 · 8100 yds")
+        #expect(scorecardViewModel.frontNineHoles == Array(1...9))
+        #expect(scorecardViewModel.backNineHoles == Array(10...18))
+        #expect(scorecardViewModel.frontNineSummaryText == "Par 36 · 3600 yds")
+        #expect(scorecardViewModel.backNineSummaryText == "Par 45 · 4500 yds")
+        #expect(scorecardViewModel.roundSummaryText == "Par 81 · 8100 yds")
     }
 
     @Test func scorecardViewModelAddsDeletesAndReordersPlayers() throws {
@@ -2888,24 +2888,24 @@ struct BigForeTests {
             teeGender: "male",
             players: [gp, toehead]
         )
-        let viewModel = ScorecardViewModel(round: round)
+        let scorecardViewModel = ScorecardViewModel(round: round)
 
         modelContext.insert(round)
         try modelContext.save()
 
-        viewModel.addPlayer(named: "Bill", modelContext: modelContext)
-        let bill = try #require(viewModel.players.first { $0.name == "Bill" })
+        scorecardViewModel.addPlayer(named: "Bill", modelContext: modelContext)
+        let bill = try #require(scorecardViewModel.players.first { $0.name == "Bill" })
 
-        #expect(viewModel.players.map(\.name) == ["Gp.", "Toehead", "Bill"])
+        #expect(scorecardViewModel.players.map(\.name) == ["Gp.", "Toehead", "Bill"])
         #expect(bill.scores.sorted { $0.holeNumber < $1.holeNumber }.map(\.yardage) == [421, 180])
-        #expect(viewModel.primaryPlayerName == "Bill")
+        #expect(scorecardViewModel.primaryPlayerName == "Bill")
 
-        viewModel.movePlayer(gp.id, to: 3, modelContext: modelContext)
-        #expect(viewModel.players.map(\.name) == ["Toehead", "Bill", "Gp."])
+        scorecardViewModel.movePlayer(gp.id, to: 3, modelContext: modelContext)
+        #expect(scorecardViewModel.players.map(\.name) == ["Toehead", "Bill", "Gp."])
 
-        viewModel.deletePlayer(bill, modelContext: modelContext)
-        #expect(viewModel.players.map(\.name) == ["Toehead", "Gp."])
-        #expect(viewModel.primaryPlayerName == "Toehead")
+        scorecardViewModel.deletePlayer(bill, modelContext: modelContext)
+        #expect(scorecardViewModel.players.map(\.name) == ["Toehead", "Gp."])
+        #expect(scorecardViewModel.primaryPlayerName == "Toehead")
     }
 
     @Test func roundsListViewModelFormatsDatesAndDeletesRound() throws {
@@ -2929,14 +2929,14 @@ struct BigForeTests {
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
-        let viewModel = RoundsListViewModel()
+        let roundsListViewModel = RoundsListViewModel()
 
         modelContext.insert(round)
         try modelContext.save()
 
-        #expect(viewModel.dateText(for: round) == "Monday July 7, 2025")
+        #expect(roundsListViewModel.dateText(for: round) == "Monday July 7, 2025")
 
-        viewModel.delete(round, modelContext: modelContext)
+        roundsListViewModel.delete(round, modelContext: modelContext)
 
         let rounds = try modelContext.fetch(FetchDescriptor<GolfRound>())
         #expect(rounds.isEmpty)
@@ -3008,9 +3008,9 @@ struct BigForeTests {
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let modelContext = container.mainContext
-        let viewModel = BagViewModel()
+        let bagViewModel = BagViewModel()
 
-        viewModel.seedDefaultBagIfNeeded(existingClubs: [], modelContext: modelContext)
+        bagViewModel.seedDefaultBagIfNeeded(existingClubs: [], modelContext: modelContext)
         var clubs = try modelContext.fetch(
             FetchDescriptor<GolfClub>(
                 sortBy: [
@@ -3022,9 +3022,9 @@ struct BigForeTests {
 
         #expect(clubs.count == 14)
         #expect(clubs.first?.name == "Driver")
-        #expect(viewModel.statusMessage == "Loaded Woody's starter bag.")
+        #expect(bagViewModel.statusMessage == "Loaded Woody's starter bag.")
 
-        viewModel.seedDefaultBagIfNeeded(existingClubs: clubs, modelContext: modelContext)
+        bagViewModel.seedDefaultBagIfNeeded(existingClubs: clubs, modelContext: modelContext)
         clubs = try modelContext.fetch(FetchDescriptor<GolfClub>())
 
         #expect(clubs.count == 14)
@@ -3108,19 +3108,19 @@ struct BigForeTests {
             teeGender: "male"
         )
         let provider = StubWeatherProvider()
-        let viewModel = WeatherViewModel(provider: provider)
+        let weatherViewModel = WeatherViewModel(provider: provider)
 
-        await viewModel.loadWeather(for: round)
-        await viewModel.loadWeather(for: round)
+        await weatherViewModel.loadWeather(for: round)
+        await weatherViewModel.loadWeather(for: round)
 
-        let summary = try #require(viewModel.summary(for: round))
+        let summary = try #require(weatherViewModel.summary(for: round))
         #expect(summary.symbolName == "sun.max.fill")
         #expect(summary.temperatureText == "72°")
         #expect(provider.requestCount == 1)
 
-        viewModel.removeWeather(for: round.id)
+        weatherViewModel.removeWeather(for: round.id)
 
-        #expect(viewModel.summary(for: round) == nil)
+        #expect(weatherViewModel.summary(for: round) == nil)
     }
 
     @Test func weatherViewModelPersistsAndReusesRoundSnapshot() async throws {
@@ -3138,16 +3138,16 @@ struct BigForeTests {
             teeGender: "male"
         )
         let provider = StubWeatherProvider()
-        let viewModel = WeatherViewModel(provider: provider)
+        let weatherViewModel = WeatherViewModel(provider: provider)
 
         modelContext.insert(round)
         try modelContext.save()
-        await viewModel.loadWeather(for: round, modelContext: modelContext)
-        viewModel.removeWeather(for: round.id)
-        await viewModel.loadWeather(for: round, modelContext: modelContext)
+        await weatherViewModel.loadWeather(for: round, modelContext: modelContext)
+        weatherViewModel.removeWeather(for: round.id)
+        await weatherViewModel.loadWeather(for: round, modelContext: modelContext)
 
         let snapshots = try modelContext.fetch(FetchDescriptor<RoundWeatherSnapshot>())
-        let summary = try #require(viewModel.summary(for: round))
+        let summary = try #require(weatherViewModel.summary(for: round))
 
         #expect(snapshots.count == 1)
         #expect(snapshots.first?.round === round)
@@ -3168,12 +3168,12 @@ struct BigForeTests {
             teeGender: "male"
         )
         let provider = StubWeatherProvider(error: StubWeatherProviderError.unavailable)
-        let viewModel = WeatherViewModel(provider: provider)
+        let weatherViewModel = WeatherViewModel(provider: provider)
 
-        await viewModel.loadWeather(for: round)
+        await weatherViewModel.loadWeather(for: round)
 
-        #expect(viewModel.summary(for: round) == nil)
-        #expect(viewModel.errorText(for: round) == "Weather unavailable.")
+        #expect(weatherViewModel.summary(for: round) == nil)
+        #expect(weatherViewModel.errorText(for: round) == "Weather unavailable.")
     }
 
     @Test func weatherViewModelHidesSystemWeatherErrors() async throws {
@@ -3187,12 +3187,12 @@ struct BigForeTests {
             teeGender: "male"
         )
         let provider = StubWeatherProvider(error: StubWeatherProviderError.systemDaemon)
-        let viewModel = WeatherViewModel(provider: provider)
+        let weatherViewModel = WeatherViewModel(provider: provider)
 
-        await viewModel.loadWeather(for: round)
+        await weatherViewModel.loadWeather(for: round)
 
-        #expect(viewModel.summary(for: round) == nil)
-        #expect(viewModel.errorText(for: round) == "Weather unavailable.")
+        #expect(weatherViewModel.summary(for: round) == nil)
+        #expect(weatherViewModel.errorText(for: round) == "Weather unavailable.")
     }
 }
 

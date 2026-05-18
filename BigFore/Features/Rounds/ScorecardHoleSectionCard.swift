@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ScorecardHoleSectionCard: View {
-    @Bindable var viewModel: ScorecardViewModel
+    @Bindable var scorecardViewModel: ScorecardViewModel
     let selectHole: (Int) -> Void
     let setQuickScore: ([Int], Int) -> Void
     let onTeeSelected: (GolfCourseTee) -> Void
@@ -15,13 +15,13 @@ struct ScorecardHoleSectionCard: View {
             HStack(alignment: .top, spacing: BigForeDesign.Spacing.medium) {
                 VStack(alignment: .leading, spacing: BigForeDesign.Spacing.xSmall) {
                     HStack(alignment: .center, spacing: BigForeDesign.Spacing.small) {
-                        Text("Scorecard - \(viewModel.primaryPlayerName)")
+                        Text("Scorecard - \(scorecardViewModel.primaryPlayerName)")
                             .font(.headline)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
 
                         HStack(alignment: .firstTextBaseline, spacing: 2) {
-                            Text(viewModel.round.scoringMode.title)
+                            Text(scorecardViewModel.round.scoringMode.title)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
@@ -35,28 +35,28 @@ struct ScorecardHoleSectionCard: View {
                             )
                         }
 
-                        if let player = viewModel.primaryPlayer {
-                            ScorecardPlayerTeeControl(player: player, round: viewModel.round, onTeeSelected: onTeeSelected)
+                        if let player = scorecardViewModel.primaryPlayer {
+                            ScorecardPlayerTeeControl(player: player, round: scorecardViewModel.round, onTeeSelected: onTeeSelected)
                                 .fixedSize(horizontal: true, vertical: false)
                         }
                     }
 
                     ScorecardNinePageControl(
-                        nines: viewModel.scorecardNines,
+                        nines: scorecardViewModel.scorecardNines,
                         selectedNine: $selectedNine,
-                        gridShowsStrokeCounts: $viewModel.scorecardGridShowsStrokeCounts,
+                        gridShowsStrokeCounts: $scorecardViewModel.scorecardGridShowsStrokeCounts,
                         stackScoringEnabled: $isStackScoringEnabled,
-                        scoringMode: viewModel.round.scoringMode,
+                        scoringMode: scorecardViewModel.round.scoringMode,
                         stackSelectionCount: stackedHoleNumbers.count,
                         clearStackSelection: {
-                            stackedHoleNumbers = [viewModel.round.currentHole]
+                            stackedHoleNumbers = [scorecardViewModel.round.currentHole]
                         }
                     )
                     .padding(.top, 10)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                if let counts = viewModel.primaryPlayerHeaderCounts(for: selectedNine) {
+                if let counts = scorecardViewModel.primaryPlayerHeaderCounts(for: selectedNine) {
                     VStack(alignment: .trailing, spacing: 3) {
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(selectedNine.shortSwitcherTitle)
@@ -93,11 +93,11 @@ struct ScorecardHoleSectionCard: View {
             }
 
             TabView(selection: $selectedNine) {
-                ForEach(viewModel.scorecardNines) { nine in
+                ForEach(scorecardViewModel.scorecardNines) { nine in
                     ScorecardNineGridPage(
                         nine: nine,
-                        viewModel: viewModel,
-                        gridShowsStrokes: $viewModel.scorecardGridShowsStrokeCounts,
+                        scorecardViewModel: scorecardViewModel,
+                        gridShowsStrokes: $scorecardViewModel.scorecardGridShowsStrokeCounts,
                         stackedHoleNumbers: stackedHoleNumbers,
                         selectHole: { holeNumber in
                             if isStackScoringEnabled {
@@ -125,13 +125,13 @@ struct ScorecardHoleSectionCard: View {
         .scorecardCardBackground()
         .onChange(of: isStackScoringEnabled) { _, isEnabled in
             if isEnabled {
-                stackedHoleNumbers = [viewModel.round.currentHole]
+                stackedHoleNumbers = [scorecardViewModel.round.currentHole]
             } else {
                 stackedHoleNumbers.removeAll()
             }
         }
         .onAppear(perform: syncSelectedNine)
-        .onChange(of: viewModel.round.currentHole) { _, _ in
+        .onChange(of: scorecardViewModel.round.currentHole) { _, _ in
             syncSelectedNine()
         }
         .popover(isPresented: Binding(
@@ -143,7 +143,7 @@ struct ScorecardHoleSectionCard: View {
             }
         )) {
             if let quickScoreHoleNumber,
-               let score = viewModel.primaryScore(forHoleNumber: quickScoreHoleNumber) {
+               let score = scorecardViewModel.primaryScore(forHoleNumber: quickScoreHoleNumber) {
                 quickScorePopover(score: score)
                     .presentationCompactAdaptation(.popover)
             }
@@ -152,7 +152,7 @@ struct ScorecardHoleSectionCard: View {
 
     private var scorecardHelpMessage: String {
         let plusExplained: String = {
-            switch viewModel.round.scoringMode {
+            switch scorecardViewModel.round.scoringMode {
             case .strokePlay:
                 "versus par"
             case .stableford:
@@ -172,7 +172,7 @@ struct ScorecardHoleSectionCard: View {
     }
 
     private func syncSelectedNine() {
-        selectedNine = ScorecardNine.containing(viewModel.round.currentHole)
+        selectedNine = ScorecardNine.containing(scorecardViewModel.round.currentHole)
     }
 
     private func toggleStackedHole(_ holeNumber: Int) {

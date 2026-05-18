@@ -1,16 +1,16 @@
 import SwiftUI
 
 struct CourseMapTopTrailingControls: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
 
     var body: some View {
         Button {
-            viewModel.toggleGPS()
+            courseMapViewModel.toggleGPS()
         } label: {
             passiveCompass
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(viewModel.isGPSCentered ? "Center on tee" : "Center on my GPS")
+        .accessibilityLabel(courseMapViewModel.isGPSCentered ? "Center on tee" : "Center on my GPS")
     }
 
     private var passiveCompass: some View {
@@ -22,14 +22,14 @@ struct CourseMapTopTrailingControls: View {
             Image(systemName: "location.north.fill")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BigForeDesign.Palette.destructive)
-                .rotationEffect(.degrees(-viewModel.cameraHeading))
+                .rotationEffect(.degrees(-courseMapViewModel.cameraHeading))
             Text(compassText)
                 .font(.caption2.weight(.black))
                 .foregroundStyle(.primary)
                 .offset(y: 11)
-            Image(systemName: viewModel.isGPSCentered ? "location.fill" : "location")
+            Image(systemName: courseMapViewModel.isGPSCentered ? "location.fill" : "location")
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(viewModel.isGPSCentered ? BigForeDesign.Palette.secondaryAction : .secondary)
+                .foregroundStyle(courseMapViewModel.isGPSCentered ? BigForeDesign.Palette.secondaryAction : .secondary)
                 .offset(y: -11)
         }
         .frame(width: 44, height: 44)
@@ -39,7 +39,7 @@ struct CourseMapTopTrailingControls: View {
     }
 
     private var compassText: String {
-        let heading = viewModel.cameraHeading
+        let heading = courseMapViewModel.cameraHeading
         switch heading {
         case 315...360, 0..<45:
             return "N"

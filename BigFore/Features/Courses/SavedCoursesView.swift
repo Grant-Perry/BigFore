@@ -83,11 +83,11 @@ private struct SavedCourseRow: View {
 struct SavedCourseDetailView: View {
     let course: GolfCourse
     @Environment(\.modelContext) private var modelContext
-    @State private var viewModel: SavedCourseDetailViewModel
+    @State private var savedCourseDetailViewModel: SavedCourseDetailViewModel
 
     init(course: GolfCourse) {
         self.course = course
-        _viewModel = State(initialValue: SavedCourseDetailViewModel(course: course))
+        _savedCourseDetailViewModel = State(initialValue: SavedCourseDetailViewModel(course: course))
     }
 
     private var sortedTees: [GolfCourseTee] {
@@ -95,11 +95,11 @@ struct SavedCourseDetailView: View {
     }
 
     private var selectedTee: GolfCourseTee? {
-        sortedTees.first { viewModel.isSelected(tee: $0) }
+        sortedTees.first { savedCourseDetailViewModel.isSelected(tee: $0) }
     }
 
     var body: some View {
-        @Bindable var viewModel = viewModel
+        @Bindable var savedCourseDetailViewModel = savedCourseDetailViewModel
 
         List {
             Section("Course") {
@@ -108,10 +108,10 @@ struct SavedCourseDetailView: View {
                         .font(.headline)
                     Text(course.clubName)
                         .foregroundStyle(.secondary)
-                    Text(viewModel.coordinateSummary(for: course))
+                    Text(savedCourseDetailViewModel.coordinateSummary(for: course))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text(viewModel.courseGeometryNotice)
+                    Text(savedCourseDetailViewModel.courseGeometryNotice)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -148,40 +148,40 @@ struct SavedCourseDetailView: View {
                 Text("Correct the course-level GPS point used for saved-course maps and new rounds.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField("Latitude", text: $viewModel.latitudeText)
+                TextField("Latitude", text: $savedCourseDetailViewModel.latitudeText)
                     .keyboardType(.numbersAndPunctuation)
-                TextField("Longitude", text: $viewModel.longitudeText)
+                TextField("Longitude", text: $savedCourseDetailViewModel.longitudeText)
                     .keyboardType(.numbersAndPunctuation)
-                Text(viewModel.locationService.locationStatusText)
+                Text(savedCourseDetailViewModel.locationService.locationStatusText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {
                     Button("Request GPS") {
-                        viewModel.requestLocationAccess()
+                        savedCourseDetailViewModel.requestLocationAccess()
                     }
                     Button("Use My Location") {
-                        viewModel.useCurrentLocationForPin()
+                        savedCourseDetailViewModel.useCurrentLocationForPin()
                     }
-                    .disabled(viewModel.locationService.currentLocation == nil)
+                    .disabled(savedCourseDetailViewModel.locationService.currentLocation == nil)
                 }
                 .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                 HStack {
                     Button("Save Course Pin") {
-                        viewModel.saveCoursePin(course: course, modelContext: modelContext)
+                        savedCourseDetailViewModel.saveCoursePin(course: course, modelContext: modelContext)
                     }
                     .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                     Button("Clear Pin") {
-                        viewModel.clearCoursePin(course: course, modelContext: modelContext)
+                        savedCourseDetailViewModel.clearCoursePin(course: course, modelContext: modelContext)
                     }
                     .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
                     .disabled(course.latitude == nil && course.longitude == nil)
                 }
-                if let pinStatusMessage = viewModel.pinStatusMessage {
+                if let pinStatusMessage = savedCourseDetailViewModel.pinStatusMessage {
                     Text(pinStatusMessage)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                if let pinErrorMessage = viewModel.pinErrorMessage {
+                if let pinErrorMessage = savedCourseDetailViewModel.pinErrorMessage {
                     Text(pinErrorMessage)
                         .font(.caption)
                         .foregroundStyle(.red)
@@ -197,8 +197,8 @@ struct SavedCourseDetailView: View {
                 ForEach(sortedTees) { tee in
                     SavedTeeSelectionRow(
                         tee: tee,
-                        isSelected: viewModel.isSelected(tee: tee),
-                        select: { viewModel.select(tee: tee) }
+                        isSelected: savedCourseDetailViewModel.isSelected(tee: tee),
+                        select: { savedCourseDetailViewModel.select(tee: tee) }
                     )
                 }
             }

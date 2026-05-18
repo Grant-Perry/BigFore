@@ -1,14 +1,14 @@
 import SwiftUI
 
 struct CourseMapShotSummaryList: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
 
     var body: some View {
-        if viewModel.shotSummaries.isEmpty == false {
+        if courseMapViewModel.shotSummaries.isEmpty == false {
             VStack(spacing: BigForeDesign.Spacing.small) {
-                ForEach(viewModel.shotSummaries) { summary in
+                ForEach(courseMapViewModel.shotSummaries) { summary in
                     Button {
-                        viewModel.selectShotMarker(id: summary.id)
+                        courseMapViewModel.selectShotMarker(id: summary.id)
                     } label: {
                         shotCard(summary)
                     }

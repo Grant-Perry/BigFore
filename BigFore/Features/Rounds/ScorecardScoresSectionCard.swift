@@ -3,7 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ScorecardScoresSectionCard: View {
-    let viewModel: ScorecardViewModel
+    let scorecardViewModel: ScorecardViewModel
     let modelContext: ModelContext
     let saveScore: () -> Void
     @State private var newPlayerName = ""
@@ -19,13 +19,13 @@ struct ScorecardScoresSectionCard: View {
 
                 Spacer()
 
-                Text(viewModel.currentHoleScoreStatusText)
+                Text(scorecardViewModel.currentHoleScoreStatusText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
-            if viewModel.players.count > 1 {
+            if scorecardViewModel.players.count > 1 {
                 Text("Use the lines on the left to reorder. Long-press a player card to remove them from the round.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -33,12 +33,12 @@ struct ScorecardScoresSectionCard: View {
             }
 
             VStack(spacing: BigForeDesign.Spacing.medium) {
-                let players = viewModel.scoreEntryPlayers
+                let players = scorecardViewModel.scoreEntryPlayers
                 ForEach(Array(players.enumerated()), id: \.element.id) { index, player in
                     insertionDropZone(at: index)
 
-                    if let score = viewModel.sortedScores(for: player).first(where: { $0.holeNumber == viewModel.round.currentHole }) {
-                        let showReorderHandle = viewModel.players.count > 1
+                    if let score = scorecardViewModel.sortedScores(for: player).first(where: { $0.holeNumber == scorecardViewModel.round.currentHole }) {
+                        let showReorderHandle = scorecardViewModel.players.count > 1
                         HStack(alignment: .center, spacing: BigForeDesign.Spacing.small) {
                             if showReorderHandle {
                                 Image(systemName: "line.3.horizontal")
@@ -56,11 +56,11 @@ struct ScorecardScoresSectionCard: View {
                             ScorecardPlayerHoleScoreRow(
                                 player: player,
                                 score: score,
-                                scoringMode: viewModel.round.scoringMode,
-                                result: viewModel.scoreResult(for: score),
-                                isSelected: player.id == viewModel.primaryPlayer?.id,
+                                scoringMode: scorecardViewModel.round.scoringMode,
+                                result: scorecardViewModel.scoreResult(for: score),
+                                isSelected: player.id == scorecardViewModel.primaryPlayer?.id,
                                 selectPlayer: {
-                                    viewModel.selectPlayer(player.id, modelContext: modelContext)
+                                    scorecardViewModel.selectPlayer(player.id, modelContext: modelContext)
                                 },
                                 saveScore: saveScore,
                                 onRequestDelete: showReorderHandle
@@ -76,7 +76,7 @@ struct ScorecardScoresSectionCard: View {
                                 draggingPlayerID: $draggingPlayerID,
                                 dropTargetIndex: $dropTargetIndex,
                                 movePlayerToIndex: { movingID, targetIndex in
-                                    viewModel.movePlayer(movingID, to: targetIndex, modelContext: modelContext)
+                                    scorecardViewModel.movePlayer(movingID, to: targetIndex, modelContext: modelContext)
                                 }
                             )
                         )
@@ -104,7 +104,7 @@ struct ScorecardScoresSectionCard: View {
         ) {
             if let playerPendingDeletion {
                 Button("Delete Player", role: .destructive) {
-                    viewModel.deletePlayer(playerPendingDeletion, modelContext: modelContext)
+                    scorecardViewModel.deletePlayer(playerPendingDeletion, modelContext: modelContext)
                     self.playerPendingDeletion = nil
                 }
             }
@@ -129,7 +129,7 @@ struct ScorecardScoresSectionCard: View {
     }
 
     private var canAddPlayer: Bool {
-        viewModel.canAddPlayer && !newPlayerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        scorecardViewModel.canAddPlayer && !newPlayerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func addPlayer() {
@@ -137,7 +137,7 @@ struct ScorecardScoresSectionCard: View {
             return
         }
 
-        viewModel.addPlayer(named: newPlayerName, modelContext: modelContext)
+        scorecardViewModel.addPlayer(named: newPlayerName, modelContext: modelContext)
         newPlayerName = ""
     }
 
@@ -166,7 +166,7 @@ struct ScorecardScoresSectionCard: View {
                 draggingPlayerID: $draggingPlayerID,
                 dropTargetIndex: $dropTargetIndex,
                 movePlayerToIndex: { movingID, targetIndex in
-                    viewModel.movePlayer(movingID, to: targetIndex, modelContext: modelContext)
+                    scorecardViewModel.movePlayer(movingID, to: targetIndex, modelContext: modelContext)
                 }
             )
         )

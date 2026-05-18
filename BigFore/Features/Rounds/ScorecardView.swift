@@ -38,7 +38,7 @@ struct ScorecardView: View {
                     .padding(.top, BigForeDesign.Spacing.medium)
 
                     ScorecardHoleSectionCard(
-                        viewModel: scorecardViewModel,
+                        scorecardViewModel: scorecardViewModel,
                         selectHole: { holeNumber in
                             scorecardViewModel.selectHole(holeNumber, modelContext: modelContext)
                         },
@@ -53,11 +53,11 @@ struct ScorecardView: View {
 
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
-                            ScorecardScoresSectionCard(viewModel: scorecardViewModel, modelContext: modelContext) {
+                            ScorecardScoresSectionCard(scorecardViewModel: scorecardViewModel, modelContext: modelContext) {
                                 scorecardViewModel.save(modelContext: modelContext)
                             }
 
-                            ScorecardTotalsSectionCard(viewModel: scorecardViewModel)
+                            ScorecardTotalsSectionCard(scorecardViewModel: scorecardViewModel)
 
                             if let errorMessage = scorecardViewModel.errorMessage {
                                 ScorecardErrorCard(message: errorMessage)

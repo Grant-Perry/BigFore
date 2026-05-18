@@ -4,25 +4,25 @@ import SwiftUI
 struct StartRoundView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(filter: #Predicate<PlayerProfile> { $0.isPrimaryUser }) private var primaryProfiles: [PlayerProfile]
-    @State private var viewModel: StartRoundViewModel
+    @State private var startRoundViewModel: StartRoundViewModel
 
     init(course: GolfCourseAPICourse, tee: GolfCourseAPITeeBox) {
-        _viewModel = State(initialValue: StartRoundViewModel(course: course, tee: tee))
+        _startRoundViewModel = State(initialValue: StartRoundViewModel(course: course, tee: tee))
     }
 
     init(savedCourse: GolfCourse, tee: GolfCourseTee) {
-        _viewModel = State(initialValue: StartRoundViewModel(savedCourse: savedCourse, tee: tee))
+        _startRoundViewModel = State(initialValue: StartRoundViewModel(savedCourse: savedCourse, tee: tee))
     }
 
     var body: some View {
-        @Bindable var viewModel = viewModel
+        @Bindable var startRoundViewModel = startRoundViewModel
 
         Form {
             Section("Course") {
-                Text(viewModel.course.displayName)
-                LabeledContent("Tee", value: "\(viewModel.tee.name) · \(viewModel.tee.gender.capitalized)")
-                LabeledContent("Total", value: "\(viewModel.tee.totalYards ?? 0) yds · Par \(viewModel.tee.parTotal ?? 0)")
-                if let mapPoint = CourseMapPoint(roundSetupCourse: viewModel.course) {
+                Text(startRoundViewModel.course.displayName)
+                LabeledContent("Tee", value: "\(startRoundViewModel.tee.name) · \(startRoundViewModel.tee.gender.capitalized)")
+                LabeledContent("Total", value: "\(startRoundViewModel.tee.totalYards ?? 0) yds · Par \(startRoundViewModel.tee.parTotal ?? 0)")
+                if let mapPoint = CourseMapPoint(roundSetupCourse: startRoundViewModel.course) {
                     NavigationLink("Open Course Map") {
                         CourseMapView(course: mapPoint)
                     }
@@ -30,7 +30,7 @@ struct StartRoundView: View {
             }
 
             Section("Scoring") {
-                Picker("Mode", selection: $viewModel.scoringMode) {
+                Picker("Mode", selection: $startRoundViewModel.scoringMode) {
                     ForEach(ScoringMode.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
@@ -38,19 +38,19 @@ struct StartRoundView: View {
             }
 
             Section("Players") {
-                ForEach(viewModel.playerNames.indices, id: \.self) { index in
-                    StartRoundPlayerNameRow(name: $viewModel.playerNames[index])
+                ForEach(startRoundViewModel.playerNames.indices, id: \.self) { index in
+                    StartRoundPlayerNameRow(name: $startRoundViewModel.playerNames[index])
                 }
                 .onDelete { offsets in
-                    viewModel.removePlayers(at: offsets)
+                    startRoundViewModel.removePlayers(at: offsets)
                 }
 
                 HStack {
-                    TextField("Add player", text: $viewModel.newPlayerName)
+                    TextField("Add player", text: $startRoundViewModel.newPlayerName)
                         .submitLabel(.done)
-                        .onSubmit(viewModel.addPlayer)
-                    Button("Add", action: viewModel.addPlayer)
-                        .disabled(!viewModel.canAddPlayer)
+                        .onSubmit(startRoundViewModel.addPlayer)
+                    Button("Add", action: startRoundViewModel.addPlayer)
+                        .disabled(!startRoundViewModel.canAddPlayer)
                 }
 
                 Text("Up to 8 players per round.")
@@ -58,7 +58,7 @@ struct StartRoundView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let errorMessage = viewModel.errorMessage {
+            if let errorMessage = startRoundViewModel.errorMessage {
                 Section {
                     Text(errorMessage)
                         .foregroundStyle(.red)
@@ -67,23 +67,23 @@ struct StartRoundView: View {
 
             Section {
                 Button("Start Round") {
-                    viewModel.startRound(modelContext: modelContext)
+                    startRoundViewModel.startRound(modelContext: modelContext)
                 }
                 .frame(maxWidth: .infinity)
                 .buttonStyle(BigForePillButtonStyle.bigForePrimary)
                 .tint(.green)
-                .disabled(!viewModel.canStartRound)
+                .disabled(!startRoundViewModel.canStartRound)
             }
         }
         .navigationTitle("Start Round")
-        .navigationDestination(item: $viewModel.createdRound) { round in
+        .navigationDestination(item: $startRoundViewModel.createdRound) { round in
             ScorecardView(round: round)
         }
         .onAppear {
-            viewModel.configurePrimaryPlayer(primaryProfiles.first)
+            startRoundViewModel.configurePrimaryPlayer(primaryProfiles.first)
         }
         .onChange(of: primaryProfiles.first?.id) { _, _ in
-            viewModel.configurePrimaryPlayer(primaryProfiles.first)
+            startRoundViewModel.configurePrimaryPlayer(primaryProfiles.first)
         }
     }
 }

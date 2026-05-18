@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PlayActiveRoundCard: View {
     let round: GolfRound
-    let viewModel: PlayHomeViewModel
+    let playHomeViewModel: PlayHomeViewModel
     let weatherSummary: WeatherSummary?
     let weatherErrorText: String?
     let onResume: () -> Void
@@ -19,7 +19,7 @@ struct PlayActiveRoundCard: View {
             weatherContext
             PlayStatGrid(
                 round: round,
-                viewModel: viewModel,
+                playHomeViewModel: playHomeViewModel,
                 onSelectPlayerScorecard: onSelectPlayerScorecard
             )
             leaderSummary
@@ -80,7 +80,7 @@ struct PlayActiveRoundCard: View {
 
                 Spacer()
 
-                Text("Started: \(viewModel.roundDateText(for: round))")
+                Text("Started: \(playHomeViewModel.roundDateText(for: round))")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, BigForeDesign.Spacing.medium)
@@ -95,7 +95,7 @@ struct PlayActiveRoundCard: View {
                 .minimumScaleFactor(0.56)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(viewModel.distanceText(for: round))
+            Text(playHomeViewModel.distanceText(for: round))
                 .font(.headline)
                 .foregroundStyle(.secondary)
         }
@@ -103,7 +103,7 @@ struct PlayActiveRoundCard: View {
 
     @ViewBuilder
     private var leaderSummary: some View {
-        if let leaderSummary = viewModel.leaderSummary(for: round) {
+        if let leaderSummary = playHomeViewModel.leaderSummary(for: round) {
             Label(leaderSummary, systemImage: "trophy.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)

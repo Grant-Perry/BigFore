@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct CourseMapBottomLeadingControls: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
     let modelContext: ModelContext
     let courseGeometries: [CourseGeometry]
     let activeGolfClubs: [GolfClub]
@@ -21,21 +21,21 @@ struct CourseMapBottomLeadingControls: View {
     private var compactHoleAnchorControls: some View {
         HStack(spacing: BigForeDesign.Spacing.small) {
             compactTapModeButton(
-                "T\(viewModel.targetHoleNumber)",
+                "T\(courseMapViewModel.targetHoleNumber)",
                 systemImage: "figure.golf",
                 accessibilityLabel: "Mark tee location",
                 mode: .teeBox
             ) {
-                viewModel.setTeeBoxTapMode(geometries: courseGeometries, focusesHoleLine: false)
+                courseMapViewModel.setTeeBoxTapMode(geometries: courseGeometries, focusesHoleLine: false)
             }
 
             compactTapModeButton(
-                "P\(viewModel.targetHoleNumber)",
+                "P\(courseMapViewModel.targetHoleNumber)",
                 systemImage: "flag.fill",
                 accessibilityLabel: "Mark pin location",
                 mode: .holePin
             ) {
-                viewModel.setHolePinTapMode(geometries: courseGeometries, focusesHoleLine: false)
+                courseMapViewModel.setHolePinTapMode(geometries: courseGeometries, focusesHoleLine: false)
             }
         }
         .controlSize(.small)
@@ -48,18 +48,18 @@ struct CourseMapBottomLeadingControls: View {
         HStack(spacing: BigForeDesign.Spacing.small) {
             Menu {
                 Picker("Hole", selection: Binding(
-                    get: { viewModel.targetHoleNumber },
-                    set: { viewModel.selectHole($0, geometries: courseGeometries, modelContext: modelContext) }
+                    get: { courseMapViewModel.targetHoleNumber },
+                    set: { courseMapViewModel.selectHole($0, geometries: courseGeometries, modelContext: modelContext) }
                 )) {
-                    ForEach(viewModel.availableHoles, id: \.self) { holeNumber in
+                    ForEach(courseMapViewModel.availableHoles, id: \.self) { holeNumber in
                         Text("Hole \(holeNumber)").tag(holeNumber)
                     }
                 }
             } label: {
-                compactControlLabel("H\(viewModel.targetHoleNumber)", systemImage: "chevron.up.chevron.down")
+                compactControlLabel("H\(courseMapViewModel.targetHoleNumber)", systemImage: "chevron.up.chevron.down")
             }
             .accessibilityLabel("Current hole")
-            .accessibilityValue("Hole \(viewModel.targetHoleNumber)")
+            .accessibilityValue("Hole \(courseMapViewModel.targetHoleNumber)")
             .accessibilityHint("Focuses the selected hole on the map.")
 
             compactClubPicker
@@ -70,27 +70,27 @@ struct CourseMapBottomLeadingControls: View {
                 accessibilityLabel: "Set ball location",
                 mode: .shotBall
             ) {
-                viewModel.setShotBallTapMode()
+                courseMapViewModel.setShotBallTapMode()
             }
 
             Button {
-                viewModel.startNextShotFromBall()
+                courseMapViewModel.startNextShotFromBall()
             } label: {
                 compactIconLabel("Start next shot", systemImage: "play.circle.fill")
             }
             .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
-            .disabled(!viewModel.canStartNextShotFromBall)
+            .disabled(!courseMapViewModel.canStartNextShotFromBall)
             .accessibilityHint("Starts the next shot from the last marked ball.")
 
             compactHoleAnchorControls
 
             Button {
-                viewModel.undoLastPin(modelContext: modelContext)
+                courseMapViewModel.undoLastPin(modelContext: modelContext)
             } label: {
                 compactIconLabel("Undo last pin", systemImage: "arrow.uturn.backward")
             }
             .buttonStyle(BigForePillButtonStyle.bigForeSecondary)
-            .disabled(!viewModel.canUndoLastPin)
+            .disabled(!courseMapViewModel.canUndoLastPin)
             .accessibilityHint("Removes the most recent map pin for this hole.")
         }
         .controlSize(.small)
@@ -107,10 +107,10 @@ struct CourseMapBottomLeadingControls: View {
         if activeGolfClubs.isEmpty == false {
             Menu {
                 Picker("Shot club", selection: Binding(
-                    get: { viewModel.selectedClubID },
+                    get: { courseMapViewModel.selectedClubID },
                     set: { newValue in
-                        viewModel.selectedClubID = newValue
-                        viewModel.applySelectedClubToCurrentShot(from: activeGolfClubs, modelContext: modelContext)
+                        courseMapViewModel.selectedClubID = newValue
+                        courseMapViewModel.applySelectedClubToCurrentShot(from: activeGolfClubs, modelContext: modelContext)
                     }
                 )) {
                     ForEach(activeGolfClubs) { club in
@@ -118,10 +118,10 @@ struct CourseMapBottomLeadingControls: View {
                     }
                 }
             } label: {
-                compactControlLabel(viewModel.selectedClubShortName(from: activeGolfClubs), systemImage: "figure.golf")
+                compactControlLabel(courseMapViewModel.selectedClubShortName(from: activeGolfClubs), systemImage: "figure.golf")
             }
             .accessibilityLabel("Shot club")
-            .accessibilityValue(viewModel.selectedClubName(from: activeGolfClubs))
+            .accessibilityValue(courseMapViewModel.selectedClubName(from: activeGolfClubs))
             .accessibilityHint("Selects the club saved to the next marked shot.")
         }
     }
@@ -134,7 +134,7 @@ struct CourseMapBottomLeadingControls: View {
         mode: CourseMapSelectionMode,
         action: @escaping () -> Void
     ) -> some View {
-        if viewModel.selectionMode == mode {
+        if courseMapViewModel.selectionMode == mode {
             Button(action: action) {
                 compactTapModeLabel(title, systemImage: systemImage)
             }

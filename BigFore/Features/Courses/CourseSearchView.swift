@@ -4,7 +4,7 @@ import SwiftUI
 struct CourseSearchView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage("golfCourseAPIKey") private var apiKey = GolfCourseAPIConfiguration.defaultAPIKey
-    @State private var viewModel = CourseSearchViewModel(apiKey: GolfCourseAPIConfiguration.defaultAPIKey)
+    @State private var courseSearchViewModel = CourseSearchViewModel(apiKey: GolfCourseAPIConfiguration.defaultAPIKey)
     @State private var isClearRecentsConfirmationPresented = false
     @State private var isRecentsExpanded = false
 
@@ -15,20 +15,20 @@ struct CourseSearchView: View {
                 nearbySection
                 resultsSection
 
-                if viewModel.isLoadingCourse {
+                if courseSearchViewModel.isLoadingCourse {
                     Section {
                         ProgressView("Loading course")
                     }
                 }
 
-                if let selectedCourse = viewModel.selectedCourse {
+                if let selectedCourse = courseSearchViewModel.selectedCourse {
                     CourseDetailSection(
                         course: selectedCourse,
-                        selectedTeeID: viewModel.selectedTeeID,
-                        geometryNotice: viewModel.courseGeometryNotice,
-                        selectTee: viewModel.selectTee(id:)
+                        selectedTeeID: courseSearchViewModel.selectedTeeID,
+                        geometryNotice: courseSearchViewModel.courseGeometryNotice,
+                        selectTee: courseSearchViewModel.selectTee(id:)
                     ) {
-                        viewModel.save(course: selectedCourse, modelContext: modelContext)
+                        courseSearchViewModel.save(course: selectedCourse, modelContext: modelContext)
                     }
                 }
 
@@ -38,10 +38,10 @@ struct CourseSearchView: View {
             .listStyle(.insetGrouped)
             .scrollDismissesKeyboard(.interactively)
             .onAppear {
-                viewModel.apiKey = apiKey
+                courseSearchViewModel.apiKey = apiKey
             }
             .onDisappear {
-                viewModel.locationService.stopLocationUpdates()
+                courseSearchViewModel.locationService.stopLocationUpdates()
             }
             .confirmationDialog(
                 "Clear all recent courses?",
@@ -49,7 +49,7 @@ struct CourseSearchView: View {
                 titleVisibility: .visible
             ) {
                 Button("Clear Recents", role: .destructive) {
-                    viewModel.clearRecents()
+                    courseSearchViewModel.clearRecents()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -66,7 +66,7 @@ struct CourseSearchView: View {
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: BigForeDesign.Spacing.medium) {
-                    TextField("Course or city", text: $viewModel.query)
+                    TextField("Course or city", text: $courseSearchViewModel.query)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.search)
                         .onSubmit(performSearch)
@@ -74,7 +74,7 @@ struct CourseSearchView: View {
                     Button {
                         performSearch()
                     } label: {
-                        if viewModel.isSearching {
+                        if courseSearchViewModel.isSearching {
                             ProgressView()
                         } else {
                             Text("Go")
@@ -82,10 +82,10 @@ struct CourseSearchView: View {
                         }
                     }
                     .buttonStyle(BigForePillButtonStyle.bigForePrimary)
-                    .disabled(!viewModel.hasSearchQuery || viewModel.isSearching)
+                    .disabled(!courseSearchViewModel.hasSearchQuery || courseSearchViewModel.isSearching)
                 }
 
-                TextField("City or ZIP (optional)", text: $viewModel.nearbyCityOrZIP)
+                TextField("City or ZIP (optional)", text: $courseSearchViewModel.nearbyCityOrZIP)
                     .textInputAutocapitalization(.words)
                     .autocorrectionDisabled()
 
@@ -96,9 +96,9 @@ struct CourseSearchView: View {
                 HStack(alignment: .center, spacing: BigForeDesign.Spacing.medium) {
                     Button {
                         isRecentsExpanded = false
-                        Task { await viewModel.findClosestCourses() }
+                        Task { await courseSearchViewModel.findClosestCourses() }
                     } label: {
-                        if viewModel.isFindingClosest {
+                        if courseSearchViewModel.isFindingClosest {
                             ProgressView()
                         } else {
                             Label("Find closest", systemImage: "location.circle.fill")
@@ -106,18 +106,18 @@ struct CourseSearchView: View {
                         }
                     }
                     .buttonStyle(BigForePillButtonStyle.bigForePrimary)
-                    .disabled(viewModel.isFindingClosest || viewModel.isSearching)
+                    .disabled(courseSearchViewModel.isFindingClosest || courseSearchViewModel.isSearching)
 
                     Spacer(minLength: 0)
                 }
 
-                if viewModel.isNearbySessionActive {
+                if courseSearchViewModel.isNearbySessionActive {
                     VStack(alignment: .leading, spacing: BigForeDesign.Spacing.small) {
-                        Text("Within \(Int(viewModel.nearbyRadiusMiles)) mi")
+                        Text("Within \(Int(courseSearchViewModel.nearbyRadiusMiles)) mi")
                             .font(.subheadline.weight(.semibold))
 
                         Slider(
-                            value: $viewModel.nearbyRadiusMiles,
+                            value: $courseSearchViewModel.nearbyRadiusMiles,
                             in: CourseSearchViewModel.nearbyRadiusSliderClosedRange,
                             step: CourseSearchViewModel.nearbyRadiusSliderStep,
                             label: {
@@ -125,14 +125,14 @@ struct CourseSearchView: View {
                             },
                             onEditingChanged: { isEditing in
                                 if !isEditing {
-                                    Task { await viewModel.refreshNearbyRadiusAfterSliderReleased() }
+                                    Task { await courseSearchViewModel.refreshNearbyRadiusAfterSliderReleased() }
                                 }
                             }
                         )
                         .labelsHidden()
-                        .disabled(viewModel.isFindingClosest || viewModel.isSearching || viewModel.isRefreshingNearbyForRadius)
+                        .disabled(courseSearchViewModel.isFindingClosest || courseSearchViewModel.isSearching || courseSearchViewModel.isRefreshingNearbyForRadius)
 
-                        if viewModel.isRefreshingNearbyForRadius {
+                        if courseSearchViewModel.isRefreshingNearbyForRadius {
                             ProgressView()
                                 .controlSize(.small)
                         }
@@ -147,9 +147,9 @@ struct CourseSearchView: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
 
-                if let errorMessage = viewModel.errorMessage {
+                if let errorMessage = courseSearchViewModel.errorMessage {
                     CourseSearchMessageRow(message: errorMessage, systemImage: "exclamationmark.triangle.fill", tint: BigForeDesign.Palette.destructive)
-                } else if let statusMessage = viewModel.statusMessage {
+                } else if let statusMessage = courseSearchViewModel.statusMessage {
                     CourseSearchMessageRow(message: statusMessage, systemImage: "checkmark.circle.fill", tint: BigForeDesign.Palette.primaryAction)
                 }
             }
@@ -159,22 +159,22 @@ struct CourseSearchView: View {
 
     @ViewBuilder
     private var nearbySection: some View {
-        if viewModel.isFindingClosest || !viewModel.nearbyMapKitRows.isEmpty || viewModel.isNearbySessionActive {
+        if courseSearchViewModel.isFindingClosest || !courseSearchViewModel.nearbyMapKitRows.isEmpty || courseSearchViewModel.isNearbySessionActive {
             Section {
-                if viewModel.isFindingClosest {
+                if courseSearchViewModel.isFindingClosest {
                     ProgressView("Finding nearby courses")
-                } else if viewModel.nearbyMapKitRows.isEmpty {
+                } else if courseSearchViewModel.nearbyMapKitRows.isEmpty {
                     ContentUnavailableView(
                         "No courses in range",
                         systemImage: "location.slash",
                         description: Text("Move the distance slider up, adjust city or ZIP, or tap Find closest again.")
                     )
                 } else {
-                    ForEach(viewModel.nearbyMapKitRows) { row in
+                    ForEach(courseSearchViewModel.nearbyMapKitRows) { row in
                         Button {
                             Task {
-                                await viewModel.selectNearbyMapRow(row)
-                                await viewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
+                                await courseSearchViewModel.selectNearbyMapRow(row)
+                                await courseSearchViewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
                             }
                         } label: {
                             CourseDiscoveryCard(
@@ -196,7 +196,7 @@ struct CourseSearchView: View {
             } header: {
                 CourseSearchSectionHeader(
                     title: "Near you",
-                    detail: viewModel.nearbyMapKitRows.isEmpty ? nil : "\(viewModel.nearbyMapKitRows.count)"
+                    detail: courseSearchViewModel.nearbyMapKitRows.isEmpty ? nil : "\(courseSearchViewModel.nearbyMapKitRows.count)"
                 )
             }
         }
@@ -204,18 +204,18 @@ struct CourseSearchView: View {
 
     @ViewBuilder
     private var resultsSection: some View {
-        if viewModel.isSearching || viewModel.hasSearchQuery || !viewModel.results.isEmpty {
+        if courseSearchViewModel.isSearching || courseSearchViewModel.hasSearchQuery || !courseSearchViewModel.results.isEmpty {
             Section {
-                if viewModel.isSearching {
+                if courseSearchViewModel.isSearching {
                     ProgressView("Searching courses")
-                } else if viewModel.results.isEmpty {
+                } else if courseSearchViewModel.results.isEmpty {
                     ContentUnavailableView(
                         "No Courses Found",
                         systemImage: "magnifyingglass",
                         description: Text("Try a nearby city, club name, or shorter course name.")
                     )
                 } else {
-                    ForEach(viewModel.results) { course in
+                    ForEach(courseSearchViewModel.results) { course in
                         Button {
                             Task { await loadCourseAndGeometry(id: course.id) }
                         } label: {
@@ -235,17 +235,17 @@ struct CourseSearchView: View {
                     }
                 }
             } header: {
-                CourseSearchSectionHeader(title: "Results", detail: viewModel.results.isEmpty ? nil : "\(viewModel.results.count)")
+                CourseSearchSectionHeader(title: "Results", detail: courseSearchViewModel.results.isEmpty ? nil : "\(courseSearchViewModel.results.count)")
             }
         }
     }
 
     @ViewBuilder
     private var recentsSection: some View {
-        if !viewModel.recents.isEmpty {
+        if !courseSearchViewModel.recents.isEmpty {
             Section {
                 if isRecentsExpanded {
-                    ForEach(viewModel.recents) { recent in
+                    ForEach(courseSearchViewModel.recents) { recent in
                         Button {
                             Task { await loadCourseAndGeometry(id: recent.id) }
                         } label: {
@@ -265,7 +265,7 @@ struct CourseSearchView: View {
                         .listRowBackground(Color.clear)
                         .swipeActions {
                             Button("Delete", role: .destructive) {
-                                viewModel.deleteRecent(id: recent.id)
+                                courseSearchViewModel.deleteRecent(id: recent.id)
                             }
                         }
                     }
@@ -275,13 +275,13 @@ struct CourseSearchView: View {
                             isRecentsExpanded = true
                         }
                     } label: {
-                        Label("\(viewModel.recents.count) recent \(viewModel.recents.count == 1 ? "course" : "courses") hidden", systemImage: "chevron.down")
+                        Label("\(courseSearchViewModel.recents.count) recent \(courseSearchViewModel.recents.count == 1 ? "course" : "courses") hidden", systemImage: "chevron.down")
                             .foregroundStyle(.secondary)
                     }
                 }
             } header: {
                 HStack(spacing: BigForeDesign.Spacing.medium) {
-                    CourseSearchSectionHeader(title: "Recents", detail: "\(viewModel.recents.count)")
+                    CourseSearchSectionHeader(title: "Recents", detail: "\(courseSearchViewModel.recents.count)")
                     Spacer()
                     Button(isRecentsExpanded ? "Hide" : "Show") {
                         withAnimation(.snappy) {
@@ -305,12 +305,12 @@ struct CourseSearchView: View {
 
     private func performSearch() {
         isRecentsExpanded = false
-        Task { await viewModel.search() }
+        Task { await courseSearchViewModel.search() }
     }
 
     private func loadCourseAndGeometry(id: Int) async {
-        await viewModel.loadCourse(id: id)
-        await viewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
+        await courseSearchViewModel.loadCourse(id: id)
+        await courseSearchViewModel.ensureOpenStreetMapGeometryIfNeeded(modelContext: modelContext)
     }
 }
 

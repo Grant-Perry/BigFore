@@ -11,15 +11,15 @@ private enum RoundsNavigation: Hashable {
 struct RoundsListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \GolfRound.startedAt, order: .reverse) private var rounds: [GolfRound]
-    @State private var viewModel = RoundsListViewModel()
+    @State private var roundsListViewModel = RoundsListViewModel()
     @State private var playHomeViewModel = PlayHomeViewModel()
     @State private var weatherViewModel = WeatherViewModel()
     @State private var roundPendingDeletion: GolfRound?
     @State private var navigationPath: [RoundsNavigation] = []
 
     var body: some View {
-        let activeRounds = viewModel.activeRounds(from: rounds)
-        let completedRounds = viewModel.completedRounds(from: rounds)
+        let activeRounds = roundsListViewModel.activeRounds(from: rounds)
+        let completedRounds = roundsListViewModel.completedRounds(from: rounds)
 
         NavigationStack(path: $navigationPath) {
             List {
@@ -27,7 +27,7 @@ struct RoundsListView: View {
                     Section {
                         PlayActiveRoundCard(
                             round: activeRound,
-                            viewModel: playHomeViewModel,
+                            playHomeViewModel: playHomeViewModel,
                             weatherSummary: weatherViewModel.summary(for: activeRound),
                             weatherErrorText: weatherViewModel.errorText(for: activeRound),
                             onResume: {
@@ -60,7 +60,7 @@ struct RoundsListView: View {
                         } label: {
                             RoundRow(
                                 round: round,
-                                viewModel: viewModel,
+                                roundsListViewModel: roundsListViewModel,
                                 weatherSummary: weatherViewModel.summary(for: round),
                                 weatherErrorText: weatherViewModel.errorText(for: round)
                             )
@@ -86,7 +86,7 @@ struct RoundsListView: View {
                         NavigationLink(value: RoundsNavigation.recap(round.id)) {
                             RoundRow(
                                 round: round,
-                                viewModel: viewModel,
+                                roundsListViewModel: roundsListViewModel,
                                 weatherSummary: weatherViewModel.summary(for: round),
                                 weatherErrorText: weatherViewModel.errorText(for: round)
                             )
@@ -124,7 +124,7 @@ struct RoundsListView: View {
                 Button("Delete Round", role: .destructive) {
                     if let roundPendingDeletion {
                         let deletedRoundID = roundPendingDeletion.id
-                        viewModel.delete(roundPendingDeletion, modelContext: modelContext)
+                        roundsListViewModel.delete(roundPendingDeletion, modelContext: modelContext)
                         weatherViewModel.removeWeather(for: deletedRoundID)
                     }
                     roundPendingDeletion = nil
@@ -177,14 +177,14 @@ struct RoundsListView: View {
 
 struct RoundRow: View {
     let round: GolfRound
-    let viewModel: RoundsListViewModel
+    let roundsListViewModel: RoundsListViewModel
     let weatherSummary: WeatherSummary?
     let weatherErrorText: String?
 
     var body: some View {
         CourseDiscoveryCard(
             title: round.courseName,
-            subtitle: "\(viewModel.dateText(for: round)) · \(round.teeName) · \(round.scoringMode.title)",
+            subtitle: "\(roundsListViewModel.dateText(for: round)) · \(round.teeName) · \(round.scoringMode.title)",
             detail: detailText,
             badges: badges,
             weatherSymbolName: weatherSummary?.symbolName,
@@ -196,7 +196,7 @@ struct RoundRow: View {
     }
 
     private var badges: [String] {
-        var badges = [round.isComplete ? "Completed" : viewModel.resumeText(for: round)]
+        var badges = [round.isComplete ? "Completed" : roundsListViewModel.resumeText(for: round)]
         if let weatherSummary {
             badges.append(weatherSummary.temperatureText)
             if let windText = weatherSummary.windText {
@@ -205,16 +205,16 @@ struct RoundRow: View {
         } else if weatherErrorText != nil {
             badges.append("Weather unavailable")
         }
-        badges.append(viewModel.gpsStatusText(for: round))
+        badges.append(roundsListViewModel.gpsStatusText(for: round))
         return badges
     }
 
     private var detailText: String {
-        guard let leader = viewModel.leader(for: round) else {
-            return "\(viewModel.playerCount(for: round)) players"
+        guard let leader = roundsListViewModel.leader(for: round) else {
+            return "\(roundsListViewModel.playerCount(for: round)) players"
         }
 
-        return "\(viewModel.playerCount(for: round)) players · Leader: \(leader.name) \(viewModel.summary(for: leader, in: round))"
+        return "\(roundsListViewModel.playerCount(for: round)) players · Leader: \(leader.name) \(roundsListViewModel.summary(for: leader, in: round))"
     }
 }
 

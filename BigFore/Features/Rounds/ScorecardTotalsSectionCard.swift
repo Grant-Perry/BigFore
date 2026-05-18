@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ScorecardTotalsSectionCard: View {
-    let viewModel: ScorecardViewModel
+    let scorecardViewModel: ScorecardViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: BigForeDesign.Spacing.medium) {
@@ -9,10 +9,10 @@ struct ScorecardTotalsSectionCard: View {
                 .font(.headline)
 
             VStack(spacing: BigForeDesign.Spacing.medium) {
-                ForEach(viewModel.players) { player in
-                    ScorecardPlayerTotalRow(player: player, scoringMode: viewModel.round.scoringMode)
+                ForEach(scorecardViewModel.players) { player in
+                    ScorecardPlayerTotalRow(player: player, scoringMode: scorecardViewModel.round.scoringMode)
 
-                    if player.id != viewModel.players.last?.id {
+                    if player.id != scorecardViewModel.players.last?.id {
                         Divider()
                     }
                 }

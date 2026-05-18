@@ -1,15 +1,15 @@
 import SwiftUI
 
 struct CourseMapMeasuredPointAnnotation: View {
-    let viewModel: CourseMapViewModel
+    let courseMapViewModel: CourseMapViewModel
     @Binding var isDeleteVisible: Bool
 
     var body: some View {
         HStack(spacing: BigForeDesign.Spacing.xSmall) {
             Button {
                 isDeleteVisible.toggle()
-                if let measuredCoordinate = viewModel.measuredCoordinate {
-                    viewModel.selectMapInfo(title: "Measured Point", coordinate: measuredCoordinate)
+                if let measuredCoordinate = courseMapViewModel.measuredCoordinate {
+                    courseMapViewModel.selectMapInfo(title: "Measured Point", coordinate: measuredCoordinate)
                 }
             } label: {
                 Image(systemName: "mappin.circle.fill")
@@ -25,7 +25,7 @@ struct CourseMapMeasuredPointAnnotation: View {
 
             if isDeleteVisible {
                 Button(role: .destructive) {
-                    viewModel.deleteMeasuredPoint()
+                    courseMapViewModel.deleteMeasuredPoint()
                     isDeleteVisible = false
                 } label: {
                     Image(systemName: "xmark.circle.fill")
